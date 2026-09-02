@@ -13,6 +13,9 @@ class FakeHermesContext:
         self.skills: list[tuple[str, Path, str]] = []
         self.unload_callbacks = []
 
+    def get_config(self, key: str, default=None):
+        return default
+
     def on_unload(self, callback) -> None:
         self.unload_callbacks.append(callback)
 
@@ -24,6 +27,9 @@ class FakeHermesContextWithoutProfile:
     def __init__(self) -> None:
         self.skills: list[tuple[str, Path, str]] = []
         self.unload_callbacks = []
+
+    def get_config(self, key: str, default=None):
+        return default
 
     def on_unload(self, callback) -> None:
         self.unload_callbacks.append(callback)
