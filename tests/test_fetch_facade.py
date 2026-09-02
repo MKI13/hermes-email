@@ -106,6 +106,19 @@ def test_from_config_fetches_only_the_requested_mock_page() -> None:
     asyncio.run(exercise())
 
 
+def test_default_fetch_limit_is_finite_and_forwarded() -> None:
+    async def exercise() -> None:
+        provider = RecordingProvider()
+        plugin = EmailPlugin(plugin_config(read_mode="mock"), provider=provider)
+
+        await plugin.fetch_messages()
+
+        assert provider.fetch_limits == [50]
+        assert provider.other_calls == []
+
+    asyncio.run(exercise())
+
+
 def test_disabled_read_mode_blocks_before_provider_access() -> None:
     async def exercise() -> None:
         provider = RecordingProvider()
