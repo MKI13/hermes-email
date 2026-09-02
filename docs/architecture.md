@@ -12,7 +12,7 @@ The root `plugin.yaml` and `__init__.py` follow Hermes' native standalone plugin
 
 ### Plugin facade
 
-`hermes_email.plugin.EmailPlugin` is the future orchestration point. It owns validated configuration, an optional provider, and an optional Hermes context source. In version 0.1.0 it can prepare an in-memory draft value and refuses every send attempt.
+`hermes_email.plugin.EmailPlugin` is the future orchestration point. It owns validated configuration, an optional provider, and an optional Hermes context source. In version 0.2.0 it can prepare a local draft value and refuses every send attempt.
 
 Future technical responsibilities belong behind this facade:
 
@@ -23,11 +23,11 @@ Future technical responsibilities belong behind this facade:
 - privacy-aware logging;
 - independent safety authorization.
 
-These responsibilities are documented seams, not implemented subsystems in version 0.1.0.
+Version 0.2.0 implements only deterministic local message retrieval and in-memory draft storage through the mock provider. The remaining responsibilities are documented seams, not implemented subsystems.
 
 ### Provider abstraction
 
-`hermes_email.providers.EmailProvider` defines asynchronous methods for fetching message summaries, retrieving one message, creating a draft, and sending a stored draft. No concrete provider ships in version 0.1.0.
+`hermes_email.providers.EmailProvider` defines asynchronous methods for fetching message summaries, retrieving one message, creating a draft, and sending a stored draft. `MockEmailProvider` is the only concrete implementation in version 0.2.0. It uses deterministic synthetic messages, stores drafts only in memory, performs no network access, and always blocks sending.
 
 Future IMAP, SMTP, Gmail, Microsoft, Proton Bridge, or other adapters must normalize provider data into `EmailMessage` and `EmailDraft`. A provider's declared capability is never sufficient authorization for an external or destructive action.
 
@@ -51,7 +51,7 @@ Hermes runtime
 EmailPlugin
     -> EmailPluginConfig
     -> HermesContextSource (optional)
-    -> EmailProvider (optional, no implementations yet)
+    -> EmailProvider (optional; MockEmailProvider for local tests)
 
 EmailProvider
     -> provider-neutral models

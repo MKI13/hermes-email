@@ -1,15 +1,17 @@
 # Security Model
 
-## Version 0.1.0 boundary
+## Version 0.2.0 boundary
 
-This release is a foundation, not a mail client. It performs no network access, account authentication, mailbox polling, message transmission, deletion, or movement.
+This release is a foundation with a local mock provider, not a mail client. The mock performs no network access, account authentication, mailbox polling, message transmission, deletion, movement, or persistence.
 
 ## Safe by default
 
 - Reading is `disabled` by default and has no production implementation.
-- Draft preparation creates only a local `EmailDraft` value.
+- Mock reading returns only deterministic synthetic messages.
+- Mock drafts exist only in the provider instance's memory.
 - `EmailPlugin.send_message()` always raises `SendingUnavailableError`.
-- Provider capabilities default to false.
+- `MockEmailProvider.send_message()` always raises `MockSendBlockedError`.
+- Base provider capabilities default to false; the mock enables only fetch and drafts.
 - Sending, deletion, and movement configuration flags default to false.
 - No credentials are required or included.
 
@@ -41,7 +43,7 @@ Before any release can send, delete, or move mail, it must include:
 6. focused tests for denial, failure, retries, and ambiguous state;
 7. updated security documentation and changelog.
 
-No item in this list is implemented implicitly by the version 0.1.0 interfaces.
+No item in this list is implemented implicitly by the version 0.2.0 interfaces.
 
 ## Credentials and logs
 

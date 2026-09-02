@@ -8,25 +8,23 @@ Hermes remains the intelligence, personality, and decision-maker. The plugin pro
 
 A friendly German Hermes profile should produce friendly, concise German drafts. A formal English profile should preserve that profile's language and style. Provider adapters must not alter this behavior.
 
-## Version 0.1.0
+## Version 0.2.0
 
-This release establishes a safe, extensible foundation:
+This release extends the safe foundation with its first concrete provider:
 
-- an official Hermes directory-plugin manifest and `register(ctx)` entry point;
-- a namespaced email skill;
-- typed, provider-neutral message and draft models;
-- an asynchronous `EmailProvider` abstraction;
-- a `HermesContext` model and minimal public profile adapter;
-- validated multi-user configuration with safe defaults;
-- documentation and foundation tests.
+- a fully local, deterministic `MockEmailProvider`;
+- three synthetic test messages, including empty and HTML content;
+- in-memory draft creation with stable mock IDs;
+- contract tests covering capabilities, fetch, lookup, drafting, send denial, and offline operation;
+- the existing Hermes plugin, email skill, provider abstraction, context model, and safe configuration.
 
 ### Deliberately not included
 
-Version `0.1.0` does not connect to production mail accounts, fetch real messages, send email, delete or move messages, run background polling, implement OAuth, classify mail, automate replies, route LLM calls, or persist state in a database.
+Version `0.2.0` does not connect to production mail accounts, fetch real messages, send email, delete or move messages, run background polling, implement OAuth, classify mail, automate replies, route LLM calls, or persist state in a database.
 
 ## Safety defaults
 
-| Operation | Version 0.1.0 |
+| Operation | Version 0.2.0 |
 |---|---|
 | Read mail | Disabled or mock only |
 | Prepare a draft | Local value/mock only |
@@ -47,7 +45,7 @@ hermes plugins enable hermes-email
 hermes plugins doctor hermes-email --ci
 ```
 
-The plugin registers the read-only skill as `hermes-email:email`. Version 0.1.0 registers no tools, hooks, account integrations, or background tasks.
+The plugin registers the read-only skill as `hermes-email:email`. Version 0.2.0 registers no tools, hooks, account integrations, or background tasks.
 
 ## Development
 
