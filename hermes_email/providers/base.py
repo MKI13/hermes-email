@@ -23,9 +23,9 @@ class ProviderCapabilities:
 class EmailProvider(ABC):
     """Provider-neutral asynchronous email interface.
 
-    Version 0.1.0 ships no concrete providers. Implementations must not treat
-    provider capability declarations as user authorization; the plugin safety
-    configuration remains an independent gate.
+    Implementations must not treat provider capability declarations as user
+    authorization; the plugin safety configuration remains an independent
+    gate.
     """
 
     capabilities = ProviderCapabilities()
@@ -51,5 +51,5 @@ class EmailProvider(ABC):
     async def send_message(self, draft_id: str) -> None:
         """Send a stored draft only after independent safety authorization.
 
-        No version 0.1.0 implementation may perform this operation.
+        Providers without send capability must fail closed.
         """
