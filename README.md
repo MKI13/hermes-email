@@ -1,5 +1,7 @@
 # Hermes Email
 
+[![CI](https://github.com/MKI13/hermes-email/actions/workflows/ci.yml/badge.svg)](https://github.com/MKI13/hermes-email/actions/workflows/ci.yml)
+
 Hermes Email is a universal, provider-neutral email plugin and email skill for [Hermes Agent](https://github.com/NousResearch/hermes-agent).
 
 ## Philosophy
@@ -8,19 +10,15 @@ Hermes remains the intelligence, personality, and decision-maker. The plugin pro
 
 A friendly German Hermes profile should produce friendly, concise German drafts. A formal English profile should preserve that profile's language and style. Provider adapters must not alter this behavior.
 
-## Version 0.12.0
+## Version 0.12.1
 
-This release builds on the Hermes Agent v0.21.0 manifest and security-scan compatibility fixes in version 0.11.1 and adds bounded cursor-based pagination to the local search path:
+This release adds fail-closed continuous integration without changing plugin runtime behavior:
 
-- `plugin.yaml` targets the supported manifest v1 schema;
-- optional manifest-v2-only metadata is omitted because no runtime feature depends on it;
-- scanner-sensitive fixtures remain synthetic while continuing to prove redaction and unsafe-provider rejection;
-- development dependencies use a pinned requirements file;
-- `EmailPlugin.search_messages(query, *, limit=50, cursor=None)` fetches and searches exactly one provider page;
-- search returns an `EmailMessagePage` containing only matches from that page and the provider page's unchanged `next_cursor`;
-- `MAX_FETCH_LIMIT` fixes the maximum page size at 100, with no clamping;
-- fetch and search share the same strict limit and opaque-cursor validation;
-- no follow-up page, retry, cursor persistence, network call, tool, model hook, or background task is created automatically.
+- pushes and pull requests to `main` run the full suite on Python 3.11, 3.12, and 3.13;
+- every matrix job verifies imports, builds a wheel and source distribution, and checks their paths;
+- a separate clean-environment job installs an immutable Hermes Agent v0.21.0 development checkout and runs Plugin Doctor;
+- workflow permissions are read-only and no credentials or repository secrets are required;
+- the mock-only provider boundary, bounded caller-driven pagination, disabled sending, and all existing safety controls remain unchanged.
 
 ### Runtime health
 
@@ -34,11 +32,11 @@ Type `/email-status` in a Hermes session to display the fixed fields from `Email
 
 ### Deliberately not included
 
-Version `0.12.0` does not connect to production mail accounts, fetch real messages, send email, delete or move messages, run background polling, implement OAuth, classify mail, automate replies, route LLM calls, or persist state in a database.
+Version `0.12.1` does not connect to production mail accounts, fetch real messages, send email, delete or move messages, run background polling, implement OAuth, classify mail, automate replies, route LLM calls, or persist state in a database.
 
 ## Safety defaults
 
-| Operation | Version 0.12.0 |
+| Operation | Version 0.12.1 |
 |---|---|
 | Read mail | Disabled or mock only |
 | Prepare a draft | Local value/mock only |
@@ -59,7 +57,7 @@ hermes plugins enable hermes-email
 hermes plugins doctor hermes-email --ci
 ```
 
-The plugin registers the read-only skill as `hermes-email:email`, the in-session command `/email-status`, and one official unload callback for runtime context cleanup. Version 0.12.0 registers no tools, model hooks, account integrations, or background tasks.
+The plugin registers the read-only skill as `hermes-email:email`, the in-session command `/email-status`, and one official unload callback for runtime context cleanup. Version 0.12.1 registers no tools, model hooks, account integrations, or background tasks.
 
 ## Development
 
@@ -70,7 +68,11 @@ python -m venv .venv
 . .venv/bin/activate
 python -m pip install -r requirements-dev.txt
 python -m pytest
+python -m build
+python scripts/check_dist.py
 ```
+
+CI installs Hermes Agent from an immutable upstream v0.21.0 commit using its supported editable development mode, then runs `hermes plugins doctor . --ci` with an empty home directory. Hermes v0.21.0 has no separate non-interactive security-scan command; the security scan remains an official pre-release installation gate.
 
 The example configuration is at [`examples/config.example.yaml`](examples/config.example.yaml).
 

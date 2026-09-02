@@ -246,9 +246,9 @@ class EmailPlugin:
         return draft
 
     async def send_message(self, draft_id: str) -> None:
-        """Refuse sending unconditionally in version 0.12.0."""
+        """Refuse sending unconditionally in version 0.12.1."""
         del draft_id
-        raise SendingUnavailableError("email sending is not implemented in version 0.12.0")
+        raise SendingUnavailableError("email sending is not implemented in version 0.12.1")
 
 
 def format_runtime_status(status: EmailRuntimeStatus) -> str:
@@ -323,7 +323,7 @@ def _create_runtime_plugin(ctx: Any) -> EmailPlugin:
 def register(ctx: Any) -> EmailPlugin:
     """Load safe runtime settings, bind Hermes context, and register the skill.
 
-    Version 0.12.0 deliberately registers no tools, model hooks, pollers,
+    Version 0.12.1 deliberately registers no tools, model hooks, pollers,
     background tasks, or account connections.
     """
     runtime = _create_runtime_plugin(ctx)
