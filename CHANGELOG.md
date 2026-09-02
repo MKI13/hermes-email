@@ -4,6 +4,18 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-09-02
+
+### Added
+
+- Safe `/email-status` diagnostics through Hermes' official in-session `ctx.register_command()` API.
+- Fixed text formatting sourced exclusively from the registered `EmailPlugin.get_runtime_status()` snapshot.
+- Tests for disabled, mock-ready, and configuration-error output; profile and diagnostic display; redaction; offline execution; mailbox-operation isolation; and lifecycle cleanup.
+
+### Changed
+
+- Project version advanced to `0.10.0` across package, manifest, skill, and documentation metadata.
+
 ## [0.9.0] - 2026-09-02
 
 ### Added
@@ -104,7 +116,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - Initial project metadata and safe-by-default foundation.
 
-[Unreleased]: https://github.com/MKI13/hermes-email/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/MKI13/hermes-email/compare/v0.10.0...HEAD
+[0.10.0]: https://github.com/MKI13/hermes-email/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/MKI13/hermes-email/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/MKI13/hermes-email/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/MKI13/hermes-email/compare/v0.6.0...v0.7.0

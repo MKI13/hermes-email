@@ -8,7 +8,7 @@ Hermes Email separates technical email infrastructure from agent behavior. The a
 
 ### Hermes directory-plugin entry point
 
-The root `plugin.yaml` and `__init__.py` follow Hermes' native standalone plugin convention. `register(ctx)` reads the plugin's `email`, `hermes`, `behavior`, and `safety` sections through the official plugin-scoped `ctx.get_config()` API, validates them, and resolves only an explicitly configured provider through the existing resolver. It also binds `ActiveProfileContextSource`, registers one official `ctx.on_unload()` callback, and registers the bundled skill. It creates no network client, tool, model hook, poller, or background task.
+The root `plugin.yaml` and `__init__.py` follow Hermes' native standalone plugin convention. `register(ctx)` reads plugin-scoped settings through `ctx.get_config()`, creates one `EmailPlugin` runtime, binds `ActiveProfileContextSource`, registers `/email-status` through `ctx.register_command()`, registers one `ctx.on_unload()` cleanup callback, and registers the bundled skill. The command closure uses that same runtime instance. Registration creates no network client, tool, model hook, poller, or background task.
 
 ### Plugin facade
 
@@ -25,23 +25,27 @@ Future technical responsibilities belong behind this facade:
 - privacy-aware logging;
 - independent safety authorization.
 
-Version 0.9.0 exposes deterministic local message retrieval only through the guarded facade and mock provider, plus in-memory mock draft storage. The remaining responsibilities are documented seams, not implemented subsystems.
+Version 0.10.0 exposes deterministic local message retrieval only through the guarded facade and mock provider, plus in-memory mock draft storage. The remaining responsibilities are documented seams, not implemented subsystems.
 
 ### Provider abstraction
 
-`hermes_email.providers.EmailProvider` defines asynchronous methods for fetching message summaries, retrieving one message, creating a draft, and sending a stored draft. `MockEmailProvider` is the only concrete implementation in version 0.9.0. It uses deterministic synthetic messages, stores drafts only in memory, performs no network access, and always blocks sending.
+`hermes_email.providers.EmailProvider` defines asynchronous methods for fetching message summaries, retrieving one message, creating a draft, and sending a stored draft. `MockEmailProvider` is the only concrete implementation in version 0.10.0. It uses deterministic synthetic messages, stores drafts only in memory, performs no network access, and always blocks sending.
 
 Future IMAP, SMTP, Gmail, Microsoft, Proton Bridge, or other adapters must normalize provider data into `EmailMessage` and `EmailDraft`. A provider's declared capability is never sufficient authorization for an external or destructive action.
 
 ### Provider resolver
 
-`resolve_email_provider(config)` normalizes the explicitly configured provider name and compares it with a fixed allowlist. Version 0.9.0 recognizes only `mock`. Missing values raise `ProviderNotConfiguredError`; every other identifier raises `UnsupportedEmailProviderError`. The resolver performs no dynamic imports, discovery, fallback selection, network access, or plugin execution.
+`resolve_email_provider(config)` normalizes the explicitly configured provider name and compares it with a fixed allowlist. Version 0.10.0 recognizes only `mock`. Missing values raise `ProviderNotConfiguredError`; every other identifier raises `UnsupportedEmailProviderError`. The resolver performs no dynamic imports, discovery, fallback selection, network access, or plugin execution.
 
 ### Hermes context adapter
 
 `HermesContext` holds optional values for profile name, persona, system prompt, language, writing style, user preferences, skills, tools, safety rules, and custom instructions.
 
 Hermes currently exposes `ctx.profile_name` as a stable public plugin API. `ActiveProfileContextSource` reads only that property. `register(ctx)` binds this source to the runtime `EmailPlugin`; `get_hermes_context()` returns an owned snapshot with the active profile name. Other values remain empty until Hermes provides an appropriate public API or an explicit caller supplies them. The project does not read private Hermes files or invent a fallback personality.
+
+### Status command
+
+`/email-status` is an in-session slash command registered with Hermes' public `ctx.register_command()` API. Its handler calls `get_runtime_status()` on the registered runtime and formats only that immutable snapshot. It does not access configuration mappings, provider message methods, tools, environment variables, files, or network resources.
 
 ### Email skill
 
@@ -58,6 +62,9 @@ Hermes runtime
         -> disabled | mock-ready | configuration-error
         -> ActiveProfileContextSource(ctx)
         -> EmailPlugin
+        -> ctx.register_command("email-status", same runtime)
+            -> get_runtime_status()
+            -> fixed text formatter
         -> email skill
         -> ctx.on_unload(runtime release)
 

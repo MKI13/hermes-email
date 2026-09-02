@@ -1,11 +1,12 @@
 # Hermes Compatibility
 
-Version 0.9.0 follows the public Hermes Agent extension surfaces available when this foundation was created:
+Version 0.10.0 follows the public Hermes Agent extension surfaces available when this foundation was created:
 
 - native directory plugins use a root `plugin.yaml` and `__init__.py` with `register(ctx)`;
 - plugin-provided skills are registered with `ctx.register_skill()` and receive a plugin namespace;
 - `ctx.profile_name` is the stable public active-profile identifier;
 - `ctx.on_unload()` owns cleanup callbacks for plugin runtime references;
+- `ctx.register_command()` registers `/email-status` as an in-session slash command;
 - non-secret plugin settings are read through the official plugin-scoped `ctx.get_config()` API;
 - plugin validation is available through `hermes plugins doctor`.
 
