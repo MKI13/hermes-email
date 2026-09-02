@@ -8,7 +8,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Added
 
-- Safe read-only `EmailPlugin.get_message()` facade with shared read gates and opaque message-ID validation.
+- Safe read-only `EmailPlugin.get_message()` facade with shared read gates, a dedicated provider get capability, and unchanged opaque message-ID delegation.
 - Tests for exact delegation, known and unknown IDs, denial paths, provider failures, and absence of write effects.
 
 ### Changed

@@ -8,13 +8,13 @@ This release is a foundation with a local mock provider, not a mail client. The 
 
 - Reading is `disabled` by default and has no production implementation.
 - `EmailPlugin.fetch_messages()` requires explicit mock read mode, a configured provider, declared fetch capability, and a finite positive integer limit.
-- `EmailPlugin.get_message()` uses the same read gates, accepts only a non-empty string identifier, and delegates it as opaque data after trimming surrounding whitespace.
+- `EmailPlugin.get_message()` uses the shared read gates, requires declared get capability, accepts only a non-empty string identifier, and delegates it unchanged as opaque data.
 - Both retrieval facades return provider results without mailbox mutation and propagate provider failures unchanged.
 - Mock reading returns only deterministic synthetic messages.
 - Mock drafts exist only in the provider instance's memory.
 - `EmailPlugin.send_message()` always raises `SendingUnavailableError`.
 - `MockEmailProvider.send_message()` always raises `MockSendBlockedError`.
-- Base provider capabilities default to false; the mock enables only fetch and drafts.
+- Base provider capabilities default to false; the mock enables only fetch, get, and drafts.
 - `EmailPlugin.from_config()` delegates provider selection only to the fixed resolver.
 - Provider resolution requires an explicit value and recognizes only `mock`.
 - Unknown or suspicious provider strings are rejected without dynamic imports or fallback selection.

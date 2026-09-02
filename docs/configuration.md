@@ -83,7 +83,7 @@ messages = await plugin.fetch_messages(limit=10)
 message = await plugin.get_message("mock-message-customer-001")
 ```
 
-Both facades reject disabled reading, missing providers, and providers without fetch capability before calling the provider. List retrieval also rejects non-positive or non-integer limits. Single-message retrieval accepts only a non-empty string, trims surrounding whitespace, and otherwise treats the identifier as opaque data.
+Both facades reject disabled reading and missing providers before calling the provider. List retrieval requires fetch capability and rejects non-positive or non-integer limits. Single-message retrieval requires get capability, accepts only a non-empty string, and forwards the identifier unchanged as opaque data.
 
 ## Secrets
 

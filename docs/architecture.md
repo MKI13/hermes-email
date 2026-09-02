@@ -14,7 +14,7 @@ The root `plugin.yaml` and `__init__.py` follow Hermes' native standalone plugin
 
 `hermes_email.plugin.EmailPlugin` is the provider-neutral orchestration point. It owns validated configuration, an optional provider, and an optional Hermes context source. `EmailPlugin.from_config(config)` delegates provider creation exclusively to `resolve_email_provider(config)`, preserves the supplied configuration, and propagates resolver errors unchanged. Version 0.7.0 exposes read-only `fetch_messages(limit=...)` and `get_message(message_id)` facades, can prepare a local draft value, and refuses every send attempt.
 
-Both retrieval facades share the `read_mode`, provider-presence, and provider fetch-capability gates. `get_message()` then requires a non-empty string, trims surrounding whitespace, and delegates the opaque identifier to `EmailProvider.get_message()`. Neither facade contains provider-specific retrieval logic or transforms or persists provider results.
+Both retrieval facades share the `read_mode` and provider-presence gates. Each then checks its own read-only provider capability: `fetch` for list retrieval and `get` for single-message lookup. `get_message()` requires a non-empty string and delegates the unchanged, opaque identifier to `EmailProvider.get_message()`. Neither facade contains provider-specific retrieval logic or transforms or persists provider results.
 
 Future technical responsibilities belong behind this facade:
 
@@ -74,9 +74,9 @@ EmailPlugin.fetch_messages(limit)
 
 EmailPlugin.get_message(message_id)
     -> shared read-only gates
+    -> provider get-capability gate
     -> non-empty string ID gate
-    -> trim surrounding whitespace
-    -> EmailProvider.get_message(message_id)
+    -> EmailProvider.get_message(message_id unchanged)
 
 EmailProvider
     -> provider-neutral models

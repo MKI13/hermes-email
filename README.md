@@ -13,8 +13,8 @@ A friendly German Hermes profile should produce friendly, concise German drafts.
 This release adds a guarded, read-only single-message facade while preserving list retrieval and the Hermes runtime binding:
 
 - `EmailPlugin.get_message(message_id)` requires explicit `email.read_mode: mock`;
-- the facade requires an attached provider whose `capabilities.fetch` is true;
-- identifiers must be non-empty strings, are trimmed, and remain opaque provider IDs;
+- the facade requires an attached provider whose `capabilities.get` is true;
+- identifiers must be non-empty strings and remain unchanged, opaque provider IDs;
 - the provider result, including `None`, and provider exceptions pass through unchanged;
 - `EmailPlugin.from_config()` remains the only configured provider factory and resolves only `mock`;
 - no production provider, state-changing operation, network client, poller, persistence, or model hook is added.
