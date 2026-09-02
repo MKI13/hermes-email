@@ -4,6 +4,17 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-09-02
+
+### Added
+
+- Safe read-only `EmailPlugin.fetch_messages()` facade with independent read-mode, provider-presence, provider-capability, and bounded-limit gates.
+- Facade tests covering mock delegation, exact result and limit forwarding, denial paths, and absence of unrelated provider effects.
+
+### Changed
+
+- Project version advanced to `0.6.0` across package, manifest, skill, and documentation metadata.
+
 ## [0.5.0] - 2026-09-02
 
 ### Added
@@ -57,7 +68,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - Initial project metadata and safe-by-default foundation.
 
-[Unreleased]: https://github.com/MKI13/hermes-email/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/MKI13/hermes-email/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/MKI13/hermes-email/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/MKI13/hermes-email/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/MKI13/hermes-email/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/MKI13/hermes-email/compare/v0.2.0...v0.3.0

@@ -4,6 +4,7 @@ from typing import Sequence
 import pytest
 
 from hermes_email.config import EmailPluginConfig
+from hermes_email.context import HermesContext
 from hermes_email.models import EmailDraft, EmailMessage
 from hermes_email.plugin import (
     EmailFetchLimitError,
@@ -45,6 +46,24 @@ class RecordingProvider(EmailProvider):
 
 class NoFetchProvider(RecordingProvider):
     capabilities = ProviderCapabilities(fetch=False)
+
+
+class ProviderFetchError(RuntimeError):
+    pass
+
+
+class FailingProvider(RecordingProvider):
+    async def fetch_messages(self, *, limit: int = 50) -> Sequence[EmailMessage]:
+        self.fetch_limits.append(limit)
+        raise ProviderFetchError("provider fetch failed")
+
+
+class FixedContextSource:
+    def __init__(self, context: HermesContext) -> None:
+        self.context = context
+
+    def get_context(self) -> HermesContext:
+        return self.context
 
 
 def plugin_config(*, read_mode: str) -> EmailPluginConfig:
@@ -120,6 +139,39 @@ def test_provider_without_fetch_capability_is_blocked() -> None:
             await plugin.fetch_messages(limit=10)
 
         assert provider.fetch_limits == []
+        assert provider.other_calls == []
+
+    asyncio.run(exercise())
+
+
+def test_provider_fetch_error_is_propagated_unchanged() -> None:
+    async def exercise() -> None:
+        provider = FailingProvider()
+        plugin = EmailPlugin(plugin_config(read_mode="mock"), provider=provider)
+
+        with pytest.raises(ProviderFetchError, match="provider fetch failed"):
+            await plugin.fetch_messages(limit=7)
+
+        assert provider.fetch_limits == [7]
+        assert provider.other_calls == []
+
+    asyncio.run(exercise())
+
+
+def test_fetch_does_not_change_runtime_context() -> None:
+    async def exercise() -> None:
+        inherited_context = HermesContext(profile_name="active-profile")
+        provider = RecordingProvider()
+        plugin = EmailPlugin(
+            plugin_config(read_mode="mock"),
+            context_source=FixedContextSource(inherited_context),
+            provider=provider,
+        )
+
+        await plugin.fetch_messages(limit=1)
+
+        assert plugin.get_hermes_context() is inherited_context
+        assert plugin.get_hermes_context().persona is None
         assert provider.other_calls == []
 
     asyncio.run(exercise())
