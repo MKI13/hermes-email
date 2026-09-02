@@ -1,0 +1,19 @@
+email:
+  provider: null
+  read_mode: disabled
+  draft_mode: mock
+
+hermes:
+  profile: auto
+
+behavior:
+  inherit_persona: true
+  inherit_language: true
+  inherit_style: true
+  inherit_user_preferences: true
+  inherit_safety_rules: true
+
+safety:
+  allow_send: false
+  allow_delete: false
+  allow_move: false
