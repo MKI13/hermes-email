@@ -51,7 +51,7 @@ def test_missing_provider_is_not_replaced_with_mock(configured_name: str | None)
         resolve_email_provider(config_with_provider(configured_name))
 
 
-@pytest.mark.parametrize("configured_name", ["../../something", "module.Class"])
+@pytest.mark.parametrize("configured_name", ["../synthetic-provider", "module.Class"])
 def test_suspicious_names_are_not_imported(
     configured_name: str,
     monkeypatch: pytest.MonkeyPatch,

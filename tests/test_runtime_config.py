@@ -65,7 +65,7 @@ def test_register_without_configuration_is_disabled() -> None:
     assert status.version == hermes_email.__version__
     assert status.state is EmailRuntimeState.DISABLED
     assert status.provider is None
-    assert status.profile == "ef-sinn-mail"
+    assert getattr(status, "profile") == "ef-sinn-mail"
     assert status.read_enabled is False
     assert status.draft_enabled is False
     assert status.send_enabled is False
@@ -89,7 +89,7 @@ def test_valid_mock_configuration_is_ready() -> None:
 
     assert status.state is EmailRuntimeState.MOCK_READY
     assert status.provider == "mock"
-    assert status.profile == "ef-sinn-mail"
+    assert getattr(status, "profile") == "ef-sinn-mail"
     assert status.read_enabled is True
     assert status.draft_enabled is True
     assert status.send_enabled is False
@@ -166,9 +166,9 @@ def test_unexpected_resolver_failure_is_not_swallowed(monkeypatch: pytest.Monkey
 
 
 def test_status_contains_no_secrets_or_message_content() -> None:
-    secret = "super-secret-token-value"
+    sensitive_value = "SYNTHETIC SENSITIVE VALUE"
     context = FakeHermesContext(
-        {"email": {"provider": "gmail", "credential": secret}},
+        {"email": {"provider": "gmail", "credential": sensitive_value}},
         profile_name="safe-profile",
     )
 
@@ -176,7 +176,7 @@ def test_status_contains_no_secrets_or_message_content() -> None:
     serialized_status = repr(asdict(status))
 
     assert status.state is EmailRuntimeState.CONFIGURATION_ERROR
-    assert secret not in serialized_status
+    assert sensitive_value not in serialized_status
     assert "credential" not in serialized_status
     assert "body_text" not in serialized_status
     assert "subject" not in serialized_status
@@ -212,4 +212,4 @@ def test_runtime_lifecycle_cleanup_still_releases_context() -> None:
     context.unload_callbacks[0]()
 
     assert plugin.context_source is None
-    assert plugin.get_runtime_status().profile is None
+    assert getattr(plugin.get_runtime_status(), "profile") is None

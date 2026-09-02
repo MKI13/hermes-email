@@ -1,11 +1,10 @@
 import asyncio
-from typing import Sequence
 
 import pytest
 
 from hermes_email.config import EmailPluginConfig
 from hermes_email.context import HermesContext
-from hermes_email.models import EmailDraft, EmailMessage
+from hermes_email.models import EmailDraft, EmailMessage, EmailMessagePage
 from hermes_email.plugin import (
     EmailFetchLimitError,
     EmailFetchUnsupportedError,
@@ -19,17 +18,19 @@ from hermes_email.providers import EmailProvider, ProviderCapabilities
 class RecordingProvider(EmailProvider):
     capabilities = ProviderCapabilities(fetch=True)
 
-    def __init__(self, result: Sequence[EmailMessage] = ()) -> None:
-        self.result = result
-        self.fetch_limits: list[int] = []
+    def __init__(self, result: EmailMessagePage | None = None) -> None:
+        self.result = result if result is not None else EmailMessagePage(messages=())
+        self.fetch_calls: list[tuple[int, str | None]] = []
         self.other_calls: list[str] = []
 
     @property
     def name(self) -> str:
         return "recording"
 
-    async def fetch_messages(self, *, limit: int = 50) -> Sequence[EmailMessage]:
-        self.fetch_limits.append(limit)
+    async def fetch_messages(
+        self, *, limit: int = 50, cursor: str | None = None
+    ) -> EmailMessagePage:
+        self.fetch_calls.append((limit, cursor))
         return self.result
 
     async def get_message(self, message_id: str) -> EmailMessage | None:
@@ -53,8 +54,10 @@ class ProviderFetchError(RuntimeError):
 
 
 class FailingProvider(RecordingProvider):
-    async def fetch_messages(self, *, limit: int = 50) -> Sequence[EmailMessage]:
-        self.fetch_limits.append(limit)
+    async def fetch_messages(
+        self, *, limit: int = 50, cursor: str | None = None
+    ) -> EmailMessagePage:
+        self.fetch_calls.append((limit, cursor))
         raise ProviderFetchError("provider fetch failed")
 
 
@@ -78,14 +81,14 @@ def test_fetch_messages_exists() -> None:
 
 def test_mock_read_mode_delegates_and_preserves_provider_result() -> None:
     async def exercise() -> None:
-        provider_result: tuple[EmailMessage, ...] = ()
+        provider_result = EmailMessagePage(messages=())
         provider = RecordingProvider(provider_result)
         plugin = EmailPlugin(plugin_config(read_mode="mock"), provider=provider)
 
         result = await plugin.fetch_messages(limit=10)
 
         assert result is provider_result
-        assert provider.fetch_limits == [10]
+        assert provider.fetch_calls == [(10, None)]
         assert provider.other_calls == []
 
     asyncio.run(exercise())
@@ -113,7 +116,7 @@ def test_default_fetch_limit_is_finite_and_forwarded() -> None:
 
         await plugin.fetch_messages()
 
-        assert provider.fetch_limits == [50]
+        assert provider.fetch_calls == [(50, None)]
         assert provider.other_calls == []
 
     asyncio.run(exercise())
@@ -127,7 +130,7 @@ def test_disabled_read_mode_blocks_before_provider_access() -> None:
         with pytest.raises(EmailReadDisabledError, match="disabled"):
             await plugin.fetch_messages(limit=10)
 
-        assert provider.fetch_limits == []
+        assert provider.fetch_calls == []
         assert provider.other_calls == []
 
     asyncio.run(exercise())
@@ -151,7 +154,7 @@ def test_provider_without_fetch_capability_is_blocked() -> None:
         with pytest.raises(EmailFetchUnsupportedError, match="does not support"):
             await plugin.fetch_messages(limit=10)
 
-        assert provider.fetch_limits == []
+        assert provider.fetch_calls == []
         assert provider.other_calls == []
 
     asyncio.run(exercise())
@@ -165,7 +168,7 @@ def test_provider_fetch_error_is_propagated_unchanged() -> None:
         with pytest.raises(ProviderFetchError, match="provider fetch failed"):
             await plugin.fetch_messages(limit=7)
 
-        assert provider.fetch_limits == [7]
+        assert provider.fetch_calls == [(7, None)]
         assert provider.other_calls == []
 
     asyncio.run(exercise())
@@ -199,7 +202,7 @@ def test_invalid_fetch_limit_is_blocked_without_provider_access(limit: object) -
         with pytest.raises(EmailFetchLimitError, match="positive integer"):
             await plugin.fetch_messages(limit=limit)  # type: ignore[arg-type]
 
-        assert provider.fetch_limits == []
+        assert provider.fetch_calls == []
         assert provider.other_calls == []
 
     asyncio.run(exercise())

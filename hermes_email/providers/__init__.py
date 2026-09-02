@@ -1,7 +1,7 @@
 """Email provider interfaces."""
 
 from .base import EmailProvider, ProviderCapabilities
-from .mock import MockEmailProvider, MockSendBlockedError
+from .mock import MockCursorError, MockEmailProvider, MockSendBlockedError
 from .resolver import (
     EmailProviderResolutionError,
     ProviderNotConfiguredError,
@@ -12,6 +12,7 @@ from .resolver import (
 __all__ = [
     "EmailProvider",
     "EmailProviderResolutionError",
+    "MockCursorError",
     "MockEmailProvider",
     "MockSendBlockedError",
     "ProviderCapabilities",

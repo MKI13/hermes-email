@@ -1,12 +1,12 @@
 # Security Model
 
-## Version 0.10.1 boundary
+## Version 0.11.1 boundary
 
 This release is a foundation with a local mock provider, not a mail client. The mock performs no network access, account authentication, mailbox polling, message transmission, deletion, movement, or persistence.
 
 ## Safe by default
 
-- Manifest v1 compatibility changes only installer metadata; runtime configuration and authorization behavior are unchanged.
+- Manifest and scanner compatibility changes do not alter runtime configuration or authorization behavior.
 - Missing runtime settings load successfully as `disabled` with no provider and no fallback.
 - Runtime settings are read only through Hermes' plugin-scoped `ctx.get_config()` API.
 - Expected validation and provider-resolution failures become `configuration-error`; unrelated programming failures are not swallowed.
@@ -14,11 +14,12 @@ This release is a foundation with a local mock provider, not a mail client. The 
 - `/email-status` formats only `get_runtime_status()` from the registered runtime instance.
 - The status command ignores arguments and invokes no mailbox method, provider operation, tool, file access, environment access, or network client.
 - Reading is `disabled` by default and has no production implementation.
-- `EmailPlugin.fetch_messages()` requires explicit mock read mode, a configured provider, declared fetch capability, and a finite positive integer limit.
+- `EmailPlugin.fetch_messages()` requires explicit mock read mode, a configured provider, declared fetch capability, an integer limit from 1 through 100, and either `None` or a non-empty opaque cursor string.
+- The plugin forwards valid cursors unchanged, never decodes or creates them, and performs exactly one provider fetch per call. It does not clamp limits, follow `next_cursor`, retry, or persist cursor state.
 - `EmailPlugin.get_message()` uses the shared read gates, requires declared get capability, accepts only a non-empty string identifier, and delegates it unchanged as opaque data.
 - Retrieval facades return provider results without mailbox mutation and propagate provider failures unchanged.
 - `EmailPlugin.search_messages()` requires the read and fetch gates, validates a query of at most 256 characters, fetches at most 100 messages, and performs only local case-insensitive substring matching.
-- Mock reading returns only deterministic synthetic messages.
+- Mock reading returns only deterministic synthetic messages. The mock provider alone creates and interprets deterministic local pagination cursors; unknown cursors fail explicitly.
 - Mock drafts exist only in the provider instance's memory.
 - `EmailPlugin.send_message()` always raises `SendingUnavailableError`.
 - `MockEmailProvider.send_message()` always raises `MockSendBlockedError`.
@@ -57,7 +58,7 @@ Before any release can send, delete, or move mail, it must include:
 6. focused tests for denial, failure, retries, and ambiguous state;
 7. updated security documentation and changelog.
 
-No item in this list is implemented implicitly by the version 0.10.1 interfaces.
+No item in this list is implemented implicitly by the version 0.11.1 interfaces.
 
 ## Credentials and logs
 

@@ -8,15 +8,15 @@ Hermes remains the intelligence, personality, and decision-maker. The plugin pro
 
 A friendly German Hermes profile should produce friendly, concise German drafts. A formal English profile should preserve that profile's language and style. Provider adapters must not alter this behavior.
 
-## Version 0.10.1
+## Version 0.11.1
 
-This patch release restores installation compatibility with Hermes Agent v0.21.0:
+This patch release makes the existing mock-only runtime installable through Hermes Agent v0.21.0 without changing its behavior:
 
-- `plugin.yaml` targets the installer's supported `manifest_version: 1` schema;
-- the manifest retains only supported v1 metadata fields;
-- the directory entry point and `register(ctx)` runtime API remain unchanged;
-- skill, slash-command, configuration, profile, and lifecycle APIs do not depend on manifest v2;
-- runtime behavior and safety boundaries are unchanged.
+- `plugin.yaml` targets the supported manifest v1 schema;
+- optional manifest-v2-only metadata is omitted because no runtime feature depends on it;
+- scanner-sensitive fixtures remain synthetic while continuing to prove redaction and unsafe-provider rejection;
+- development dependencies use a pinned requirements file;
+- cursor pagination, `/email-status`, runtime safety, and the prohibition on real providers and mail operations remain unchanged.
 
 ### Runtime health
 
@@ -30,11 +30,11 @@ Type `/email-status` in a Hermes session to display the fixed fields from `Email
 
 ### Deliberately not included
 
-Version `0.10.1` does not connect to production mail accounts, fetch real messages, send email, delete or move messages, run background polling, implement OAuth, classify mail, automate replies, route LLM calls, or persist state in a database.
+Version `0.11.1` does not connect to production mail accounts, fetch real messages, send email, delete or move messages, run background polling, implement OAuth, classify mail, automate replies, route LLM calls, or persist state in a database.
 
 ## Safety defaults
 
-| Operation | Version 0.10.1 |
+| Operation | Version 0.11.1 |
 |---|---|
 | Read mail | Disabled or mock only |
 | Prepare a draft | Local value/mock only |
@@ -55,7 +55,7 @@ hermes plugins enable hermes-email
 hermes plugins doctor hermes-email --ci
 ```
 
-The plugin registers the read-only skill as `hermes-email:email`, the in-session command `/email-status`, and one official unload callback for runtime context cleanup. Version 0.10.1 registers no tools, model hooks, account integrations, or background tasks.
+The plugin registers the read-only skill as `hermes-email:email`, the in-session command `/email-status`, and one official unload callback for runtime context cleanup. Version 0.11.1 registers no tools, model hooks, account integrations, or background tasks.
 
 ## Development
 
@@ -64,7 +64,7 @@ Hermes Email targets Python 3.11 through 3.13, matching Hermes Agent's current s
 ```bash
 python -m venv .venv
 . .venv/bin/activate
-python -m pip install -e '.[dev]'
+python -m pip install -r requirements-dev.txt
 python -m pytest
 ```
 

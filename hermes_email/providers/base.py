@@ -4,9 +4,8 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Sequence
 
-from ..models import EmailDraft, EmailMessage
+from ..models import EmailDraft, EmailMessage, EmailMessagePage
 
 
 @dataclass(frozen=True, slots=True)
@@ -37,8 +36,10 @@ class EmailProvider(ABC):
         """Return the stable provider identifier."""
 
     @abstractmethod
-    async def fetch_messages(self, *, limit: int = 50) -> Sequence[EmailMessage]:
-        """Return normalized messages without changing mailbox state."""
+    async def fetch_messages(
+        self, *, limit: int = 50, cursor: str | None = None
+    ) -> EmailMessagePage:
+        """Return one normalized message page without changing mailbox state."""
 
     @abstractmethod
     async def get_message(self, message_id: str) -> EmailMessage | None:

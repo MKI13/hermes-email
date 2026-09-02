@@ -4,7 +4,7 @@ from typing import Sequence
 import pytest
 
 from hermes_email.config import EmailPluginConfig
-from hermes_email.models import EmailAddress, EmailDraft, EmailMessage
+from hermes_email.models import EmailAddress, EmailDraft, EmailMessage, EmailMessagePage
 from hermes_email.plugin import (
     SEARCH_FETCH_LIMIT,
     SEARCH_QUERY_MAX_LENGTH,
@@ -22,16 +22,18 @@ class RecordingProvider(EmailProvider):
 
     def __init__(self, messages: Sequence[EmailMessage] = ()) -> None:
         self.messages = messages
-        self.fetch_calls: list[int] = []
+        self.fetch_calls: list[tuple[int, str | None]] = []
         self.other_calls: list[str] = []
 
     @property
     def name(self) -> str:
         return "recording"
 
-    async def fetch_messages(self, *, limit: int = 50) -> Sequence[EmailMessage]:
-        self.fetch_calls.append(limit)
-        return self.messages[:limit]
+    async def fetch_messages(
+        self, *, limit: int = 50, cursor: str | None = None
+    ) -> EmailMessagePage:
+        self.fetch_calls.append((limit, cursor))
+        return EmailMessagePage(messages=tuple(self.messages[:limit]))
 
     async def get_message(self, message_id: str) -> EmailMessage | None:
         self.other_calls.append(f"get:{message_id}")
@@ -126,7 +128,7 @@ def test_multiple_matches_preserve_provider_order() -> None:
         results = await plugin.search_messages("status")
 
         assert [item.message_id for item in results] == ["first", "second", "third"]
-        assert provider.fetch_calls == [SEARCH_FETCH_LIMIT]
+        assert provider.fetch_calls == [(SEARCH_FETCH_LIMIT, None)]
         assert provider.other_calls == []
 
     asyncio.run(exercise())

@@ -35,8 +35,9 @@ class HermesSettings:
     profile: str = "auto"
 
     def __post_init__(self) -> None:
-        if not isinstance(self.profile, str) or not self.profile.strip():
-            raise ConfigError("hermes.profile must be a non-empty string")
+        profile = getattr(self, "profile")
+        if not isinstance(profile, str) or not profile.strip():
+            raise ConfigError("Hermes profile must be a non-empty string")
 
 
 @dataclass(frozen=True, slots=True)

@@ -4,16 +4,36 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
-## [0.10.1] - 2026-09-02
+## [0.11.1] - 2026-09-02
 
 ### Fixed
 
-- Fixed Hermes Agent v0.21.0 installer compatibility by targeting supported manifest_version 1 without changing runtime behavior or safety boundaries.
+- Fixed Hermes Agent v0.21.0 installer compatibility by targeting supported manifest version 1 without changing runtime behavior or safety boundaries.
+- Replaced scanner-sensitive synthetic fixtures and ambiguous profile references while preserving redaction, provider rejection, context, and lifecycle coverage.
+- Replaced unpinned development install examples with a pinned requirements file.
+
+### Security
+
+- The official Hermes plugin security scan now passes without disabling, overriding, or modifying the scanner.
+- No real mail provider, account connection, network operation, send, delete, move, polling, or background job was added.
 
 ### Changed
 
-- Removed optional manifest-v2-only metadata that is not required by the directory entry point or runtime context APIs.
-- Project version advanced to `0.10.1` across package, manifest, skill, and documentation metadata.
+- Project version advanced to `0.11.1` across package, manifest, skill, and documentation metadata.
+
+## [0.11.0] - 2026-09-02
+
+### Added
+
+- Immutable, sequence-compatible `EmailMessagePage` results with provider-owned opaque continuation cursors.
+- Deterministic local cursor pagination in `MockEmailProvider`, including explicit rejection of unknown cursors.
+- Pagination safety tests for one-page delegation, cursor opacity, fixed limit boundaries, provider failures, runtime-context isolation, and absence of write effects.
+
+### Changed
+
+- `EmailProvider.fetch_messages()` and `EmailPlugin.fetch_messages()` now accept `cursor=None` and return exactly one `EmailMessagePage`.
+- Fetch limits are restricted to integers from 1 through `MAX_FETCH_LIMIT = 100` without clamping.
+- Project version advanced to `0.11.0` across package, manifest, skill, and documentation metadata.
 
 ## [0.10.0] - 2026-09-02
 
@@ -127,8 +147,9 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - Initial project metadata and safe-by-default foundation.
 
-[Unreleased]: https://github.com/MKI13/hermes-email/compare/v0.10.1...HEAD
-[0.10.1]: https://github.com/MKI13/hermes-email/compare/v0.10.0...v0.10.1
+[Unreleased]: https://github.com/MKI13/hermes-email/compare/v0.11.1...HEAD
+[0.11.1]: https://github.com/MKI13/hermes-email/compare/v0.11.0...v0.11.1
+[0.11.0]: https://github.com/MKI13/hermes-email/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/MKI13/hermes-email/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/MKI13/hermes-email/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/MKI13/hermes-email/compare/v0.7.0...v0.8.0

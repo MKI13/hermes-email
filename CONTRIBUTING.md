@@ -21,7 +21,7 @@ Hermes Email targets Python 3.11 through 3.13.
 ```bash
 python -m venv .venv
 . .venv/bin/activate
-python -m pip install -e '.[dev]'
+python -m pip install -r requirements-dev.txt
 python -m pytest
 ```
 

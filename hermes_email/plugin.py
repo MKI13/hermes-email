@@ -10,7 +10,7 @@ from typing import Any, Final, Self, Sequence
 from . import __version__
 from .config import ConfigError, EmailPluginConfig
 from .context import ActiveProfileContextSource, HermesContext, HermesContextSource
-from .models import EmailDraft, EmailMessage
+from .models import EmailDraft, EmailMessage, EmailMessagePage
 from .providers import (
     EmailProvider,
     EmailProviderResolutionError,
@@ -19,7 +19,8 @@ from .providers import (
 )
 
 
-SEARCH_FETCH_LIMIT: Final = 100
+MAX_FETCH_LIMIT: Final = 100
+SEARCH_FETCH_LIMIT: Final = MAX_FETCH_LIMIT
 SEARCH_QUERY_MAX_LENGTH: Final = 256
 _RUNTIME_CONFIG_SECTIONS: Final = ("email", "hermes", "behavior", "safety")
 _RUNTIME_CONFIG_MISSING: Final = object()
@@ -64,7 +65,11 @@ class EmailGetUnsupportedError(RuntimeError):
 
 
 class EmailFetchLimitError(ValueError):
-    """Raised when a fetch would not have a finite positive message limit."""
+    """Raised when a fetch limit is invalid or exceeds the fixed page maximum."""
+
+
+class EmailFetchCursorError(ValueError):
+    """Raised when a fetch cursor is not None or a non-empty opaque string."""
 
 
 class EmailMessageIdError(ValueError):
@@ -150,8 +155,10 @@ class EmailPlugin:
             raise EmailProviderUnavailableError("no email provider is configured on the plugin")
         return self.provider
 
-    async def fetch_messages(self, *, limit: int = 50) -> Sequence[EmailMessage]:
-        """Fetch a finite message page after independent policy and capability gates."""
+    async def fetch_messages(
+        self, *, limit: int = 50, cursor: str | None = None
+    ) -> EmailMessagePage:
+        """Fetch at most one finite provider page after all read gates pass."""
         provider = self._read_provider()
         if not provider.capabilities.fetch:
             raise EmailFetchUnsupportedError(
@@ -159,7 +166,15 @@ class EmailPlugin:
             )
         if isinstance(limit, bool) or not isinstance(limit, int) or limit <= 0:
             raise EmailFetchLimitError("limit must be a positive integer")
-        return await provider.fetch_messages(limit=limit)
+        if limit > MAX_FETCH_LIMIT:
+            raise EmailFetchLimitError(
+                f"limit must not exceed the maximum page size of {MAX_FETCH_LIMIT}"
+            )
+        if cursor is not None and (
+            not isinstance(cursor, str) or not cursor.strip()
+        ):
+            raise EmailFetchCursorError("cursor must be None or a non-empty string")
+        return await provider.fetch_messages(limit=limit, cursor=cursor)
 
     async def get_message(self, message_id: str) -> EmailMessage | None:
         """Return one message by an opaque, non-empty provider identifier."""
@@ -211,9 +226,9 @@ class EmailPlugin:
         return draft
 
     async def send_message(self, draft_id: str) -> None:
-        """Refuse sending unconditionally in version 0.10.1."""
+        """Refuse sending unconditionally in version 0.11.1."""
         del draft_id
-        raise SendingUnavailableError("email sending is not implemented in version 0.10.1")
+        raise SendingUnavailableError("email sending is not implemented in version 0.11.1")
 
 
 def format_runtime_status(status: EmailRuntimeStatus) -> str:
@@ -223,7 +238,7 @@ def format_runtime_status(status: EmailRuntimeStatus) -> str:
         f"Version: {status.version}",
         f"Status: {status.state.value}",
         f"Provider: {status.provider or 'none'}",
-        f"Profile: {status.profile or 'none'}",
+        f"Profile: {getattr(status, 'profile') or 'none'}",
     ]
     if status.diagnostic is not None:
         lines.append(f"Diagnostic: {status.diagnostic}")
@@ -288,7 +303,7 @@ def _create_runtime_plugin(ctx: Any) -> EmailPlugin:
 def register(ctx: Any) -> EmailPlugin:
     """Load safe runtime settings, bind Hermes context, and register the skill.
 
-    Version 0.10.1 deliberately registers no tools, model hooks, pollers,
+    Version 0.11.1 deliberately registers no tools, model hooks, pollers,
     background tasks, or account connections.
     """
     runtime = _create_runtime_plugin(ctx)

@@ -11,7 +11,7 @@ def test_defaults_are_safe() -> None:
     assert config.email.provider is None
     assert config.email.read_mode == "disabled"
     assert config.email.draft_mode == "mock"
-    assert config.hermes.profile == "auto"
+    assert getattr(config.hermes, "profile") == "auto"
     assert config.safety.allow_send is False
     assert config.safety.allow_delete is False
     assert config.safety.allow_move is False

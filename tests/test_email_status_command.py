@@ -142,16 +142,16 @@ def test_command_uses_same_registered_runtime_instance(
 
 
 def test_command_contains_no_secret_or_mail_content() -> None:
-    secret = "command-secret-token-value"
+    sensitive_value = "SYNTHETIC SENSITIVE VALUE"
     context = FakeHermesContext(
-        {"email": {"provider": "gmail", "credential": secret}},
+        {"email": {"provider": "gmail", "credential": sensitive_value}},
         profile_name="safe-profile",
     )
     register(context)
 
-    output = registered_command(context)(secret)
+    output = registered_command(context)(sensitive_value)
 
-    assert secret not in output
+    assert sensitive_value not in output
     assert "credential" not in output
     assert "subject" not in output.lower()
     assert "body" not in output.lower()
