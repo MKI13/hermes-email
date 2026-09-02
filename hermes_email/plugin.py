@@ -27,6 +27,10 @@ class EmailFetchLimitError(ValueError):
     """Raised when a fetch would not have a finite positive message limit."""
 
 
+class EmailMessageIdError(ValueError):
+    """Raised when a message lookup lacks a non-empty string identifier."""
+
+
 class SendingUnavailableError(PermissionError):
     """Raised because this version cannot send email."""
 
@@ -62,8 +66,8 @@ class EmailPlugin:
             return HermesContext()
         return self.context_source.get_context()
 
-    async def fetch_messages(self, *, limit: int = 50) -> Sequence[EmailMessage]:
-        """Fetch a finite message page after independent policy and capability gates."""
+    def _read_provider(self) -> EmailProvider:
+        """Return the provider after the shared read-only safety gates pass."""
         if self.config.email.read_mode != "mock":
             raise EmailReadDisabledError("email reading is disabled; read_mode must be mock")
         if self.provider is None:
@@ -72,9 +76,21 @@ class EmailPlugin:
             raise EmailFetchUnsupportedError(
                 f"email provider {self.provider.name!r} does not support message fetching"
             )
+        return self.provider
+
+    async def fetch_messages(self, *, limit: int = 50) -> Sequence[EmailMessage]:
+        """Fetch a finite message page after independent policy and capability gates."""
+        provider = self._read_provider()
         if isinstance(limit, bool) or not isinstance(limit, int) or limit <= 0:
             raise EmailFetchLimitError("limit must be a positive integer")
-        return await self.provider.fetch_messages(limit=limit)
+        return await provider.fetch_messages(limit=limit)
+
+    async def get_message(self, message_id: str) -> EmailMessage | None:
+        """Return one message by a trimmed, opaque provider identifier."""
+        provider = self._read_provider()
+        if not isinstance(message_id, str) or not message_id.strip():
+            raise EmailMessageIdError("message_id must be a non-empty string")
+        return await provider.get_message(message_id.strip())
 
     def prepare_draft(self, draft: EmailDraft) -> EmailDraft:
         """Return a local draft value without provider or network effects."""
