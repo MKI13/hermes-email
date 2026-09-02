@@ -1,6 +1,6 @@
 # Security Model
 
-## Version 0.7.0 boundary
+## Version 0.8.0 boundary
 
 This release is a foundation with a local mock provider, not a mail client. The mock performs no network access, account authentication, mailbox polling, message transmission, deletion, movement, or persistence.
 
@@ -9,7 +9,8 @@ This release is a foundation with a local mock provider, not a mail client. The 
 - Reading is `disabled` by default and has no production implementation.
 - `EmailPlugin.fetch_messages()` requires explicit mock read mode, a configured provider, declared fetch capability, and a finite positive integer limit.
 - `EmailPlugin.get_message()` uses the shared read gates, requires declared get capability, accepts only a non-empty string identifier, and delegates it unchanged as opaque data.
-- Both retrieval facades return provider results without mailbox mutation and propagate provider failures unchanged.
+- Retrieval facades return provider results without mailbox mutation and propagate provider failures unchanged.
+- `EmailPlugin.search_messages()` requires the read and fetch gates, validates a query of at most 256 characters, fetches at most 100 messages, and performs only local case-insensitive substring matching.
 - Mock reading returns only deterministic synthetic messages.
 - Mock drafts exist only in the provider instance's memory.
 - `EmailPlugin.send_message()` always raises `SendingUnavailableError`.
@@ -49,7 +50,7 @@ Before any release can send, delete, or move mail, it must include:
 6. focused tests for denial, failure, retries, and ambiguous state;
 7. updated security documentation and changelog.
 
-No item in this list is implemented implicitly by the version 0.7.0 interfaces.
+No item in this list is implemented implicitly by the version 0.8.0 interfaces.
 
 ## Credentials and logs
 

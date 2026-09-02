@@ -8,24 +8,24 @@ Hermes remains the intelligence, personality, and decision-maker. The plugin pro
 
 A friendly German Hermes profile should produce friendly, concise German drafts. A formal English profile should preserve that profile's language and style. Provider adapters must not alter this behavior.
 
-## Version 0.7.0
+## Version 0.8.0
 
-This release adds a guarded, read-only single-message facade while preserving list retrieval and the Hermes runtime binding:
+This release adds deterministic local text search over bounded mock retrieval:
 
-- `EmailPlugin.get_message(message_id)` requires explicit `email.read_mode: mock`;
-- the facade requires an attached provider whose `capabilities.get` is true;
-- identifiers must be non-empty strings and remain unchanged, opaque provider IDs;
-- the provider result, including `None`, and provider exceptions pass through unchanged;
-- `EmailPlugin.from_config()` remains the only configured provider factory and resolves only `mock`;
-- no production provider, state-changing operation, network client, poller, persistence, or model hook is added.
+- `EmailPlugin.search_messages(query)` requires explicit `email.read_mode: mock` and fetch capability;
+- queries are trimmed, case-insensitive, plain substring matches with a 256-character maximum;
+- subject, sender address, sender display name, and body text are searched;
+- each search fetches at most 100 messages and preserves provider order;
+- no regex, query language, fuzzy matching, embeddings, semantic search, LLM use, or external search is added;
+- no production provider, state-changing operation, network client, poller, or persistence is added.
 
 ### Deliberately not included
 
-Version `0.7.0` does not connect to production mail accounts, fetch real messages, send email, delete or move messages, run background polling, implement OAuth, classify mail, automate replies, route LLM calls, or persist state in a database.
+Version `0.8.0` does not connect to production mail accounts, fetch real messages, send email, delete or move messages, run background polling, implement OAuth, classify mail, automate replies, route LLM calls, or persist state in a database.
 
 ## Safety defaults
 
-| Operation | Version 0.7.0 |
+| Operation | Version 0.8.0 |
 |---|---|
 | Read mail | Disabled or mock only |
 | Prepare a draft | Local value/mock only |
@@ -46,7 +46,7 @@ hermes plugins enable hermes-email
 hermes plugins doctor hermes-email --ci
 ```
 
-The plugin registers the read-only skill as `hermes-email:email` and uses one official unload callback to own the runtime context lifetime. Version 0.7.0 registers no tools, model hooks, account integrations, or background tasks.
+The plugin registers the read-only skill as `hermes-email:email` and uses one official unload callback to own the runtime context lifetime. Version 0.8.0 registers no tools, model hooks, account integrations, or background tasks.
 
 ## Development
 

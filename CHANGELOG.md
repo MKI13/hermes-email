@@ -4,6 +4,17 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-09-02
+
+### Added
+
+- Bounded local `EmailPlugin.search_messages()` facade using deterministic plain substring matching over existing message fields.
+- Tests for subject, sender, and body matches; case and whitespace handling; ordering; query rejection; and read-only denial paths.
+
+### Changed
+
+- Project version advanced to `0.8.0` across package, manifest, skill, and documentation metadata.
+
 ## [0.7.0] - 2026-09-02
 
 ### Added
@@ -79,7 +90,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - Initial project metadata and safe-by-default foundation.
 
-[Unreleased]: https://github.com/MKI13/hermes-email/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/MKI13/hermes-email/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/MKI13/hermes-email/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/MKI13/hermes-email/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/MKI13/hermes-email/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/MKI13/hermes-email/compare/v0.4.0...v0.5.0
