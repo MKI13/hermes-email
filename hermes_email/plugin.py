@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, Self
 
 from .config import EmailPluginConfig
 from .context import HermesContext, HermesContextSource
 from .models import EmailDraft
-from .providers import EmailProvider
+from .providers import EmailProvider, resolve_email_provider
 
 
 class SendingUnavailableError(PermissionError):
@@ -28,6 +28,17 @@ class EmailPlugin:
         self.config = config or EmailPluginConfig()
         self.context_source = context_source
         self.provider = provider
+
+    @classmethod
+    def from_config(
+        cls,
+        config: EmailPluginConfig,
+        *,
+        context_source: HermesContextSource | None = None,
+    ) -> Self:
+        """Create a plugin using only the configured provider resolver."""
+        provider = resolve_email_provider(config)
+        return cls(config, context_source=context_source, provider=provider)
 
     def get_hermes_context(self) -> HermesContext:
         """Return inherited context or an intentionally empty snapshot."""
