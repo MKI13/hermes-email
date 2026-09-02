@@ -4,9 +4,32 @@
 
 Configuration is profile- and deployment-owned. The repository contains no personal addresses, provider credentials, company rules, or fixed writing style.
 
-`hermes.profile: auto` means that integrations should use the active Hermes profile. During plugin registration, version 0.8.0 binds only the public Hermes plugin property `ctx.profile_name`; it does not inspect private profile files.
+`hermes.profile: auto` means that integrations should use the active Hermes profile. During plugin registration, version 0.9.0 binds only the public Hermes plugin property `ctx.profile_name`; it does not inspect private profile files.
 
-## Example
+## Hermes runtime settings
+
+Hermes owns the configuration location. Place non-secret settings under `plugins.entries.hermes-email.settings` in the normal Hermes configuration surface. The plugin reads only its own `email`, `hermes`, `behavior`, and `safety` sections through `ctx.get_config()`:
+
+```yaml
+plugins:
+  entries:
+    hermes-email:
+      settings:
+        email:
+          provider: mock
+          read_mode: mock
+          draft_mode: mock
+        hermes:
+          profile: auto
+        safety:
+          allow_send: false
+          allow_delete: false
+          allow_move: false
+```
+
+If these settings are absent, the plugin loads as `disabled` without selecting a provider. Valid explicit mock settings produce `mock-ready`. Invalid settings or unsupported providers produce `configuration-error` with a fixed non-sensitive diagnostic code while skill registration continues.
+
+## Standalone configuration example
 
 ```yaml
 email:
@@ -36,13 +59,13 @@ The complete example is in `examples/config.example.yaml`.
 
 ### `email`
 
-- `provider`: explicit provider identifier or `null`. Version 0.8.0 accepts only `mock`; `null` and empty values do not select a fallback.
+- `provider`: explicit provider identifier or `null`. Version 0.9.0 accepts only `mock`; `null` and empty values do not select a fallback.
 - `read_mode`: `disabled` or `mock`. `EmailPlugin.fetch_messages()`, `EmailPlugin.get_message()`, and `EmailPlugin.search_messages()` are blocked unless this is explicitly `mock`.
 - `draft_mode`: `disabled` or `mock`.
 
 ### `hermes`
 
-- `profile`: `auto` or a future explicit profile identifier. Version 0.8.0 stores and validates this value but does not switch profiles.
+- `profile`: `auto` or a future explicit profile identifier. Version 0.9.0 stores and validates this value but does not switch profiles.
 
 ### `behavior`
 
@@ -50,7 +73,7 @@ All inheritance flags default to `true`. They express the intended behavior of f
 
 ### `safety`
 
-`allow_send`, `allow_delete`, and `allow_move` all default to `false`. Version 0.8.0 does not implement these operations even if a local test configuration changes a flag to `true`.
+`allow_send`, `allow_delete`, and `allow_move` all default to `false`. Version 0.9.0 does not implement these operations even if a local test configuration changes a flag to `true`.
 
 ## Loading
 

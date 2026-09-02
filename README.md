@@ -8,24 +8,34 @@ Hermes remains the intelligence, personality, and decision-maker. The plugin pro
 
 A friendly German Hermes profile should produce friendly, concise German drafts. A formal English profile should preserve that profile's language and style. Provider adapters must not alter this behavior.
 
-## Version 0.8.0
+## Version 0.9.0
 
-This release adds deterministic local text search over bounded mock retrieval:
+This release adds safe runtime configuration and non-sensitive health reporting:
 
-- `EmailPlugin.search_messages(query)` requires explicit `email.read_mode: mock` and fetch capability;
-- queries are trimmed, case-insensitive, plain substring matches with a 256-character maximum;
-- subject, sender address, sender display name, and body text are searched;
-- each search fetches at most 100 messages and preserves provider order;
-- no regex, query language, fuzzy matching, embeddings, semantic search, LLM use, or external search is added;
-- no production provider, state-changing operation, network client, poller, or persistence is added.
+- `register(ctx)` reads only the official plugin-scoped `ctx.get_config()` API;
+- no settings or no explicit provider produces the `disabled` state without a fallback;
+- an explicit valid mock configuration is resolved by the existing resolver and produces `mock-ready`;
+- expected validation and provider-resolution failures produce `configuration-error` without stopping Hermes registration;
+- `get_runtime_status()` reports version, state, provider, active public profile, and enabled read/draft/send flags;
+- diagnostics are fixed non-sensitive codes and never include settings values, credentials, or message content.
+
+### Runtime health
+
+| State | Meaning |
+|---|---|
+| `disabled` | No explicit provider is configured; no mail operation is available. |
+| `mock-ready` | The explicit mock provider resolved successfully. |
+| `configuration-error` | Expected settings validation or provider resolution failed; Hermes registration continues. |
+
+`EmailPlugin.get_runtime_status()` reports only `version`, `state`, `provider`, `profile`, `read_enabled`, `draft_enabled`, `send_enabled`, and `diagnostic`.
 
 ### Deliberately not included
 
-Version `0.8.0` does not connect to production mail accounts, fetch real messages, send email, delete or move messages, run background polling, implement OAuth, classify mail, automate replies, route LLM calls, or persist state in a database.
+Version `0.9.0` does not connect to production mail accounts, fetch real messages, send email, delete or move messages, run background polling, implement OAuth, classify mail, automate replies, route LLM calls, or persist state in a database.
 
 ## Safety defaults
 
-| Operation | Version 0.8.0 |
+| Operation | Version 0.9.0 |
 |---|---|
 | Read mail | Disabled or mock only |
 | Prepare a draft | Local value/mock only |
@@ -46,7 +56,7 @@ hermes plugins enable hermes-email
 hermes plugins doctor hermes-email --ci
 ```
 
-The plugin registers the read-only skill as `hermes-email:email` and uses one official unload callback to own the runtime context lifetime. Version 0.8.0 registers no tools, model hooks, account integrations, or background tasks.
+The plugin registers the read-only skill as `hermes-email:email` and uses one official unload callback to own the runtime context lifetime. Version 0.9.0 registers no tools, model hooks, account integrations, or background tasks.
 
 ## Development
 
