@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Sequence
 
-from hermes_email.models import EmailDraft, EmailMessage
+from ..models import EmailDraft, EmailMessage
 
 
 @dataclass(frozen=True, slots=True)
