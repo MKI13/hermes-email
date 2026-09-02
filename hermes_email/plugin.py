@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
-from typing import Any, Final, Self, Sequence
+from typing import Any, Final, Self
 
 from . import __version__
 from .config import ConfigError, EmailPluginConfig
@@ -20,7 +20,7 @@ from .providers import (
 
 
 MAX_FETCH_LIMIT: Final = 100
-SEARCH_FETCH_LIMIT: Final = MAX_FETCH_LIMIT
+SEARCH_FETCH_LIMIT: Final = 50
 SEARCH_QUERY_MAX_LENGTH: Final = 256
 _RUNTIME_CONFIG_SECTIONS: Final = ("email", "hermes", "behavior", "safety")
 _RUNTIME_CONFIG_MISSING: Final = object()
@@ -164,17 +164,25 @@ class EmailPlugin:
             raise EmailFetchUnsupportedError(
                 f"email provider {provider.name!r} does not support message fetching"
             )
+        self._validate_fetch_limit(limit)
+        self._validate_fetch_cursor(cursor)
+        return await provider.fetch_messages(limit=limit, cursor=cursor)
+
+    @staticmethod
+    def _validate_fetch_limit(limit: int) -> None:
         if isinstance(limit, bool) or not isinstance(limit, int) or limit <= 0:
             raise EmailFetchLimitError("limit must be a positive integer")
         if limit > MAX_FETCH_LIMIT:
             raise EmailFetchLimitError(
                 f"limit must not exceed the maximum page size of {MAX_FETCH_LIMIT}"
             )
+
+    @staticmethod
+    def _validate_fetch_cursor(cursor: str | None) -> None:
         if cursor is not None and (
             not isinstance(cursor, str) or not cursor.strip()
         ):
             raise EmailFetchCursorError("cursor must be None or a non-empty string")
-        return await provider.fetch_messages(limit=limit, cursor=cursor)
 
     async def get_message(self, message_id: str) -> EmailMessage | None:
         """Return one message by an opaque, non-empty provider identifier."""
@@ -187,13 +195,14 @@ class EmailPlugin:
             raise EmailMessageIdError("message_id must be a non-empty string")
         return await provider.get_message(message_id)
 
-    async def search_messages(self, query: str) -> Sequence[EmailMessage]:
+    async def search_messages(
+        self,
+        query: str,
+        *,
+        limit: int = SEARCH_FETCH_LIMIT,
+        cursor: str | None = None,
+    ) -> EmailMessagePage:
         """Search one bounded local message page using plain text matching."""
-        provider = self._read_provider()
-        if not provider.capabilities.fetch:
-            raise EmailFetchUnsupportedError(
-                f"email provider {provider.name!r} does not support message fetching"
-            )
         if not isinstance(query, str) or not query.strip():
             raise EmailSearchQueryError("query must be a non-empty string")
 
@@ -203,20 +212,31 @@ class EmailPlugin:
                 f"query must not exceed {SEARCH_QUERY_MAX_LENGTH} characters"
             )
 
-        messages = await self.fetch_messages(limit=SEARCH_FETCH_LIMIT)
-        needle = normalized_query.casefold()
-        return tuple(
-            message
-            for message in messages
-            if any(
-                needle in value.casefold()
-                for value in (
-                    message.subject,
-                    message.sender.address,
-                    message.sender.display_name or "",
-                    message.body_text or "",
-                )
+        provider = self._read_provider()
+        if not provider.capabilities.fetch:
+            raise EmailFetchUnsupportedError(
+                f"email provider {provider.name!r} does not support message fetching"
             )
+        self._validate_fetch_limit(limit)
+        self._validate_fetch_cursor(cursor)
+
+        page = await provider.fetch_messages(limit=limit, cursor=cursor)
+        needle = normalized_query.casefold()
+        return EmailMessagePage(
+            messages=tuple(
+                message
+                for message in page.messages
+                if any(
+                    needle in value.casefold()
+                    for value in (
+                        message.subject,
+                        message.sender.address,
+                        message.sender.display_name or "",
+                        message.body_text or "",
+                    )
+                )
+            ),
+            next_cursor=page.next_cursor,
         )
 
     def prepare_draft(self, draft: EmailDraft) -> EmailDraft:
@@ -226,9 +246,9 @@ class EmailPlugin:
         return draft
 
     async def send_message(self, draft_id: str) -> None:
-        """Refuse sending unconditionally in version 0.11.1."""
+        """Refuse sending unconditionally in version 0.12.0."""
         del draft_id
-        raise SendingUnavailableError("email sending is not implemented in version 0.11.1")
+        raise SendingUnavailableError("email sending is not implemented in version 0.12.0")
 
 
 def format_runtime_status(status: EmailRuntimeStatus) -> str:
@@ -303,7 +323,7 @@ def _create_runtime_plugin(ctx: Any) -> EmailPlugin:
 def register(ctx: Any) -> EmailPlugin:
     """Load safe runtime settings, bind Hermes context, and register the skill.
 
-    Version 0.11.1 deliberately registers no tools, model hooks, pollers,
+    Version 0.12.0 deliberately registers no tools, model hooks, pollers,
     background tasks, or account connections.
     """
     runtime = _create_runtime_plugin(ctx)

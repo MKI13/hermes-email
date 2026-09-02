@@ -138,7 +138,9 @@ def test_no_matches_returns_empty_sequence() -> None:
     async def exercise() -> None:
         plugin = EmailPlugin.from_config(plugin_config(read_mode="mock"))
 
-        assert await plugin.search_messages("definitely absent text") == ()
+        page = await plugin.search_messages("definitely absent text")
+
+        assert page == EmailMessagePage(messages=(), next_cursor=None)
 
     asyncio.run(exercise())
 
