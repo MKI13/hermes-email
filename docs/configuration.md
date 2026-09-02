@@ -4,7 +4,7 @@
 
 Configuration is profile- and deployment-owned. The repository contains no personal addresses, provider credentials, company rules, or fixed writing style.
 
-`hermes.profile: auto` means that future integrations should use the active Hermes profile. Version 0.2.0 resolves only the public Hermes plugin property `ctx.profile_name`; it does not inspect private profile files.
+`hermes.profile: auto` means that future integrations should use the active Hermes profile. Version 0.3.0 resolves only the public Hermes plugin property `ctx.profile_name`; it does not inspect private profile files.
 
 ## Example
 
@@ -36,13 +36,13 @@ The complete example is in `examples/config.example.yaml`.
 
 ### `email`
 
-- `provider`: provider identifier or `null`. No identifiers are implemented yet.
+- `provider`: explicit provider identifier or `null`. Version 0.3.0 accepts only `mock`; `null` and empty values do not select a fallback.
 - `read_mode`: `disabled` or `mock`.
 - `draft_mode`: `disabled` or `mock`.
 
 ### `hermes`
 
-- `profile`: `auto` or a future explicit profile identifier. Version 0.2.0 stores and validates this value but does not switch profiles.
+- `profile`: `auto` or a future explicit profile identifier. Version 0.3.0 stores and validates this value but does not switch profiles.
 
 ### `behavior`
 
@@ -50,7 +50,7 @@ All inheritance flags default to `true`. They express the intended behavior of f
 
 ### `safety`
 
-`allow_send`, `allow_delete`, and `allow_move` all default to `false`. Version 0.2.0 does not implement these operations even if a local test configuration changes a flag to `true`.
+`allow_send`, `allow_delete`, and `allow_move` all default to `false`. Version 0.3.0 does not implement these operations even if a local test configuration changes a flag to `true`.
 
 ## Loading
 
@@ -60,7 +60,17 @@ from hermes_email import load_config
 config = load_config("path/to/config.yaml")
 ```
 
-The loader uses YAML safe loading, validates section and value types, and rejects unknown keys to surface mistakes early.
+The loader uses YAML safe loading, validates section and value types, and rejects unknown keys to surface mistakes early. Pass the resulting configuration to the explicit provider resolver:
+
+```python
+from hermes_email import load_config
+from hermes_email.providers import resolve_email_provider
+
+config = load_config("path/to/config.yaml")
+provider = resolve_email_provider(config)
+```
+
+The resolver trims and case-normalizes the configured identifier. It creates `MockEmailProvider` only for an explicit `mock` value and rejects every other value without importing modules or executing configuration content.
 
 ## Secrets
 

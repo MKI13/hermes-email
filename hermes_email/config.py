@@ -67,7 +67,7 @@ class SafetySettings:
 
 @dataclass(frozen=True, slots=True)
 class EmailPluginConfig:
-    """Complete version 0.1 configuration."""
+    """Complete validated plugin configuration."""
 
     email: EmailSettings = field(default_factory=EmailSettings)
     hermes: HermesSettings = field(default_factory=HermesSettings)
