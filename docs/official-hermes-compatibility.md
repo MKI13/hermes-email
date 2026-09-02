@@ -1,6 +1,6 @@
 # Hermes Compatibility
 
-Version 0.12.1 targets the manifest v1 schema accepted by the Hermes Agent v0.21.0 installer. The manifest uses only `manifest_version`, `name`, `version`, `kind`, `description`, and `author`. Optional v2 metadata is omitted because none is required for runtime behavior.
+Version 0.13.0 targets the manifest v1 schema accepted by the Hermes Agent v0.21.0 installer. The manifest uses only `manifest_version`, `name`, `version`, `kind`, `description`, and `author`. Optional v2 metadata is omitted because none is required for runtime behavior.
 
 Manifest version identifies the `plugin.yaml` file format; it does not select the runtime context API. An omitted `api_version` is treated as current-compatible. The plugin continues to use these public Hermes extension surfaces:
 
@@ -9,8 +9,10 @@ Manifest version identifies the `plugin.yaml` file format; it does not select th
 - `ctx.profile_name` is the stable public active-profile identifier;
 - `ctx.on_unload()` owns cleanup callbacks for plugin runtime references;
 - `ctx.register_command()` registers `/email-status` as an in-session slash command;
-- non-secret plugin settings are read through the official plugin-scoped `ctx.get_config()` API;
+- non-secret plugin settings and secret references are read through the official plugin-scoped `ctx.get_config()` API;
 - plugin validation is available through `hermes plugins doctor`.
+
+Hermes Agent v0.21.0 lets plugins register new secret-source backends, but `PluginContext` does not expose a public method for reading one credential on behalf of a provider. Hermes documents its loaded environment as the standard credential path. The fallback resolver therefore performs only a validated, targeted environment lookup; it does not register a secret source or inspect private Hermes files.
 
 Authoritative upstream references:
 

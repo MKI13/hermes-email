@@ -11,14 +11,31 @@ import hermes_email
 
 DIST = Path("dist")
 DENIED_PARTS = {".git", ".github", ".pytest_cache", ".venv", "__pycache__"}
-DENIED_SUFFIXES = {".key", ".pem"}
+DENIED_NAMES = {
+    "config.yaml",
+    "config.yml",
+    "credentials",
+    "credentials.json",
+    ".netrc",
+    ".pgpass",
+    ".pypirc",
+}
+DENIED_SUFFIXES = {".key", ".p12", ".pem", ".pfx"}
 
 
 def _reject_path(name: str) -> None:
     path = PurePosixPath(name)
-    if DENIED_PARTS.intersection(path.parts):
+    if path.is_absolute() or ".." in path.parts or "\\" in name:
+        raise AssertionError(f"distribution contains unsafe path: {name}")
+    normalized_parts = {part.casefold() for part in path.parts}
+    if DENIED_PARTS.intersection(normalized_parts):
         raise AssertionError(f"distribution contains denied path: {name}")
-    if path.name == ".env" or path.suffix.lower() in DENIED_SUFFIXES:
+    normalized_name = path.name.casefold()
+    if (
+        normalized_name.startswith(".env")
+        or normalized_name in DENIED_NAMES
+        or path.suffix.casefold() in DENIED_SUFFIXES
+    ):
         raise AssertionError(f"distribution contains sensitive path: {name}")
 
 

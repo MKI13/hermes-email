@@ -159,6 +159,24 @@ def test_command_contains_no_secret_or_mail_content() -> None:
     assert "environment" not in output.lower()
 
 
+def test_command_never_displays_credential_reference_or_value(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    reference = "HERMES_EMAIL_COMMAND_TEST"
+    sensitive_value = "SYNTHETIC VALUE FOR COMMAND TEST"
+    monkeypatch.setenv(reference, sensitive_value)
+    settings = mock_settings()
+    settings["credentials"] = {"password_ref": reference}
+    context = FakeHermesContext(settings)
+    register(context)
+
+    output = registered_command(context)("")
+
+    assert "Status: mock-ready" in output
+    assert reference not in output
+    assert sensitive_value not in output
+
+
 def test_command_invokes_no_mail_operation(monkeypatch: pytest.MonkeyPatch) -> None:
     def forbidden(*args, **kwargs):
         raise AssertionError(f"unexpected mail operation: {args!r} {kwargs!r}")

@@ -8,6 +8,8 @@ from typing import Any, Mapping, TypeVar
 
 import yaml
 
+from .secrets import InvalidSecretReferenceError, validate_secret_reference
+
 
 class ConfigError(ValueError):
     """Raised when a configuration value is invalid."""
@@ -38,6 +40,28 @@ class HermesSettings:
         profile = getattr(self, "profile")
         if not isinstance(profile, str) or not profile.strip():
             raise ConfigError("Hermes profile must be a non-empty string")
+
+
+@dataclass(frozen=True, slots=True)
+class CredentialReferences:
+    """Optional references to future provider credentials, never their values."""
+
+    username_ref: str | None = None
+    password_ref: str | None = None
+
+    def __post_init__(self) -> None:
+        for field_name in ("username_ref", "password_ref"):
+            reference = getattr(self, field_name)
+            if reference is None:
+                continue
+            if not isinstance(reference, str):
+                raise ConfigError(f"credentials.{field_name} must be a string or null")
+            try:
+                validate_secret_reference(reference)
+            except InvalidSecretReferenceError as exc:
+                raise ConfigError(
+                    f"credentials.{field_name} must be a valid Hermes Email secret reference"
+                ) from exc
 
 
 @dataclass(frozen=True, slots=True)
@@ -72,6 +96,7 @@ class EmailPluginConfig:
 
     email: EmailSettings = field(default_factory=EmailSettings)
     hermes: HermesSettings = field(default_factory=HermesSettings)
+    credentials: CredentialReferences = field(default_factory=CredentialReferences)
     behavior: BehaviorSettings = field(default_factory=BehaviorSettings)
     safety: SafetySettings = field(default_factory=SafetySettings)
 
@@ -81,16 +106,28 @@ class EmailPluginConfig:
         raw = data or {}
         if not isinstance(raw, Mapping):
             raise ConfigError("configuration root must be a mapping")
-        _reject_unknown("configuration", raw, {"email", "hermes", "behavior", "safety"})
+        _reject_unknown(
+            "configuration", raw, {"email", "hermes", "credentials", "behavior", "safety"}
+        )
         return cls(
             email=_build_section(EmailSettings, "email", raw.get("email")),
             hermes=_build_section(HermesSettings, "hermes", raw.get("hermes")),
+            credentials=_build_section(
+                CredentialReferences, "credentials", raw.get("credentials")
+            ),
             behavior=_build_section(BehaviorSettings, "behavior", raw.get("behavior")),
             safety=_build_section(SafetySettings, "safety", raw.get("safety")),
         )
 
 
-Section = TypeVar("Section", EmailSettings, HermesSettings, BehaviorSettings, SafetySettings)
+Section = TypeVar(
+    "Section",
+    EmailSettings,
+    HermesSettings,
+    CredentialReferences,
+    BehaviorSettings,
+    SafetySettings,
+)
 
 
 def load_config(path: str | Path) -> EmailPluginConfig:

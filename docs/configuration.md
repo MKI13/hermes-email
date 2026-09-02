@@ -4,11 +4,11 @@
 
 Configuration is profile- and deployment-owned. The repository contains no personal addresses, provider credentials, company rules, or fixed writing style.
 
-The `profile: auto` setting in the `hermes` section means that integrations should use the active Hermes profile. During plugin registration, version 0.12.1 binds only the public Hermes plugin property `ctx.profile_name`; it does not inspect private profile files.
+The `profile: auto` setting in the `hermes` section means that integrations should use the active Hermes profile. During plugin registration, version 0.13.0 binds only the public Hermes plugin property `ctx.profile_name`; it does not inspect private profile files.
 
 ## Hermes runtime settings
 
-Hermes owns the configuration location. Place non-secret settings under `plugins.entries.hermes-email.settings` in the normal Hermes configuration surface. The plugin reads only its own `email`, `hermes`, `behavior`, and `safety` sections through `ctx.get_config()`:
+Hermes owns the configuration location. Place non-secret settings and secret references under `plugins.entries.hermes-email.settings` in the normal Hermes configuration surface. The plugin reads only its own `email`, `hermes`, `credentials`, `behavior`, and `safety` sections through `ctx.get_config()`:
 
 ```yaml
 plugins:
@@ -21,6 +21,9 @@ plugins:
           draft_mode: mock
         hermes:
           profile: auto
+        credentials:
+          username_ref: HERMES_EMAIL_USERNAME
+          password_ref: HERMES_EMAIL_PASSWORD
         safety:
           allow_send: false
           allow_delete: false
@@ -42,6 +45,10 @@ email:
 hermes:
   profile: auto
 
+credentials:
+  username_ref: null
+  password_ref: null
+
 behavior:
   inherit_persona: true
   inherit_language: true
@@ -61,13 +68,20 @@ The complete example is in `examples/config.example.yaml`.
 
 ### `email`
 
-- `provider`: explicit provider identifier or `null`. Version 0.12.1 accepts only `mock`; `null` and empty values do not select a fallback.
+- `provider`: explicit provider identifier or `null`. Version 0.13.0 accepts only `mock`; `null` and empty values do not select a fallback.
 - `read_mode`: `disabled` or `mock`. `EmailPlugin.fetch_messages()`, `EmailPlugin.get_message()`, and `EmailPlugin.search_messages()` are blocked unless this is explicitly `mock`.
 - `draft_mode`: `disabled` or `mock`.
 
 ### `hermes`
 
-- `profile`: `auto` or a future explicit profile identifier. Version 0.12.1 stores and validates this value but does not switch profiles.
+- `profile`: `auto` or a future explicit profile identifier. Version 0.13.0 stores and validates this value but does not switch profiles.
+
+### `credentials`
+
+- `username_ref`: optional reference for a future provider username.
+- `password_ref`: optional reference for a future provider password.
+
+Both fields contain references, never credential values. Valid references are at most 128 characters, start with `HERMES_EMAIL_`, and contain only uppercase letters, digits, and single underscores between segments. Values such as `HOME`, paths, shell expressions, templates, and dotted identifiers are rejected before environment access. Secrets are resolved only by an explicit future provider operation; plugin registration and mock operation do not resolve them.
 
 ### `behavior`
 
@@ -75,7 +89,7 @@ All inheritance flags default to `true`. They express the intended behavior of f
 
 ### `safety`
 
-`allow_send`, `allow_delete`, and `allow_move` all default to `false`. Version 0.12.1 does not implement these operations even if a local test configuration changes a flag to `true`.
+`allow_send`, `allow_delete`, and `allow_move` all default to `false`. Version 0.13.0 does not implement these operations even if a local test configuration changes a flag to `true`.
 
 ## Loading
 

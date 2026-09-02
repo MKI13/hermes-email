@@ -10,6 +10,7 @@ import hermes_email.plugin as plugin_module
 from hermes_email.config import EmailPluginConfig
 from hermes_email.plugin import EmailRuntimeState, register
 from hermes_email.providers import MockEmailProvider
+from hermes_email.secrets import EnvironmentSecretResolver
 
 
 class FakeHermesContext:
@@ -79,7 +80,13 @@ def test_register_reads_only_official_plugin_setting_sections() -> None:
 
     register(context)
 
-    assert context.config_reads == ["email", "hermes", "behavior", "safety"]
+    assert context.config_reads == [
+        "email",
+        "hermes",
+        "credentials",
+        "behavior",
+        "safety",
+    ]
 
 
 def test_valid_mock_configuration_is_ready() -> None:
@@ -202,6 +209,52 @@ def test_runtime_initialization_and_status_use_no_network(
 
     plugin = register(FakeHermesContext(mock_settings()))
     assert plugin.get_runtime_status().state is EmailRuntimeState.MOCK_READY
+
+
+def test_disabled_mock_and_reload_never_resolve_secrets(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def forbidden(*args, **kwargs):
+        raise AssertionError(f"unexpected secret resolution: {args!r} {kwargs!r}")
+
+    monkeypatch.setattr(EnvironmentSecretResolver, "get_secret", forbidden)
+
+    disabled_context = FakeHermesContext()
+    disabled_runtime = register(disabled_context)
+    assert disabled_runtime.get_runtime_status().state is EmailRuntimeState.DISABLED
+    disabled_context.unload_callbacks[0]()
+
+    configured_mock = mock_settings()
+    configured_mock["credentials"] = {
+        "username_ref": "HERMES_EMAIL_USERNAME",
+        "password_ref": "HERMES_EMAIL_PASSWORD",
+    }
+    first_mock_context = FakeHermesContext(configured_mock)
+    first_mock_runtime = register(first_mock_context)
+    assert first_mock_runtime.get_runtime_status().state is EmailRuntimeState.MOCK_READY
+    first_mock_context.unload_callbacks[0]()
+
+    second_mock_runtime = register(FakeHermesContext(configured_mock))
+    assert second_mock_runtime.get_runtime_status().state is EmailRuntimeState.MOCK_READY
+
+
+def test_credential_values_never_reach_runtime_status_or_logs(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    reference = "HERMES_EMAIL_STATUS_TEST"
+    sensitive_value = "SYNTHETIC VALUE FOR STATUS TEST"
+    monkeypatch.setenv(reference, sensitive_value)
+    configured_mock = mock_settings()
+    configured_mock["credentials"] = {"password_ref": reference}
+
+    status = register(FakeHermesContext(configured_mock)).get_runtime_status()
+    serialized_status = repr(asdict(status))
+
+    assert status.state is EmailRuntimeState.MOCK_READY
+    assert sensitive_value not in serialized_status
+    assert reference not in serialized_status
+    assert sensitive_value not in caplog.text
 
 
 def test_runtime_lifecycle_cleanup_still_releases_context() -> None:

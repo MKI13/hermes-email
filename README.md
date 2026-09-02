@@ -10,14 +10,15 @@ Hermes remains the intelligence, personality, and decision-maker. The plugin pro
 
 A friendly German Hermes profile should produce friendly, concise German drafts. A formal English profile should preserve that profile's language and style. Provider adapters must not alter this behavior.
 
-## Version 0.12.1
+## Version 0.13.0
 
-This release adds fail-closed continuous integration without changing plugin runtime behavior:
+This release adds a provider-neutral foundation for resolving future credentials without adding a production mail provider:
 
-- pushes and pull requests to `main` run the full suite on Python 3.11, 3.12, and 3.13;
-- every matrix job verifies imports, builds a wheel and source distribution, and checks their paths;
-- a separate clean-environment job installs an immutable Hermes Agent v0.21.0 development checkout and runs Plugin Doctor;
-- workflow permissions are read-only and no credentials or repository secrets are required;
+- configuration stores only optional `username_ref` and `password_ref` identifiers;
+- references must use the plugin-scoped `HERMES_EMAIL_...` format;
+- `EnvironmentSecretResolver` reads exactly one validated reference on explicit request;
+- `SecretValue` redacts both string and representation output and is never serialized or persisted;
+- plugin registration, disabled mode, and mock mode never request a secret;
 - the mock-only provider boundary, bounded caller-driven pagination, disabled sending, and all existing safety controls remain unchanged.
 
 ### Runtime health
@@ -32,11 +33,11 @@ Type `/email-status` in a Hermes session to display the fixed fields from `Email
 
 ### Deliberately not included
 
-Version `0.12.1` does not connect to production mail accounts, fetch real messages, send email, delete or move messages, run background polling, implement OAuth, classify mail, automate replies, route LLM calls, or persist state in a database.
+Version `0.13.0` does not connect to production mail accounts, fetch real messages, send email, delete or move messages, run background polling, implement OAuth, classify mail, automate replies, route LLM calls, or persist state in a database.
 
 ## Safety defaults
 
-| Operation | Version 0.12.1 |
+| Operation | Version 0.13.0 |
 |---|---|
 | Read mail | Disabled or mock only |
 | Prepare a draft | Local value/mock only |
@@ -46,6 +47,18 @@ Version `0.12.1` does not connect to production mail accounts, fetch real messag
 | Connect an account | Unavailable |
 
 No credentials are required. `.env` files and common private-key formats are ignored by Git.
+
+## Credential references
+
+Secret values must never be placed in plugin settings. Future providers may receive validated references instead:
+
+```yaml
+credentials:
+  username_ref: HERMES_EMAIL_USERNAME
+  password_ref: HERMES_EMAIL_PASSWORD
+```
+
+The referenced environment values are available only through an explicit `SecretResolver.get_secret()` call. Version 0.13.0 makes no such call during registration, disabled operation, or mock operation. The resolver does not enumerate the environment, expand shell syntax, read files, use the network, log values, or cache them.
 
 ## Installation and skill loading
 
@@ -57,7 +70,7 @@ hermes plugins enable hermes-email
 hermes plugins doctor hermes-email --ci
 ```
 
-The plugin registers the read-only skill as `hermes-email:email`, the in-session command `/email-status`, and one official unload callback for runtime context cleanup. Version 0.12.1 registers no tools, model hooks, account integrations, or background tasks.
+The plugin registers the read-only skill as `hermes-email:email`, the in-session command `/email-status`, and one official unload callback for runtime context cleanup. Version 0.13.0 registers no tools, model hooks, account integrations, or background tasks.
 
 ## Development
 
