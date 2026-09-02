@@ -1,5 +1,8 @@
 """Hermes directory-plugin entry point."""
 
-from .hermes_email.plugin import register
+if __package__:
+    from .hermes_email.plugin import register
+else:
+    from hermes_email.plugin import register
 
 __all__ = ["register"]
