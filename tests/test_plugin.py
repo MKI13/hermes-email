@@ -12,6 +12,7 @@ class FakePluginContext:
 
     def __init__(self) -> None:
         self.skills: list[tuple[str, Path, str]] = []
+        self.commands = []
         self.unload_callbacks = []
 
     def get_config(self, key: str, default=None):
@@ -19,6 +20,9 @@ class FakePluginContext:
 
     def on_unload(self, callback) -> None:
         self.unload_callbacks.append(callback)
+
+    def register_command(self, name: str, handler, description: str = "") -> None:
+        self.commands.append((name, handler, description))
 
     def register_skill(self, name: str, path: Path, *, description: str) -> None:
         self.skills.append((name, path, description))

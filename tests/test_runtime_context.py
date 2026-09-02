@@ -11,6 +11,7 @@ class FakeHermesContext:
     def __init__(self, profile_name: object = "ef-sinn-mail") -> None:
         self.profile_name = profile_name
         self.skills: list[tuple[str, Path, str]] = []
+        self.commands = []
         self.unload_callbacks = []
 
     def get_config(self, key: str, default=None):
@@ -18,6 +19,9 @@ class FakeHermesContext:
 
     def on_unload(self, callback) -> None:
         self.unload_callbacks.append(callback)
+
+    def register_command(self, name: str, handler, description: str = "") -> None:
+        self.commands.append((name, handler, description))
 
     def register_skill(self, name: str, path: Path, *, description: str) -> None:
         self.skills.append((name, path, description))
@@ -26,6 +30,7 @@ class FakeHermesContext:
 class FakeHermesContextWithoutProfile:
     def __init__(self) -> None:
         self.skills: list[tuple[str, Path, str]] = []
+        self.commands = []
         self.unload_callbacks = []
 
     def get_config(self, key: str, default=None):
@@ -33,6 +38,9 @@ class FakeHermesContextWithoutProfile:
 
     def on_unload(self, callback) -> None:
         self.unload_callbacks.append(callback)
+
+    def register_command(self, name: str, handler, description: str = "") -> None:
+        self.commands.append((name, handler, description))
 
     def register_skill(self, name: str, path: Path, *, description: str) -> None:
         self.skills.append((name, path, description))
