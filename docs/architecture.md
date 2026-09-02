@@ -14,7 +14,7 @@ The root `plugin.yaml` targets Hermes manifest v1 and `__init__.py` follows the 
 
 `hermes_email.plugin.EmailPlugin` is the provider-neutral orchestration point. It owns validated configuration, an optional provider, an optional Hermes context source, and a non-sensitive runtime state. `EmailPlugin.from_config(config)` remains the exclusive provider factory. `get_runtime_status()` returns an immutable snapshot containing version, state, provider name, public profile name, read/draft/send readiness flags, and an optional fixed diagnostic code without invoking any mailbox operation.
 
-The retrieval facades share the `read_mode` and provider-presence gates. Fetch additionally requires fetch capability, accepts only limits from 1 through 100, validates an optional non-empty opaque cursor without transforming it, and delegates exactly one page request. Search validates and trims a query of at most 256 characters, fetches one page of at most 100 messages, and performs case-insensitive plain substring matching over subject, sender address, sender display name, and body text. It preserves provider order and neither transforms nor persists messages.
+The retrieval facades share the `read_mode` and provider-presence gates. Fetch additionally requires fetch capability, accepts only limits from 1 through 100, validates an optional non-empty opaque cursor without transforming it, and delegates exactly one page request. Search first validates and trims a query of at most 256 characters, then applies the same read, fetch-capability, limit, and cursor gates. It delegates exactly one provider page request and performs case-insensitive plain substring matching over subject, sender address, sender display name, and body text. The returned `EmailMessagePage` preserves provider order, contains only matches from that page, and carries the provider page's unchanged `next_cursor`.
 
 Future technical responsibilities belong behind this facade:
 
@@ -25,17 +25,17 @@ Future technical responsibilities belong behind this facade:
 - privacy-aware logging;
 - independent safety authorization.
 
-Version 0.11.1 exposes deterministic local message retrieval only through the guarded facade and mock provider, plus in-memory mock draft storage. Pagination is explicitly caller-driven: no component follows `next_cursor` automatically. The remaining responsibilities are documented seams, not implemented subsystems.
+Version 0.12.0 exposes deterministic local message retrieval and single-page search only through the guarded facade and mock provider, plus in-memory mock draft storage. Pagination is explicitly caller-driven: no component follows `next_cursor` automatically. The remaining responsibilities are documented seams, not implemented subsystems.
 
 ### Provider abstraction
 
-`hermes_email.providers.EmailProvider` defines `fetch_messages(*, limit=50, cursor=None) -> EmailMessagePage` plus asynchronous methods for retrieving one message, creating a draft, and sending a stored draft. `EmailMessagePage` contains the provider-returned messages and either `None` or an opaque non-empty `next_cursor`; it remains sequence-compatible for existing bounded callers. `MockEmailProvider` is the only concrete implementation in version 0.11.1. It alone creates and interprets deterministic mock cursors, uses synthetic messages, stores drafts only in memory, performs no network access, and always blocks sending.
+`hermes_email.providers.EmailProvider` defines `fetch_messages(*, limit=50, cursor=None) -> EmailMessagePage` plus asynchronous methods for retrieving one message, creating a draft, and sending a stored draft. `EmailMessagePage` contains one page's messages and either `None` or an opaque non-empty `next_cursor`; it remains sequence-compatible for existing bounded callers, and search reuses it for one page's local matches. `MockEmailProvider` is the only concrete implementation in version 0.12.0. It alone creates and interprets deterministic mock cursors, uses synthetic messages, stores drafts only in memory, performs no network access, and always blocks sending.
 
 Future IMAP, SMTP, Gmail, Microsoft, Proton Bridge, or other adapters must normalize provider data into `EmailMessage` and `EmailDraft`. A provider's declared capability is never sufficient authorization for an external or destructive action.
 
 ### Provider resolver
 
-`resolve_email_provider(config)` normalizes the explicitly configured provider name and compares it with a fixed allowlist. Version 0.11.1 recognizes only `mock`. Missing values raise `ProviderNotConfiguredError`; every other identifier raises `UnsupportedEmailProviderError`. The resolver performs no dynamic imports, discovery, fallback selection, network access, or plugin execution.
+`resolve_email_provider(config)` normalizes the explicitly configured provider name and compares it with a fixed allowlist. Version 0.12.0 recognizes only `mock`. Missing values raise `ProviderNotConfiguredError`; every other identifier raises `UnsupportedEmailProviderError`. The resolver performs no dynamic imports, discovery, fallback selection, network access, or plugin execution.
 
 ### Hermes context adapter
 
@@ -92,12 +92,15 @@ EmailPlugin.get_message(message_id)
     -> non-empty string ID gate
     -> EmailProvider.get_message(message_id unchanged)
 
-EmailPlugin.search_messages(query)
+EmailPlugin.search_messages(query, limit, cursor)
+    -> non-empty query of at most 256 characters
     -> shared read-only gates
     -> provider fetch-capability gate
-    -> non-empty query of at most 256 characters
-    -> fetch_messages(limit=100)
-    -> local plain substring filtering
+    -> shared integer limit gate: 1..100, without clamping
+    -> shared cursor gate: None or non-empty string, without normalization
+    -> exactly one EmailProvider.fetch_messages(limit=limit, cursor=cursor unchanged)
+    -> local plain substring filtering of that page only
+    -> EmailMessagePage(matches, provider page next_cursor unchanged)
 
 EmailProvider
     -> provider-neutral models

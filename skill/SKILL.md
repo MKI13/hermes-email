@@ -1,7 +1,7 @@
 ---
 name: email
 description: Handle email using the active Hermes profile safely.
-version: 0.11.1
+version: 0.12.0
 author: MKI13
 license: MIT
 platforms: [linux, macos, windows]
@@ -13,7 +13,7 @@ metadata:
 
 # Email Skill
 
-Use this skill to analyze email content or prepare a draft while preserving the active Hermes agent's identity and policies. Version 0.11.1 adds only guarded, single-page retrieval from the local mock provider; it does not connect to a real account or perform mailbox side effects.
+Use this skill to analyze email content or prepare a draft while preserving the active Hermes agent's identity and policies. Version 0.12.0 provides only guarded, single-page retrieval and caller-driven single-page search over the local mock provider; it does not connect to a real account or perform mailbox side effects.
 
 ## When to Use
 
@@ -23,7 +23,7 @@ Use this skill to analyze email content or prepare a draft while preserving the 
 
 ## Prerequisites
 
-No credentials, provider account, or external email service is required in version 0.11.1. Work only with user-supplied content or deterministic messages returned by an explicitly enabled mock provider.
+No credentials, provider account, or external email service is required in version 0.12.0. Work only with user-supplied content or deterministic messages returned by an explicitly enabled mock provider.
 
 ## How to Run
 

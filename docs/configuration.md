@@ -4,7 +4,7 @@
 
 Configuration is profile- and deployment-owned. The repository contains no personal addresses, provider credentials, company rules, or fixed writing style.
 
-The `profile: auto` setting in the `hermes` section means that integrations should use the active Hermes profile. During plugin registration, version 0.11.1 binds only the public Hermes plugin property `ctx.profile_name`; it does not inspect private profile files.
+The `profile: auto` setting in the `hermes` section means that integrations should use the active Hermes profile. During plugin registration, version 0.12.0 binds only the public Hermes plugin property `ctx.profile_name`; it does not inspect private profile files.
 
 ## Hermes runtime settings
 
@@ -61,13 +61,13 @@ The complete example is in `examples/config.example.yaml`.
 
 ### `email`
 
-- `provider`: explicit provider identifier or `null`. Version 0.11.1 accepts only `mock`; `null` and empty values do not select a fallback.
+- `provider`: explicit provider identifier or `null`. Version 0.12.0 accepts only `mock`; `null` and empty values do not select a fallback.
 - `read_mode`: `disabled` or `mock`. `EmailPlugin.fetch_messages()`, `EmailPlugin.get_message()`, and `EmailPlugin.search_messages()` are blocked unless this is explicitly `mock`.
 - `draft_mode`: `disabled` or `mock`.
 
 ### `hermes`
 
-- `profile`: `auto` or a future explicit profile identifier. Version 0.11.1 stores and validates this value but does not switch profiles.
+- `profile`: `auto` or a future explicit profile identifier. Version 0.12.0 stores and validates this value but does not switch profiles.
 
 ### `behavior`
 
@@ -75,7 +75,7 @@ All inheritance flags default to `true`. They express the intended behavior of f
 
 ### `safety`
 
-`allow_send`, `allow_delete`, and `allow_move` all default to `false`. Version 0.11.1 does not implement these operations even if a local test configuration changes a flag to `true`.
+`allow_send`, `allow_delete`, and `allow_move` all default to `false`. Version 0.12.0 does not implement these operations even if a local test configuration changes a flag to `true`.
 
 ## Loading
 
@@ -111,10 +111,16 @@ if first_page.next_cursor is not None:
         cursor=first_page.next_cursor,
     )
 message = await plugin.get_message("mock-message-customer-001")
-results = await plugin.search_messages("sample service")
+search_page = await plugin.search_messages("sample service", limit=2)
+if search_page.next_cursor is not None:
+    next_search_page = await plugin.search_messages(
+        "sample service",
+        limit=2,
+        cursor=search_page.next_cursor,
+    )
 ```
 
-All retrieval facades reject disabled reading and missing providers before calling the provider. `fetch_messages()` also requires fetch capability, accepts only integer limits from 1 through 100, and accepts only `None` or a non-empty cursor string. It forwards a valid cursor byte-for-byte as opaque provider data and returns one `EmailMessagePage`; callers must explicitly request any next page. Local search trims and case-normalizes a non-empty query of at most 256 characters and fetches one page of at most 100 messages. It performs only plain substring matching over subject, sender address, sender display name, and body text while preserving provider order.
+All retrieval facades reject disabled reading and missing providers before calling the provider. `fetch_messages()` and `search_messages()` require fetch capability, accept only integer limits from 1 through 100, and accept only `None` or a non-empty cursor string. They forward a valid cursor byte-for-byte as opaque provider data and request exactly one provider page; callers must explicitly request any next page. Local search first validates and trims a non-empty query of at most 256 characters, then performs only plain substring matching over subject, sender address, sender display name, and body text while preserving provider order. Its returned `EmailMessagePage.messages` contains only matches from the current provider page. Its `next_cursor` is the unchanged provider-page cursor and indicates only that the provider has another message page, not that another search match exists.
 
 ## Secrets
 

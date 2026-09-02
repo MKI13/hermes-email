@@ -1,6 +1,6 @@
 # Security Model
 
-## Version 0.11.1 boundary
+## Version 0.12.0 boundary
 
 This release is a foundation with a local mock provider, not a mail client. The mock performs no network access, account authentication, mailbox polling, message transmission, deletion, movement, or persistence.
 
@@ -17,8 +17,9 @@ This release is a foundation with a local mock provider, not a mail client. The 
 - `EmailPlugin.fetch_messages()` requires explicit mock read mode, a configured provider, declared fetch capability, an integer limit from 1 through 100, and either `None` or a non-empty opaque cursor string.
 - The plugin forwards valid cursors unchanged, never decodes or creates them, and performs exactly one provider fetch per call. It does not clamp limits, follow `next_cursor`, retry, or persist cursor state.
 - `EmailPlugin.get_message()` uses the shared read gates, requires declared get capability, accepts only a non-empty string identifier, and delegates it unchanged as opaque data.
-- Retrieval facades return provider results without mailbox mutation and propagate provider failures unchanged.
-- `EmailPlugin.search_messages()` requires the read and fetch gates, validates a query of at most 256 characters, fetches at most 100 messages, and performs only local case-insensitive substring matching.
+- Fetch and lookup return provider results without mailbox mutation; search returns a new locally filtered page. All retrieval facades propagate provider failures unchanged.
+- `EmailPlugin.search_messages()` first validates a query of at most 256 characters, then requires the read and fetch gates and the same strict limit and opaque-cursor gates as fetch. It makes exactly one provider fetch and performs only local case-insensitive substring matching over that page.
+- Search returns only current-page matches and forwards the provider page's `next_cursor` unchanged. That cursor signals another provider message page, not guaranteed additional search matches, and is never followed automatically.
 - Mock reading returns only deterministic synthetic messages. The mock provider alone creates and interprets deterministic local pagination cursors; unknown cursors fail explicitly.
 - Mock drafts exist only in the provider instance's memory.
 - `EmailPlugin.send_message()` always raises `SendingUnavailableError`.
@@ -58,7 +59,7 @@ Before any release can send, delete, or move mail, it must include:
 6. focused tests for denial, failure, retries, and ambiguous state;
 7. updated security documentation and changelog.
 
-No item in this list is implemented implicitly by the version 0.11.1 interfaces.
+No item in this list is implemented implicitly by the version 0.12.0 interfaces.
 
 ## Credentials and logs
 

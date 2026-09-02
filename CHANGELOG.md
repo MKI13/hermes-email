@@ -4,6 +4,19 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-09-03
+
+### Added
+
+- Bounded cursor-based pagination for `EmailPlugin.search_messages(query, *, limit=50, cursor=None)` over exactly one provider page.
+- Search pagination tests covering query, limit, cursor, provider, one-page, runtime-context, and no-write safety behavior.
+
+### Changed
+
+- Local search now returns `EmailMessagePage`, containing only current-page matches while preserving the provider page's opaque `next_cursor` unchanged.
+- Fetch and search now share the same strict limit and cursor validation without clamping, normalization, retries, automatic continuation, or persistence.
+- Project version advanced to `0.12.0` across package, manifest, skill, and documentation metadata.
+
 ## [0.11.1] - 2026-09-02
 
 ### Fixed
@@ -147,7 +160,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - Initial project metadata and safe-by-default foundation.
 
-[Unreleased]: https://github.com/MKI13/hermes-email/compare/v0.11.1...HEAD
+[Unreleased]: https://github.com/MKI13/hermes-email/compare/v0.12.0...HEAD
+[0.12.0]: https://github.com/MKI13/hermes-email/compare/v0.11.1...v0.12.0
 [0.11.1]: https://github.com/MKI13/hermes-email/compare/v0.11.0...v0.11.1
 [0.11.0]: https://github.com/MKI13/hermes-email/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/MKI13/hermes-email/compare/v0.9.0...v0.10.0

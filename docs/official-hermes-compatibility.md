@@ -1,6 +1,6 @@
 # Hermes Compatibility
 
-Version 0.11.1 targets the manifest v1 schema accepted by the Hermes Agent v0.21.0 installer. The manifest uses only `manifest_version`, `name`, `version`, `kind`, `description`, and `author`. Optional v2 metadata is omitted because none is required for runtime behavior.
+Version 0.12.0 targets the manifest v1 schema accepted by the Hermes Agent v0.21.0 installer. The manifest uses only `manifest_version`, `name`, `version`, `kind`, `description`, and `author`. Optional v2 metadata is omitted because none is required for runtime behavior.
 
 Manifest version identifies the `plugin.yaml` file format; it does not select the runtime context API. An omitted `api_version` is treated as current-compatible. The plugin continues to use these public Hermes extension surfaces:
 
