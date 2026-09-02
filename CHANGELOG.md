@@ -4,6 +4,20 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-09-02
+
+### Added
+
+- Immutable, sequence-compatible `EmailMessagePage` results with provider-owned opaque continuation cursors.
+- Deterministic local cursor pagination in `MockEmailProvider`, including explicit rejection of unknown cursors.
+- Pagination safety tests for one-page delegation, cursor opacity, fixed limit boundaries, provider failures, runtime-context isolation, and absence of write effects.
+
+### Changed
+
+- `EmailProvider.fetch_messages()` and `EmailPlugin.fetch_messages()` now accept `cursor=None` and return exactly one `EmailMessagePage`.
+- Fetch limits are restricted to integers from 1 through `MAX_FETCH_LIMIT = 100` without clamping.
+- Project version advanced to `0.11.0` across package, manifest, skill, and documentation metadata.
+
 ## [0.10.0] - 2026-09-02
 
 ### Added
@@ -116,7 +130,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - Initial project metadata and safe-by-default foundation.
 
-[Unreleased]: https://github.com/MKI13/hermes-email/compare/v0.10.0...HEAD
+[Unreleased]: https://github.com/MKI13/hermes-email/compare/v0.11.0...HEAD
+[0.11.0]: https://github.com/MKI13/hermes-email/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/MKI13/hermes-email/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/MKI13/hermes-email/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/MKI13/hermes-email/compare/v0.7.0...v0.8.0

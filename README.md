@@ -8,16 +8,15 @@ Hermes remains the intelligence, personality, and decision-maker. The plugin pro
 
 A friendly German Hermes profile should produce friendly, concise German drafts. A formal English profile should preserve that profile's language and style. Provider adapters must not alter this behavior.
 
-## Version 0.10.0
+## Version 0.11.0
 
-This release adds a safe in-session status command:
+This release adds bounded cursor-based pagination to the existing mock-only read path:
 
-- `register(ctx)` registers `/email-status` through the official `ctx.register_command()` API;
-- the command closes over the same `EmailPlugin` runtime instance created during registration;
-- output is formatted exclusively from `EmailPlugin.get_runtime_status()`;
-- status arguments are ignored and never echoed;
-- no mailbox method, provider operation, network client, tool, model hook, or background task is invoked;
-- diagnostics remain fixed non-sensitive codes without settings values, credentials, or message content.
+- `EmailPlugin.fetch_messages(limit=50, cursor=None)` returns exactly one `EmailMessagePage`;
+- `MAX_FETCH_LIMIT` fixes the maximum page size at 100, with no clamping;
+- cursors are either `None` or non-empty opaque strings and are forwarded unchanged;
+- only `MockEmailProvider` interprets and creates its deterministic local cursors;
+- no follow-up page, retry, cursor persistence, network call, tool, model hook, or background task is created automatically.
 
 ### Runtime health
 
@@ -31,11 +30,11 @@ Type `/email-status` in a Hermes session to display the fixed fields from `Email
 
 ### Deliberately not included
 
-Version `0.10.0` does not connect to production mail accounts, fetch real messages, send email, delete or move messages, run background polling, implement OAuth, classify mail, automate replies, route LLM calls, or persist state in a database.
+Version `0.11.0` does not connect to production mail accounts, fetch real messages, send email, delete or move messages, run background polling, implement OAuth, classify mail, automate replies, route LLM calls, or persist state in a database.
 
 ## Safety defaults
 
-| Operation | Version 0.10.0 |
+| Operation | Version 0.11.0 |
 |---|---|
 | Read mail | Disabled or mock only |
 | Prepare a draft | Local value/mock only |
@@ -56,7 +55,7 @@ hermes plugins enable hermes-email
 hermes plugins doctor hermes-email --ci
 ```
 
-The plugin registers the read-only skill as `hermes-email:email`, the in-session command `/email-status`, and one official unload callback for runtime context cleanup. Version 0.10.0 registers no tools, model hooks, account integrations, or background tasks.
+The plugin registers the read-only skill as `hermes-email:email`, the in-session command `/email-status`, and one official unload callback for runtime context cleanup. Version 0.11.0 registers no tools, model hooks, account integrations, or background tasks.
 
 ## Development
 

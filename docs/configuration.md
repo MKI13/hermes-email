@@ -4,7 +4,7 @@
 
 Configuration is profile- and deployment-owned. The repository contains no personal addresses, provider credentials, company rules, or fixed writing style.
 
-`hermes.profile: auto` means that integrations should use the active Hermes profile. During plugin registration, version 0.10.0 binds only the public Hermes plugin property `ctx.profile_name`; it does not inspect private profile files.
+`hermes.profile: auto` means that integrations should use the active Hermes profile. During plugin registration, version 0.11.0 binds only the public Hermes plugin property `ctx.profile_name`; it does not inspect private profile files.
 
 ## Hermes runtime settings
 
@@ -61,13 +61,13 @@ The complete example is in `examples/config.example.yaml`.
 
 ### `email`
 
-- `provider`: explicit provider identifier or `null`. Version 0.10.0 accepts only `mock`; `null` and empty values do not select a fallback.
+- `provider`: explicit provider identifier or `null`. Version 0.11.0 accepts only `mock`; `null` and empty values do not select a fallback.
 - `read_mode`: `disabled` or `mock`. `EmailPlugin.fetch_messages()`, `EmailPlugin.get_message()`, and `EmailPlugin.search_messages()` are blocked unless this is explicitly `mock`.
 - `draft_mode`: `disabled` or `mock`.
 
 ### `hermes`
 
-- `profile`: `auto` or a future explicit profile identifier. Version 0.10.0 stores and validates this value but does not switch profiles.
+- `profile`: `auto` or a future explicit profile identifier. Version 0.11.0 stores and validates this value but does not switch profiles.
 
 ### `behavior`
 
@@ -75,7 +75,7 @@ All inheritance flags default to `true`. They express the intended behavior of f
 
 ### `safety`
 
-`allow_send`, `allow_delete`, and `allow_move` all default to `false`. Version 0.10.0 does not implement these operations even if a local test configuration changes a flag to `true`.
+`allow_send`, `allow_delete`, and `allow_move` all default to `false`. Version 0.11.0 does not implement these operations even if a local test configuration changes a flag to `true`.
 
 ## Loading
 
@@ -104,12 +104,17 @@ config = EmailPluginConfig.from_mapping({
     "email": {"provider": "mock", "read_mode": "mock"},
 })
 plugin = EmailPlugin.from_config(config)
-messages = await plugin.fetch_messages(limit=10)
+first_page = await plugin.fetch_messages(limit=2)
+if first_page.next_cursor is not None:
+    second_page = await plugin.fetch_messages(
+        limit=2,
+        cursor=first_page.next_cursor,
+    )
 message = await plugin.get_message("mock-message-customer-001")
 results = await plugin.search_messages("sample service")
 ```
 
-All retrieval facades reject disabled reading and missing providers before calling the provider. Local search also requires fetch capability, trims and case-normalizes a non-empty query of at most 256 characters, and fetches at most 100 messages. It performs only plain substring matching over subject, sender address, sender display name, and body text while preserving provider order.
+All retrieval facades reject disabled reading and missing providers before calling the provider. `fetch_messages()` also requires fetch capability, accepts only integer limits from 1 through 100, and accepts only `None` or a non-empty cursor string. It forwards a valid cursor byte-for-byte as opaque provider data and returns one `EmailMessagePage`; callers must explicitly request any next page. Local search trims and case-normalizes a non-empty query of at most 256 characters and fetches one page of at most 100 messages. It performs only plain substring matching over subject, sender address, sender display name, and body text while preserving provider order.
 
 ## Secrets
 
