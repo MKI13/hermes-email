@@ -1,12 +1,15 @@
 # Security Model
 
-## Version 0.12.1 boundary
+## Version 0.13.0 boundary
 
 This release is a foundation with a local mock provider, not a mail client. The mock performs no network access, account authentication, mailbox polling, message transmission, deletion, movement, or persistence.
 
 ## Safe by default
 
-- Manifest and scanner compatibility changes do not alter runtime configuration or authorization behavior.
+- Secret references contain identifiers only; plugin settings never contain credential values.
+- References are restricted to the plugin-scoped `HERMES_EMAIL_...` format before any environment lookup.
+- Plugin registration, disabled mode, mock mode, and reload never resolve a secret.
+- Secret values have redacted string and representation output and are neither serialized nor persisted.
 - Missing runtime settings load successfully as `disabled` with no provider and no fallback.
 - Runtime settings are read only through Hermes' plugin-scoped `ctx.get_config()` API.
 - Expected validation and provider-resolution failures become `configuration-error`; unrelated programming failures are not swallowed.
@@ -29,7 +32,7 @@ This release is a foundation with a local mock provider, not a mail client. The 
 - Provider resolution requires an explicit value and recognizes only `mock`.
 - Unknown or suspicious provider strings are rejected without dynamic imports or fallback selection.
 - Sending, deletion, and movement configuration flags default to false.
-- No credentials are required or included.
+- No credential values are required or included; optional configuration fields hold references only.
 
 A future provider capability and a user safety setting are separate checks. Supporting an operation must never imply permission to perform it.
 
@@ -59,8 +62,10 @@ Before any release can send, delete, or move mail, it must include:
 6. focused tests for denial, failure, retries, and ambiguous state;
 7. updated security documentation and changelog.
 
-No item in this list is implemented implicitly by the version 0.12.1 interfaces.
+No item in this list is implemented implicitly by the version 0.13.0 interfaces.
 
 ## Credentials and logs
 
-Never commit tokens, passwords, private keys, account exports, or real messages. `.env`, `.env.*`, `*.pem`, and `*.key` are ignored. Future logs should record bounded operational metadata and opaque identifiers, not message bodies or credentials.
+Never place secret values in plugin configuration or commit tokens, passwords, private keys, account exports, or real messages. `.env`, `.env.*`, `*.pem`, and `*.key` are ignored and excluded by distribution checks. Configuration may contain only validated references such as `HERMES_EMAIL_PASSWORD`.
+
+`EnvironmentSecretResolver` calls `os.environ.get(reference)` only after strict validation and only when a future provider explicitly requests that reference. It does not enumerate the environment. `SecretNotFoundError` includes the reference but never an expected or resolved value. `SecretValue` reveals its value only through an explicit provider-facing method; string formatting and `repr()` remain redacted. No resolver writes SQLite, YAML, JSON, files, Hermes memory, or logs.

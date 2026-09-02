@@ -25,17 +25,23 @@ Future technical responsibilities belong behind this facade:
 - privacy-aware logging;
 - independent safety authorization.
 
-Version 0.12.1 exposes deterministic local message retrieval and single-page search only through the guarded facade and mock provider, plus in-memory mock draft storage. Pagination is explicitly caller-driven: no component follows `next_cursor` automatically. The remaining responsibilities are documented seams, not implemented subsystems.
+Version 0.13.0 exposes deterministic local message retrieval and single-page search only through the guarded facade and mock provider, plus in-memory mock draft storage. Pagination is explicitly caller-driven: no component follows `next_cursor` automatically. The remaining responsibilities are documented seams, not implemented subsystems.
 
 ### Provider abstraction
 
-`hermes_email.providers.EmailProvider` defines `fetch_messages(*, limit=50, cursor=None) -> EmailMessagePage` plus asynchronous methods for retrieving one message, creating a draft, and sending a stored draft. `EmailMessagePage` contains one page's messages and either `None` or an opaque non-empty `next_cursor`; it remains sequence-compatible for existing bounded callers, and search reuses it for one page's local matches. `MockEmailProvider` is the only concrete implementation in version 0.12.1. It alone creates and interprets deterministic mock cursors, uses synthetic messages, stores drafts only in memory, performs no network access, and always blocks sending.
+`hermes_email.providers.EmailProvider` defines `fetch_messages(*, limit=50, cursor=None) -> EmailMessagePage` plus asynchronous methods for retrieving one message, creating a draft, and sending a stored draft. `EmailMessagePage` contains one page's messages and either `None` or an opaque non-empty `next_cursor`; it remains sequence-compatible for existing bounded callers, and search reuses it for one page's local matches. `MockEmailProvider` is the only concrete implementation in version 0.13.0. It alone creates and interprets deterministic mock cursors, uses synthetic messages, stores drafts only in memory, performs no network access, and always blocks sending.
 
 Future IMAP, SMTP, Gmail, Microsoft, Proton Bridge, or other adapters must normalize provider data into `EmailMessage` and `EmailDraft`. A provider's declared capability is never sufficient authorization for an external or destructive action.
 
+### Secret resolution
+
+`SecretResolver` is the provider-neutral credential boundary. `CredentialReferences` stores only optional `HERMES_EMAIL_...` identifiers. `EnvironmentSecretResolver` validates one identifier before calling the injected environment getter exactly once and returns a process-local `SecretValue` with redacted string and representation output. Resolution performs no enumeration, expansion, file access, network access, persistence, or caching.
+
+Hermes Agent v0.21.0 provides an API for plugins that implement secret-source backends, but its plugin context does not provide a public secret-read method. Hermes documents environment loading as the standard credential path, so this release uses targeted environment lookup. No resolver is created or called by `register(ctx)`, the provider resolver, or the mock provider.
+
 ### Provider resolver
 
-`resolve_email_provider(config)` normalizes the explicitly configured provider name and compares it with a fixed allowlist. Version 0.12.1 recognizes only `mock`. Missing values raise `ProviderNotConfiguredError`; every other identifier raises `UnsupportedEmailProviderError`. The resolver performs no dynamic imports, discovery, fallback selection, network access, or plugin execution.
+`resolve_email_provider(config)` normalizes the explicitly configured provider name and compares it with a fixed allowlist. Version 0.13.0 recognizes only `mock`. Missing values raise `ProviderNotConfiguredError`; every other identifier raises `UnsupportedEmailProviderError`. The resolver performs no dynamic imports, discovery, fallback selection, network access, or plugin execution.
 
 ### Hermes context adapter
 

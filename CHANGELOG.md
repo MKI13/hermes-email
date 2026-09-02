@@ -4,6 +4,27 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-09-03
+
+### Added
+
+- Provider-neutral `SecretResolver` interface and a targeted `EnvironmentSecretResolver` for future provider credential lookup.
+- Strict plugin-scoped secret-reference validation and non-sensitive missing-reference errors.
+- Process-local `SecretValue` objects with redacted string and representation output.
+- Optional `credentials.username_ref` and `credentials.password_ref` configuration fields that store references only.
+- Security tests covering validation, targeted lookup, missing values, redaction, no caching, external-operation isolation, and disabled/mock/reload behavior.
+
+### Changed
+
+- Distribution validation now rejects environment files, local configuration, credential exports, private-key files, and unsafe archive members.
+- Project version advanced to `0.13.0` across package, manifest, skill, CI, and documentation metadata.
+
+### Security
+
+- Plugin registration, disabled mode, mock mode, and reload do not resolve secrets.
+- No production mail provider, account connection, credential value, network operation, persistence, or mail side effect was added.
+- Existing runtime safety boundaries remain unchanged.
+
 ## [0.12.1] - 2026-09-03
 
 ### Added
@@ -180,7 +201,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - Initial project metadata and safe-by-default foundation.
 
-[Unreleased]: https://github.com/MKI13/hermes-email/compare/v0.12.1...HEAD
+[Unreleased]: https://github.com/MKI13/hermes-email/compare/v0.13.0...HEAD
+[0.13.0]: https://github.com/MKI13/hermes-email/compare/v0.12.1...v0.13.0
 [0.12.1]: https://github.com/MKI13/hermes-email/compare/v0.12.0...v0.12.1
 [0.12.0]: https://github.com/MKI13/hermes-email/compare/v0.11.1...v0.12.0
 [0.11.1]: https://github.com/MKI13/hermes-email/compare/v0.11.0...v0.11.1

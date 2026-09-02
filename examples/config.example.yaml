@@ -6,6 +6,10 @@ email:
 hermes:
   profile: auto
 
+credentials:
+  username_ref: null
+  password_ref: null
+
 behavior:
   inherit_persona: true
   inherit_language: true
