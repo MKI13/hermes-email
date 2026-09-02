@@ -1,7 +1,7 @@
 manifest_version: 2
 api_version: 1
 name: hermes-email
-version: 0.3.0
+version: 0.4.0
 kind: standalone
 description: Safe, provider-neutral email plugin and skill foundation
 license: MIT
