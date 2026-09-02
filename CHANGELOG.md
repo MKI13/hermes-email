@@ -4,6 +4,26 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.12.1] - 2026-09-03
+
+### Added
+
+- Read-only GitHub Actions CI for pushes and pull requests to `main`, with full tests, import checks, and package builds on Python 3.11 through 3.13.
+- Distribution-content validation for the generated wheel and source archive.
+- A separate clean-home Plugin Doctor job using an immutable Hermes Agent v0.21.0 upstream commit and its supported editable development installation.
+- An official GitHub Actions status badge in the README.
+
+### Changed
+
+- Added pinned `pip` bootstrap and `build` frontend requirements for reproducible CI setup.
+- Project version advanced to `0.12.1` across package, manifest, skill, and documentation metadata.
+
+### Security
+
+- CI requires no repository secrets and grants only read access to repository contents.
+- The official plugin security scan remains a pre-release installation gate because Hermes v0.21.0 exposes no separate non-interactive scan command.
+- No runtime or mail functionality changed; all existing safety boundaries remain unchanged.
+
 ## [0.12.0] - 2026-09-03
 
 ### Added
@@ -160,7 +180,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - Initial project metadata and safe-by-default foundation.
 
-[Unreleased]: https://github.com/MKI13/hermes-email/compare/v0.12.0...HEAD
+[Unreleased]: https://github.com/MKI13/hermes-email/compare/v0.12.1...HEAD
+[0.12.1]: https://github.com/MKI13/hermes-email/compare/v0.12.0...v0.12.1
 [0.12.0]: https://github.com/MKI13/hermes-email/compare/v0.11.1...v0.12.0
 [0.11.1]: https://github.com/MKI13/hermes-email/compare/v0.11.0...v0.11.1
 [0.11.0]: https://github.com/MKI13/hermes-email/compare/v0.10.0...v0.11.0

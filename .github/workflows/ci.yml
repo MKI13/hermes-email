@@ -1,0 +1,81 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-build:
+    name: Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version:
+          - "3.11"
+          - "3.12"
+          - "3.13"
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: |
+            requirements-bootstrap.txt
+            requirements-dev.txt
+
+      - name: Install development dependencies
+        run: |
+          python -m pip install -r requirements-bootstrap.txt --upgrade
+          python -m pip install -r requirements-dev.txt
+
+      - name: Run tests
+        run: python -m pytest
+
+      - name: Verify installed import
+        run: python -c "import hermes_email; assert hermes_email.__version__ == '0.12.1'; print(hermes_email.__version__)"
+
+      - name: Build distributions
+        run: python -m build
+
+      - name: Verify distribution contents
+        run: python scripts/check_dist.py
+
+  plugin-doctor:
+    name: Hermes Plugin Doctor
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: |
+            requirements-bootstrap.txt
+            requirements-hermes-ci.txt
+
+      - name: Install pinned Hermes Agent
+        run: |
+          python -m pip install -r requirements-bootstrap.txt --upgrade
+          python -m pip install -r requirements-hermes-ci.txt
+
+      - name: Run Plugin Doctor without user configuration
+        run: |
+          mkdir -p "${RUNNER_TEMP}/hermes-home"
+          HOME="${RUNNER_TEMP}/hermes-home" hermes plugins doctor . --ci
