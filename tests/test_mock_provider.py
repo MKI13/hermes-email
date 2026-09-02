@@ -45,7 +45,7 @@ def test_fetch_returns_deterministic_local_messages_without_state_change() -> No
 def test_fetch_respects_limit() -> None:
     provider = MockEmailProvider()
 
-    assert run(provider.fetch_messages(limit=0)) == ()
+    assert run(provider.fetch_messages(limit=0)).messages == ()
     assert len(run(provider.fetch_messages(limit=2))) == 2
     assert len(run(provider.fetch_messages(limit=100))) == 3
 

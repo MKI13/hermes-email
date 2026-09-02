@@ -1,11 +1,10 @@
 import asyncio
-from typing import Sequence
 
 import pytest
 
 from hermes_email.config import EmailPluginConfig
 from hermes_email.context import HermesContext
-from hermes_email.models import EmailAddress, EmailDraft, EmailMessage
+from hermes_email.models import EmailAddress, EmailDraft, EmailMessage, EmailMessagePage
 from hermes_email.plugin import (
     EmailGetUnsupportedError,
     EmailMessageIdError,
@@ -28,9 +27,11 @@ class RecordingProvider(EmailProvider):
     def name(self) -> str:
         return "recording"
 
-    async def fetch_messages(self, *, limit: int = 50) -> Sequence[EmailMessage]:
-        self.other_calls.append(f"fetch:{limit}")
-        return ()
+    async def fetch_messages(
+        self, *, limit: int = 50, cursor: str | None = None
+    ) -> EmailMessagePage:
+        self.other_calls.append(f"fetch:{limit}:{cursor}")
+        return EmailMessagePage(messages=())
 
     async def get_message(self, message_id: str) -> EmailMessage | None:
         self.get_calls.append(message_id)
