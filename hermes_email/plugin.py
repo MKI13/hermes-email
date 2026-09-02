@@ -3,12 +3,16 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Self, Sequence
+from typing import Any, Final, Self, Sequence
 
 from .config import EmailPluginConfig
 from .context import ActiveProfileContextSource, HermesContext, HermesContextSource
 from .models import EmailDraft, EmailMessage
 from .providers import EmailProvider, resolve_email_provider
+
+
+SEARCH_FETCH_LIMIT: Final = 100
+SEARCH_QUERY_MAX_LENGTH: Final = 256
 
 
 class EmailReadDisabledError(PermissionError):
@@ -33,6 +37,10 @@ class EmailFetchLimitError(ValueError):
 
 class EmailMessageIdError(ValueError):
     """Raised when a message lookup lacks a non-empty string identifier."""
+
+
+class EmailSearchQueryError(ValueError):
+    """Raised when a local search query is empty, invalid, or too long."""
 
 
 class SendingUnavailableError(PermissionError):
@@ -99,6 +107,38 @@ class EmailPlugin:
         if not isinstance(message_id, str) or not message_id.strip():
             raise EmailMessageIdError("message_id must be a non-empty string")
         return await provider.get_message(message_id)
+
+    async def search_messages(self, query: str) -> Sequence[EmailMessage]:
+        """Search one bounded local message page using plain text matching."""
+        provider = self._read_provider()
+        if not provider.capabilities.fetch:
+            raise EmailFetchUnsupportedError(
+                f"email provider {provider.name!r} does not support message fetching"
+            )
+        if not isinstance(query, str) or not query.strip():
+            raise EmailSearchQueryError("query must be a non-empty string")
+
+        normalized_query = query.strip()
+        if len(normalized_query) > SEARCH_QUERY_MAX_LENGTH:
+            raise EmailSearchQueryError(
+                f"query must not exceed {SEARCH_QUERY_MAX_LENGTH} characters"
+            )
+
+        messages = await self.fetch_messages(limit=SEARCH_FETCH_LIMIT)
+        needle = normalized_query.casefold()
+        return tuple(
+            message
+            for message in messages
+            if any(
+                needle in value.casefold()
+                for value in (
+                    message.subject,
+                    message.sender.address,
+                    message.sender.display_name or "",
+                    message.body_text or "",
+                )
+            )
+        )
 
     def prepare_draft(self, draft: EmailDraft) -> EmailDraft:
         """Return a local draft value without provider or network effects."""
