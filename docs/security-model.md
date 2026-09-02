@@ -1,11 +1,12 @@
 # Security Model
 
-## Version 0.10.0 boundary
+## Version 0.10.1 boundary
 
 This release is a foundation with a local mock provider, not a mail client. The mock performs no network access, account authentication, mailbox polling, message transmission, deletion, movement, or persistence.
 
 ## Safe by default
 
+- Manifest v1 compatibility changes only installer metadata; runtime configuration and authorization behavior are unchanged.
 - Missing runtime settings load successfully as `disabled` with no provider and no fallback.
 - Runtime settings are read only through Hermes' plugin-scoped `ctx.get_config()` API.
 - Expected validation and provider-resolution failures become `configuration-error`; unrelated programming failures are not swallowed.
@@ -56,7 +57,7 @@ Before any release can send, delete, or move mail, it must include:
 6. focused tests for denial, failure, retries, and ambiguous state;
 7. updated security documentation and changelog.
 
-No item in this list is implemented implicitly by the version 0.10.0 interfaces.
+No item in this list is implemented implicitly by the version 0.10.1 interfaces.
 
 ## Credentials and logs
 

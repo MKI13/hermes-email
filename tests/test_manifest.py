@@ -3,6 +3,8 @@ from runpy import run_path
 
 import yaml
 
+import hermes_email
+
 
 ROOT = Path(__file__).resolve().parent.parent
 V1_MANIFEST_FIELDS = {
@@ -32,6 +34,7 @@ def test_plugin_manifest_uses_only_hermes_v1_fields() -> None:
     assert manifest["manifest_version"] == 1
     assert set(manifest) <= V1_MANIFEST_FIELDS
     assert manifest["name"] == "hermes-email"
+    assert manifest["version"] == hermes_email.__version__
     assert manifest["kind"] == "standalone"
 
 

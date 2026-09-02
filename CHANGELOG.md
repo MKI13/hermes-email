@@ -4,6 +4,17 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.10.1] - 2026-09-02
+
+### Fixed
+
+- Fixed Hermes Agent v0.21.0 installer compatibility by targeting supported manifest_version 1 without changing runtime behavior or safety boundaries.
+
+### Changed
+
+- Removed optional manifest-v2-only metadata that is not required by the directory entry point or runtime context APIs.
+- Project version advanced to `0.10.1` across package, manifest, skill, and documentation metadata.
+
 ## [0.10.0] - 2026-09-02
 
 ### Added
@@ -116,7 +127,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - Initial project metadata and safe-by-default foundation.
 
-[Unreleased]: https://github.com/MKI13/hermes-email/compare/v0.10.0...HEAD
+[Unreleased]: https://github.com/MKI13/hermes-email/compare/v0.10.1...HEAD
+[0.10.1]: https://github.com/MKI13/hermes-email/compare/v0.10.0...v0.10.1
 [0.10.0]: https://github.com/MKI13/hermes-email/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/MKI13/hermes-email/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/MKI13/hermes-email/compare/v0.7.0...v0.8.0

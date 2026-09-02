@@ -1,6 +1,8 @@
 # Hermes Compatibility
 
-Version 0.10.0 follows the public Hermes Agent extension surfaces available when this foundation was created:
+Version 0.10.1 targets the manifest v1 schema accepted by the Hermes Agent v0.21.0 installer. The manifest uses only `manifest_version`, `name`, `version`, `kind`, `description`, and `author`. Optional v2 metadata (`api_version`, `license`, `homepage`, and `tags`) is omitted because none is required for runtime behavior.
+
+Manifest version identifies the `plugin.yaml` file format; it does not select the runtime context API. An omitted `api_version` is treated as current-compatible. The plugin continues to use these public Hermes extension surfaces:
 
 - native directory plugins use a root `plugin.yaml` and `__init__.py` with `register(ctx)`;
 - plugin-provided skills are registered with `ctx.register_skill()` and receive a plugin namespace;
