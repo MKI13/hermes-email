@@ -1,13 +1,6 @@
-manifest_version: 2
-api_version: 1
+manifest_version: 1
 name: hermes-email
 version: 0.10.0
 kind: standalone
 description: Safe, provider-neutral email plugin and skill foundation
-license: MIT
-homepage: https://github.com/MKI13/hermes-email
 author: MKI13
-tags:
-  - email
-  - communication
-  - safety
