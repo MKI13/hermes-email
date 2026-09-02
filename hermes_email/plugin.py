@@ -99,15 +99,15 @@ class EmailPlugin:
         return draft
 
     async def send_message(self, draft_id: str) -> None:
-        """Refuse sending unconditionally in version 0.6.0."""
+        """Refuse sending unconditionally in version 0.7.0."""
         del draft_id
-        raise SendingUnavailableError("email sending is not implemented in version 0.6.0")
+        raise SendingUnavailableError("email sending is not implemented in version 0.7.0")
 
 
 def register(ctx: Any) -> EmailPlugin:
     """Bind the public Hermes profile context and register the email skill.
 
-    Version 0.6.0 deliberately registers no tools, model hooks, providers,
+    Version 0.7.0 deliberately registers no tools, model hooks, providers,
     pollers, background tasks, or account connections.
     """
     runtime = EmailPlugin(context_source=ActiveProfileContextSource(ctx))

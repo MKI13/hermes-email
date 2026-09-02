@@ -4,6 +4,7 @@ from typing import Sequence
 import pytest
 
 from hermes_email.config import EmailPluginConfig
+from hermes_email.context import HermesContext
 from hermes_email.models import EmailAddress, EmailDraft, EmailMessage
 from hermes_email.plugin import (
     EmailFetchUnsupportedError,
@@ -55,6 +56,14 @@ class FailingProvider(RecordingProvider):
     async def get_message(self, message_id: str) -> EmailMessage | None:
         self.get_calls.append(message_id)
         raise ProviderLookupError("provider lookup failed")
+
+
+class FixedContextSource:
+    def __init__(self, context: HermesContext) -> None:
+        self.context = context
+
+    def get_context(self) -> HermesContext:
+        return self.context
 
 
 def plugin_config(*, read_mode: str) -> EmailPluginConfig:
@@ -166,7 +175,7 @@ def test_empty_message_id_is_rejected_without_provider_call(message_id: str) -> 
     asyncio.run(exercise())
 
 
-@pytest.mark.parametrize("message_id", [None, 123, True, [], {}])
+@pytest.mark.parametrize("message_id", [None, 123, 1.5, True, [], {}])
 def test_non_string_message_id_is_rejected_without_provider_call(message_id: object) -> None:
     async def exercise() -> None:
         provider = RecordingProvider()
@@ -189,6 +198,26 @@ def test_provider_lookup_error_is_propagated_unchanged() -> None:
         with pytest.raises(ProviderLookupError, match="provider lookup failed"):
             await plugin.get_message("provider-message-001")
 
+        assert provider.get_calls == ["provider-message-001"]
+        assert provider.other_calls == []
+
+    asyncio.run(exercise())
+
+
+def test_get_message_does_not_change_runtime_context() -> None:
+    async def exercise() -> None:
+        inherited_context = HermesContext(profile_name="active-profile")
+        provider = RecordingProvider()
+        plugin = EmailPlugin(
+            plugin_config(read_mode="mock"),
+            context_source=FixedContextSource(inherited_context),
+            provider=provider,
+        )
+
+        await plugin.get_message("provider-message-001")
+
+        assert plugin.get_hermes_context() is inherited_context
+        assert plugin.get_hermes_context().persona is None
         assert provider.get_calls == ["provider-message-001"]
         assert provider.other_calls == []
 

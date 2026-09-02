@@ -22,7 +22,7 @@ class UnsupportedEmailProviderError(EmailProviderResolutionError):
 def resolve_email_provider(config: EmailPluginConfig) -> EmailProvider:
     """Create the explicitly configured provider.
 
-    Version 0.6.0 recognizes only ``mock``. Configuration values are normalized
+    Version 0.7.0 recognizes only ``mock``. Configuration values are normalized
     as user-facing identifiers and are never interpreted as modules, classes,
     paths, entry points, or executable code.
     """

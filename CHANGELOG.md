@@ -4,6 +4,17 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-09-02
+
+### Added
+
+- Safe read-only `EmailPlugin.get_message()` facade with shared read gates and opaque message-ID validation.
+- Tests for exact delegation, known and unknown IDs, denial paths, provider failures, and absence of write effects.
+
+### Changed
+
+- Project version advanced to `0.7.0` across package, manifest, skill, and documentation metadata.
+
 ## [0.6.0] - 2026-09-02
 
 ### Added
@@ -68,7 +79,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - Initial project metadata and safe-by-default foundation.
 
-[Unreleased]: https://github.com/MKI13/hermes-email/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/MKI13/hermes-email/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/MKI13/hermes-email/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/MKI13/hermes-email/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/MKI13/hermes-email/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/MKI13/hermes-email/compare/v0.3.0...v0.4.0
