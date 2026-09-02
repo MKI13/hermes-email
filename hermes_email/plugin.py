@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any, Self
 
 from .config import EmailPluginConfig
-from .context import HermesContext, HermesContextSource
+from .context import ActiveProfileContextSource, HermesContext, HermesContextSource
 from .models import EmailDraft
 from .providers import EmailProvider, resolve_email_provider
 
@@ -58,15 +58,23 @@ class EmailPlugin:
         raise SendingUnavailableError("email sending is not implemented in version 0.4.0")
 
 
-def register(ctx: Any) -> None:
-    """Register the bundled email skill with Hermes.
+def register(ctx: Any) -> EmailPlugin:
+    """Bind the public Hermes profile context and register the email skill.
 
     Version 0.4.0 deliberately registers no tools, hooks, providers, pollers,
     background tasks, or account connections.
     """
+    runtime = EmailPlugin(context_source=ActiveProfileContextSource(ctx))
+
+    def release_runtime_context() -> None:
+        runtime.context_source = None
+
+    ctx.on_unload(release_runtime_context)
+
     skill_path = Path(__file__).resolve().parent.parent / "skill" / "SKILL.md"
     ctx.register_skill(
         "email",
         skill_path,
         description="Handle email using the active Hermes profile safely.",
     )
+    return runtime
