@@ -8,8 +8,14 @@ from hermes_email.plugin import EmailPlugin, SendingUnavailableError, register
 
 
 class FakePluginContext:
+    profile_name = "test-profile"
+
     def __init__(self) -> None:
         self.skills: list[tuple[str, Path, str]] = []
+        self.unload_callbacks = []
+
+    def on_unload(self, callback) -> None:
+        self.unload_callbacks.append(callback)
 
     def register_skill(self, name: str, path: Path, *, description: str) -> None:
         self.skills.append((name, path, description))
@@ -18,8 +24,10 @@ class FakePluginContext:
 def test_register_adds_only_the_bundled_skill() -> None:
     context = FakePluginContext()
 
-    register(context)
+    runtime = register(context)
 
+    assert runtime.get_hermes_context().profile_name == "test-profile"
+    assert len(context.unload_callbacks) == 1
     assert len(context.skills) == 1
     name, path, description = context.skills[0]
     assert name == "email"
