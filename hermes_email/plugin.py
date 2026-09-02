@@ -3,16 +3,32 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Self
+from typing import Any, Self, Sequence
 
 from .config import EmailPluginConfig
 from .context import ActiveProfileContextSource, HermesContext, HermesContextSource
-from .models import EmailDraft
+from .models import EmailDraft, EmailMessage
 from .providers import EmailProvider, resolve_email_provider
 
 
+class EmailReadDisabledError(PermissionError):
+    """Raised when plugin configuration does not explicitly allow reading."""
+
+
+class EmailProviderUnavailableError(RuntimeError):
+    """Raised when no provider is attached to the plugin facade."""
+
+
+class EmailFetchUnsupportedError(RuntimeError):
+    """Raised when the attached provider does not declare fetch capability."""
+
+
+class EmailFetchLimitError(ValueError):
+    """Raised when a fetch would not have a finite positive message limit."""
+
+
 class SendingUnavailableError(PermissionError):
-    """Raised because version 0.5.0 cannot send email."""
+    """Raised because this version cannot send email."""
 
 
 class EmailPlugin:
@@ -45,6 +61,20 @@ class EmailPlugin:
         if self.context_source is None:
             return HermesContext()
         return self.context_source.get_context()
+
+    async def fetch_messages(self, *, limit: int = 50) -> Sequence[EmailMessage]:
+        """Fetch a finite message page after independent policy and capability gates."""
+        if self.config.email.read_mode == "disabled":
+            raise EmailReadDisabledError("email reading is disabled")
+        if self.provider is None:
+            raise EmailProviderUnavailableError("no email provider is configured on the plugin")
+        if not self.provider.capabilities.fetch:
+            raise EmailFetchUnsupportedError(
+                f"email provider {self.provider.name!r} does not support message fetching"
+            )
+        if isinstance(limit, bool) or not isinstance(limit, int) or limit <= 0:
+            raise EmailFetchLimitError("limit must be a positive integer")
+        return await self.provider.fetch_messages(limit=limit)
 
     def prepare_draft(self, draft: EmailDraft) -> EmailDraft:
         """Return a local draft value without provider or network effects."""
