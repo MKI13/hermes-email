@@ -2,17 +2,49 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+from enum import StrEnum
 from pathlib import Path
 from typing import Any, Final, Self, Sequence
 
-from .config import EmailPluginConfig
+from . import __version__
+from .config import ConfigError, EmailPluginConfig
 from .context import ActiveProfileContextSource, HermesContext, HermesContextSource
 from .models import EmailDraft, EmailMessage
-from .providers import EmailProvider, resolve_email_provider
+from .providers import (
+    EmailProvider,
+    EmailProviderResolutionError,
+    ProviderNotConfiguredError,
+    resolve_email_provider,
+)
 
 
 SEARCH_FETCH_LIMIT: Final = 100
 SEARCH_QUERY_MAX_LENGTH: Final = 256
+_RUNTIME_CONFIG_SECTIONS: Final = ("email", "hermes", "behavior", "safety")
+_RUNTIME_CONFIG_MISSING: Final = object()
+
+
+class EmailRuntimeState(StrEnum):
+    """Safe operational states reported by the plugin runtime."""
+
+    DISABLED = "disabled"
+    MOCK_READY = "mock-ready"
+    CONFIGURATION_ERROR = "configuration-error"
+
+
+@dataclass(frozen=True, slots=True)
+class EmailRuntimeStatus:
+    """Non-sensitive snapshot of the email plugin's runtime readiness."""
+
+    version: str
+    state: EmailRuntimeState
+    provider: str | None
+    profile: str | None
+    read_enabled: bool
+    draft_enabled: bool
+    send_enabled: bool
+    diagnostic: str | None = None
 
 
 class EmailReadDisabledError(PermissionError):
@@ -56,10 +88,16 @@ class EmailPlugin:
         *,
         context_source: HermesContextSource | None = None,
         provider: EmailProvider | None = None,
+        runtime_state: EmailRuntimeState | None = None,
+        runtime_diagnostic: str | None = None,
     ) -> None:
         self.config = config or EmailPluginConfig()
         self.context_source = context_source
         self.provider = provider
+        self._runtime_state = runtime_state or (
+            EmailRuntimeState.MOCK_READY if provider is not None else EmailRuntimeState.DISABLED
+        )
+        self._runtime_diagnostic = runtime_diagnostic
 
     @classmethod
     def from_config(
@@ -77,6 +115,32 @@ class EmailPlugin:
         if self.context_source is None:
             return HermesContext()
         return self.context_source.get_context()
+
+    def get_runtime_status(self) -> EmailRuntimeStatus:
+        """Return non-sensitive readiness data without mailbox activity."""
+        context = self.get_hermes_context()
+        ready = self._runtime_state is EmailRuntimeState.MOCK_READY
+        provider_name = self.provider.name if self.provider is not None else None
+        return EmailRuntimeStatus(
+            version=__version__,
+            state=self._runtime_state,
+            provider=provider_name,
+            profile=context.profile_name,
+            read_enabled=(
+                ready
+                and self.config.email.read_mode == "mock"
+                and self.provider is not None
+                and self.provider.capabilities.fetch
+            ),
+            draft_enabled=(
+                ready
+                and self.config.email.draft_mode == "mock"
+                and self.provider is not None
+                and self.provider.capabilities.drafts
+            ),
+            send_enabled=False,
+            diagnostic=self._runtime_diagnostic,
+        )
 
     def _read_provider(self) -> EmailProvider:
         """Return the provider after shared read-policy gates pass."""
@@ -152,13 +216,56 @@ class EmailPlugin:
         raise SendingUnavailableError("email sending is not implemented in version 0.8.0")
 
 
-def register(ctx: Any) -> EmailPlugin:
-    """Bind the public Hermes profile context and register the email skill.
+def _load_runtime_config(ctx: Any) -> EmailPluginConfig:
+    raw_config: dict[str, Any] = {}
+    for section in _RUNTIME_CONFIG_SECTIONS:
+        value = ctx.get_config(section, default=_RUNTIME_CONFIG_MISSING)
+        if value is not _RUNTIME_CONFIG_MISSING:
+            raw_config[section] = value
+    return EmailPluginConfig.from_mapping(raw_config)
 
-    Version 0.8.0 deliberately registers no tools, model hooks, providers,
-    pollers, background tasks, or account connections.
+
+def _create_runtime_plugin(ctx: Any) -> EmailPlugin:
+    context_source = ActiveProfileContextSource(ctx)
+    try:
+        config = _load_runtime_config(ctx)
+    except ConfigError:
+        return EmailPlugin(
+            context_source=context_source,
+            runtime_state=EmailRuntimeState.CONFIGURATION_ERROR,
+            runtime_diagnostic="invalid-plugin-settings",
+        )
+
+    provider_name = config.email.provider
+    if (
+        (provider_name is None or not provider_name.strip())
+        and config.email.read_mode == "disabled"
+    ):
+        return EmailPlugin(config, context_source=context_source)
+
+    try:
+        return EmailPlugin.from_config(config, context_source=context_source)
+    except EmailProviderResolutionError as exc:
+        diagnostic = (
+            "provider-not-configured"
+            if isinstance(exc, ProviderNotConfiguredError)
+            else "unsupported-provider"
+        )
+        return EmailPlugin(
+            config,
+            context_source=context_source,
+            runtime_state=EmailRuntimeState.CONFIGURATION_ERROR,
+            runtime_diagnostic=diagnostic,
+        )
+
+
+def register(ctx: Any) -> EmailPlugin:
+    """Load safe runtime settings, bind Hermes context, and register the skill.
+
+    Version 0.8.0 deliberately registers no tools, model hooks, pollers,
+    background tasks, or account connections.
     """
-    runtime = EmailPlugin(context_source=ActiveProfileContextSource(ctx))
+    runtime = _create_runtime_plugin(ctx)
 
     def release_runtime_context() -> None:
         runtime.context_source = None
