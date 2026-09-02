@@ -216,6 +216,32 @@ class EmailPlugin:
         raise SendingUnavailableError("email sending is not implemented in version 0.9.0")
 
 
+def format_runtime_status(status: EmailRuntimeStatus) -> str:
+    """Format only the fixed, non-sensitive runtime health fields."""
+    lines = [
+        "Hermes Email",
+        f"Version: {status.version}",
+        f"Status: {status.state.value}",
+        f"Provider: {status.provider or 'none'}",
+        f"Profile: {status.profile or 'none'}",
+    ]
+    if status.diagnostic is not None:
+        lines.append(f"Diagnostic: {status.diagnostic}")
+    lines.extend(
+        (
+            f"Read: {'enabled' if status.read_enabled else 'disabled'}",
+            f"Draft: {'enabled' if status.draft_enabled else 'disabled'}",
+            f"Send: {'enabled' if status.send_enabled else 'disabled'}",
+        )
+    )
+    return "\n".join(lines)
+
+
+def _handle_email_status(runtime: EmailPlugin, raw_args: str) -> str:
+    del raw_args
+    return format_runtime_status(runtime.get_runtime_status())
+
+
 def _load_runtime_config(ctx: Any) -> EmailPluginConfig:
     raw_config: dict[str, Any] = {}
     for section in _RUNTIME_CONFIG_SECTIONS:
@@ -271,6 +297,11 @@ def register(ctx: Any) -> EmailPlugin:
         runtime.context_source = None
 
     ctx.on_unload(release_runtime_context)
+    ctx.register_command(
+        "email-status",
+        handler=lambda raw_args: _handle_email_status(runtime, raw_args),
+        description="Show safe Hermes Email runtime status.",
+    )
 
     skill_path = Path(__file__).resolve().parent.parent / "skill" / "SKILL.md"
     ctx.register_skill(
