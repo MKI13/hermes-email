@@ -23,6 +23,7 @@ def test_provider_capabilities_default_to_disabled() -> None:
     capabilities = ProviderCapabilities()
 
     assert capabilities.fetch is False
+    assert capabilities.get is False
     assert capabilities.drafts is False
     assert capabilities.send is False
     assert capabilities.delete is False

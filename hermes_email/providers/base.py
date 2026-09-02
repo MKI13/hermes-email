@@ -18,6 +18,7 @@ class ProviderCapabilities:
     send: bool = False
     delete: bool = False
     move: bool = False
+    get: bool = False
 
 
 class EmailProvider(ABC):

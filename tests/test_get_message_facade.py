@@ -7,7 +7,7 @@ from hermes_email.config import EmailPluginConfig
 from hermes_email.context import HermesContext
 from hermes_email.models import EmailAddress, EmailDraft, EmailMessage
 from hermes_email.plugin import (
-    EmailFetchUnsupportedError,
+    EmailGetUnsupportedError,
     EmailMessageIdError,
     EmailPlugin,
     EmailProviderUnavailableError,
@@ -17,7 +17,7 @@ from hermes_email.providers import EmailProvider, ProviderCapabilities
 
 
 class RecordingProvider(EmailProvider):
-    capabilities = ProviderCapabilities(fetch=True)
+    capabilities = ProviderCapabilities(fetch=False, get=True)
 
     def __init__(self, result: EmailMessage | None = None) -> None:
         self.result = result
@@ -44,8 +44,8 @@ class RecordingProvider(EmailProvider):
         self.other_calls.append(f"send:{draft_id}")
 
 
-class NoFetchProvider(RecordingProvider):
-    capabilities = ProviderCapabilities(fetch=False)
+class NoGetProvider(RecordingProvider):
+    capabilities = ProviderCapabilities(fetch=True, get=False)
 
 
 class ProviderLookupError(RuntimeError):
@@ -116,7 +116,7 @@ def test_get_message_delegates_once_and_returns_result_unchanged() -> None:
         result = await plugin.get_message("  provider-message-001  ")
 
         assert result is provider_result
-        assert provider.get_calls == ["provider-message-001"]
+        assert provider.get_calls == ["  provider-message-001  "]
         assert provider.other_calls == []
 
     asyncio.run(exercise())
@@ -146,12 +146,12 @@ def test_missing_provider_is_blocked() -> None:
     asyncio.run(exercise())
 
 
-def test_provider_without_fetch_capability_is_blocked() -> None:
+def test_provider_without_get_capability_is_blocked() -> None:
     async def exercise() -> None:
-        provider = NoFetchProvider()
+        provider = NoGetProvider()
         plugin = EmailPlugin(plugin_config(read_mode="mock"), provider=provider)
 
-        with pytest.raises(EmailFetchUnsupportedError, match="does not support"):
+        with pytest.raises(EmailGetUnsupportedError, match="does not support"):
             await plugin.get_message("provider-message-001")
 
         assert provider.get_calls == []

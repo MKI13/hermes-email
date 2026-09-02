@@ -23,6 +23,10 @@ class EmailFetchUnsupportedError(RuntimeError):
     """Raised when the attached provider does not declare fetch capability."""
 
 
+class EmailGetUnsupportedError(RuntimeError):
+    """Raised when the attached provider does not declare lookup capability."""
+
+
 class EmailFetchLimitError(ValueError):
     """Raised when a fetch would not have a finite positive message limit."""
 
@@ -67,30 +71,34 @@ class EmailPlugin:
         return self.context_source.get_context()
 
     def _read_provider(self) -> EmailProvider:
-        """Return the provider after the shared read-only safety gates pass."""
+        """Return the provider after shared read-policy gates pass."""
         if self.config.email.read_mode != "mock":
             raise EmailReadDisabledError("email reading is disabled; read_mode must be mock")
         if self.provider is None:
             raise EmailProviderUnavailableError("no email provider is configured on the plugin")
-        if not self.provider.capabilities.fetch:
-            raise EmailFetchUnsupportedError(
-                f"email provider {self.provider.name!r} does not support message fetching"
-            )
         return self.provider
 
     async def fetch_messages(self, *, limit: int = 50) -> Sequence[EmailMessage]:
         """Fetch a finite message page after independent policy and capability gates."""
         provider = self._read_provider()
+        if not provider.capabilities.fetch:
+            raise EmailFetchUnsupportedError(
+                f"email provider {provider.name!r} does not support message fetching"
+            )
         if isinstance(limit, bool) or not isinstance(limit, int) or limit <= 0:
             raise EmailFetchLimitError("limit must be a positive integer")
         return await provider.fetch_messages(limit=limit)
 
     async def get_message(self, message_id: str) -> EmailMessage | None:
-        """Return one message by a trimmed, opaque provider identifier."""
+        """Return one message by an opaque, non-empty provider identifier."""
         provider = self._read_provider()
+        if not provider.capabilities.get:
+            raise EmailGetUnsupportedError(
+                f"email provider {provider.name!r} does not support message lookup"
+            )
         if not isinstance(message_id, str) or not message_id.strip():
             raise EmailMessageIdError("message_id must be a non-empty string")
-        return await provider.get_message(message_id.strip())
+        return await provider.get_message(message_id)
 
     def prepare_draft(self, draft: EmailDraft) -> EmailDraft:
         """Return a local draft value without provider or network effects."""

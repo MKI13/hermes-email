@@ -17,6 +17,7 @@ def test_mock_provider_identity_and_capabilities() -> None:
     assert isinstance(provider, EmailProvider)
     assert provider.name == "mock"
     assert provider.capabilities.fetch is True
+    assert provider.capabilities.get is True
     assert provider.capabilities.drafts is True
     assert provider.capabilities.send is False
     assert provider.capabilities.delete is False

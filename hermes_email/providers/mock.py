@@ -20,6 +20,7 @@ class MockEmailProvider(EmailProvider):
     NAME: Final = "mock"
     capabilities = ProviderCapabilities(
         fetch=True,
+        get=True,
         drafts=True,
         send=False,
         delete=False,
