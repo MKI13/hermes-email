@@ -4,7 +4,7 @@
 
 Configuration is profile- and deployment-owned. The repository contains no personal addresses, provider credentials, company rules, or fixed writing style.
 
-`hermes.profile: auto` means that future integrations should use the active Hermes profile. Version 0.4.0 resolves only the public Hermes plugin property `ctx.profile_name`; it does not inspect private profile files.
+`hermes.profile: auto` means that integrations should use the active Hermes profile. During plugin registration, version 0.5.0 binds only the public Hermes plugin property `ctx.profile_name`; it does not inspect private profile files.
 
 ## Example
 
@@ -36,13 +36,13 @@ The complete example is in `examples/config.example.yaml`.
 
 ### `email`
 
-- `provider`: explicit provider identifier or `null`. Version 0.4.0 accepts only `mock`; `null` and empty values do not select a fallback.
+- `provider`: explicit provider identifier or `null`. Version 0.5.0 accepts only `mock`; `null` and empty values do not select a fallback.
 - `read_mode`: `disabled` or `mock`.
 - `draft_mode`: `disabled` or `mock`.
 
 ### `hermes`
 
-- `profile`: `auto` or a future explicit profile identifier. Version 0.4.0 stores and validates this value but does not switch profiles.
+- `profile`: `auto` or a future explicit profile identifier. Version 0.5.0 stores and validates this value but does not switch profiles.
 
 ### `behavior`
 
@@ -50,7 +50,7 @@ All inheritance flags default to `true`. They express the intended behavior of f
 
 ### `safety`
 
-`allow_send`, `allow_delete`, and `allow_move` all default to `false`. Version 0.4.0 does not implement these operations even if a local test configuration changes a flag to `true`.
+`allow_send`, `allow_delete`, and `allow_move` all default to `false`. Version 0.5.0 does not implement these operations even if a local test configuration changes a flag to `true`.
 
 ## Loading
 

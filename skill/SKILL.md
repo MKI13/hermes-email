@@ -1,7 +1,7 @@
 ---
 name: email
 description: Handle email using the active Hermes profile safely.
-version: 0.4.0
+version: 0.5.0
 author: MKI13
 license: MIT
 platforms: [linux, macos, windows]
@@ -13,7 +13,7 @@ metadata:
 
 # Email Skill
 
-Use this skill to analyze email content or prepare a draft while preserving the active Hermes agent's identity and policies. Version 0.4.0 provides guidance only; it does not connect to an account or perform mailbox operations.
+Use this skill to analyze email content or prepare a draft while preserving the active Hermes agent's identity and policies. Version 0.5.0 provides guidance only; it does not connect to an account or perform mailbox operations.
 
 ## When to Use
 
@@ -23,7 +23,7 @@ Use this skill to analyze email content or prepare a draft while preserving the 
 
 ## Prerequisites
 
-No credentials, provider account, or external email service is required in version 0.4.0. Work only with content the user explicitly provides in the active session.
+No credentials, provider account, or external email service is required in version 0.5.0. Work only with content the user explicitly provides in the active session.
 
 ## How to Run
 

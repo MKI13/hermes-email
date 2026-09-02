@@ -4,6 +4,18 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-09-02
+
+### Added
+
+- Runtime binding from Hermes `register(ctx)` through `ActiveProfileContextSource` to `EmailPlugin`.
+- Lifecycle cleanup through the official `ctx.on_unload()` API.
+- Tests for public profile propagation, missing and invalid values, empty personality fields, and private-file isolation.
+
+### Changed
+
+- Project version advanced to `0.5.0` across package, manifest, skill, and documentation metadata.
+
 ## [0.4.0] - 2026-09-02
 
 ### Added
@@ -45,7 +57,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - Initial project metadata and safe-by-default foundation.
 
-[Unreleased]: https://github.com/MKI13/hermes-email/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/MKI13/hermes-email/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/MKI13/hermes-email/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/MKI13/hermes-email/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/MKI13/hermes-email/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/MKI13/hermes-email/compare/v0.1.0...v0.2.0

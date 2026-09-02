@@ -12,7 +12,7 @@ from .providers import EmailProvider, resolve_email_provider
 
 
 class SendingUnavailableError(PermissionError):
-    """Raised because version 0.4.0 cannot send email."""
+    """Raised because version 0.5.0 cannot send email."""
 
 
 class EmailPlugin:
@@ -53,16 +53,16 @@ class EmailPlugin:
         return draft
 
     async def send_message(self, draft_id: str) -> None:
-        """Refuse sending unconditionally in version 0.4.0."""
+        """Refuse sending unconditionally in version 0.5.0."""
         del draft_id
-        raise SendingUnavailableError("email sending is not implemented in version 0.4.0")
+        raise SendingUnavailableError("email sending is not implemented in version 0.5.0")
 
 
 def register(ctx: Any) -> EmailPlugin:
     """Bind the public Hermes profile context and register the email skill.
 
-    Version 0.4.0 deliberately registers no tools, hooks, providers, pollers,
-    background tasks, or account connections.
+    Version 0.5.0 deliberately registers no tools, model hooks, providers,
+    pollers, background tasks, or account connections.
     """
     runtime = EmailPlugin(context_source=ActiveProfileContextSource(ctx))
 

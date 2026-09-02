@@ -8,11 +8,11 @@ Hermes Email separates technical email infrastructure from agent behavior. The a
 
 ### Hermes directory-plugin entry point
 
-The root `plugin.yaml` and `__init__.py` follow Hermes' native standalone plugin convention. `register(ctx)` currently registers only the bundled skill. It deliberately creates no network client, tool, hook, poller, or long-lived task.
+The root `plugin.yaml` and `__init__.py` follow Hermes' native standalone plugin convention. `register(ctx)` creates an `ActiveProfileContextSource` from the public Hermes plugin context, attaches it to an `EmailPlugin`, registers one official `ctx.on_unload()` callback to release that reference, and registers the bundled skill. It creates no network client, tool, model hook, provider, poller, or background task.
 
 ### Plugin facade
 
-`hermes_email.plugin.EmailPlugin` is the future orchestration point. It owns validated configuration, an optional provider, and an optional Hermes context source. `EmailPlugin.from_config(config)` delegates provider creation exclusively to `resolve_email_provider(config)`, preserves the supplied configuration, and propagates resolver errors unchanged. Version 0.4.0 can prepare a local draft value and refuses every send attempt.
+`hermes_email.plugin.EmailPlugin` is the future orchestration point. It owns validated configuration, an optional provider, and an optional Hermes context source. `EmailPlugin.from_config(config)` delegates provider creation exclusively to `resolve_email_provider(config)`, preserves the supplied configuration, and propagates resolver errors unchanged. Version 0.5.0 can prepare a local draft value and refuses every send attempt.
 
 Future technical responsibilities belong behind this facade:
 
@@ -23,23 +23,23 @@ Future technical responsibilities belong behind this facade:
 - privacy-aware logging;
 - independent safety authorization.
 
-Version 0.4.0 implements only deterministic local message retrieval and in-memory draft storage through the mock provider. The remaining responsibilities are documented seams, not implemented subsystems.
+Version 0.5.0 implements only deterministic local message retrieval and in-memory draft storage through the mock provider. The remaining responsibilities are documented seams, not implemented subsystems.
 
 ### Provider abstraction
 
-`hermes_email.providers.EmailProvider` defines asynchronous methods for fetching message summaries, retrieving one message, creating a draft, and sending a stored draft. `MockEmailProvider` is the only concrete implementation in version 0.4.0. It uses deterministic synthetic messages, stores drafts only in memory, performs no network access, and always blocks sending.
+`hermes_email.providers.EmailProvider` defines asynchronous methods for fetching message summaries, retrieving one message, creating a draft, and sending a stored draft. `MockEmailProvider` is the only concrete implementation in version 0.5.0. It uses deterministic synthetic messages, stores drafts only in memory, performs no network access, and always blocks sending.
 
 Future IMAP, SMTP, Gmail, Microsoft, Proton Bridge, or other adapters must normalize provider data into `EmailMessage` and `EmailDraft`. A provider's declared capability is never sufficient authorization for an external or destructive action.
 
 ### Provider resolver
 
-`resolve_email_provider(config)` normalizes the explicitly configured provider name and compares it with a fixed allowlist. Version 0.4.0 recognizes only `mock`. Missing values raise `ProviderNotConfiguredError`; every other identifier raises `UnsupportedEmailProviderError`. The resolver performs no dynamic imports, discovery, fallback selection, network access, or plugin execution.
+`resolve_email_provider(config)` normalizes the explicitly configured provider name and compares it with a fixed allowlist. Version 0.5.0 recognizes only `mock`. Missing values raise `ProviderNotConfiguredError`; every other identifier raises `UnsupportedEmailProviderError`. The resolver performs no dynamic imports, discovery, fallback selection, network access, or plugin execution.
 
 ### Hermes context adapter
 
 `HermesContext` holds optional values for profile name, persona, system prompt, language, writing style, user preferences, skills, tools, safety rules, and custom instructions.
 
-Hermes currently exposes `ctx.profile_name` as a stable public plugin API. `ActiveProfileContextSource` reads only that property. Other values remain empty until Hermes provides an appropriate public API or an explicit caller supplies them. The project must not read private Hermes files, retain live runtime objects, or invent a fallback personality.
+Hermes currently exposes `ctx.profile_name` as a stable public plugin API. `ActiveProfileContextSource` reads only that property. `register(ctx)` binds this source to the runtime `EmailPlugin`; `get_hermes_context()` returns an owned snapshot with the active profile name. Other values remain empty until Hermes provides an appropriate public API or an explicit caller supplies them. The project does not read private Hermes files or invent a fallback personality.
 
 ### Email skill
 
@@ -50,7 +50,10 @@ Hermes currently exposes `ctx.profile_name` as a stable public plugin API. `Acti
 ```text
 Hermes runtime
     -> register(ctx)
+        -> ActiveProfileContextSource(ctx)
+        -> EmailPlugin
         -> email skill
+        -> ctx.on_unload(runtime release)
 
 EmailPlugin.from_config
     -> EmailPluginConfig

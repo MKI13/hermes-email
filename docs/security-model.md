@@ -1,6 +1,6 @@
 # Security Model
 
-## Version 0.4.0 boundary
+## Version 0.5.0 boundary
 
 This release is a foundation with a local mock provider, not a mail client. The mock performs no network access, account authentication, mailbox polling, message transmission, deletion, movement, or persistence.
 
@@ -32,7 +32,7 @@ Future provider adapters run as trusted plugin code with the user's process perm
 
 ### Hermes context
 
-The plugin may consume owned snapshots from stable public Hermes APIs. It must not serialize live Hermes objects, scrape private internal files, or replace missing context with a plugin-defined personality.
+At registration, the plugin wraps the public runtime context with `ActiveProfileContextSource` and reads only `ctx.profile_name`. The runtime reference is owned by an official `ctx.on_unload()` callback and released during unload. Snapshot fields without a stable public API remain empty. The plugin does not serialize live Hermes objects, scrape private internal files, or replace missing context with a plugin-defined personality.
 
 ## Future side-effect requirements
 
@@ -46,7 +46,7 @@ Before any release can send, delete, or move mail, it must include:
 6. focused tests for denial, failure, retries, and ambiguous state;
 7. updated security documentation and changelog.
 
-No item in this list is implemented implicitly by the version 0.4.0 interfaces.
+No item in this list is implemented implicitly by the version 0.5.0 interfaces.
 
 ## Credentials and logs
 
