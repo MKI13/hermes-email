@@ -9,13 +9,11 @@ from collections.abc import Callable
 import pytest
 
 from hermes_email.config import ImapSettings
-from hermes_email.models import EmailDraft
 from hermes_email.providers import (
     ImapCursorError,
     ImapLimitError,
     ImapMessageIdError,
     ImapReadOnlyProvider,
-    ImapWriteBlockedError,
     ProviderAuthenticationError,
     ProviderConnectionError,
     ProviderMailboxError,
@@ -512,14 +510,12 @@ def test_unexpected_message_normalization_failure_is_redacted(
     assert captured.value.__context__ is None
 
 
-def test_provider_rejects_all_draft_and_send_operations() -> None:
+def test_provider_exposes_no_draft_or_send_operations() -> None:
     provider, _, _ = provider_with_client(FakeImapClient())
-    draft = EmailDraft(recipients=(), subject="Synthetic", body_text="Synthetic")
 
-    with pytest.raises(ImapWriteBlockedError):
-        asyncio.run(provider.create_draft(draft))
-    with pytest.raises(ImapWriteBlockedError):
-        asyncio.run(provider.send_message("synthetic-draft"))
+    assert not hasattr(provider, "create_draft")
+    assert not hasattr(provider, "send_message")
+    assert set(provider.capabilities.__dataclass_fields__) == {"fetch", "get"}
 
 
 def test_missing_secret_is_redacted_as_authentication_error() -> None:

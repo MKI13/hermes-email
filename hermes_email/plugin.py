@@ -11,7 +11,12 @@ from typing import Any, Final, Self
 from . import __version__
 from .config import ConfigError, EmailPluginConfig
 from .context import ActiveProfileContextSource, HermesContext, HermesContextSource
-from .models import EmailDraft, EmailMessage, EmailMessagePage
+from .draft_storage import (
+    DraftStorageError,
+    DraftMutation,
+    SqliteDraftStore,
+)
+from .models import EmailDraft, EmailDraftPage, EmailMessage, EmailMessagePage
 from .providers import (
     EmailProvider,
     EmailProviderError,
@@ -42,6 +47,7 @@ _RUNTIME_CONFIG_SECTIONS: Final = (
     "credentials",
     "imap",
     "storage",
+    "drafts",
     "behavior",
     "safety",
 )
@@ -74,6 +80,7 @@ class EmailRuntimeStatus:
     draft_enabled: bool
     send_enabled: bool
     diagnostic: str | None = None
+    draft_diagnostic: str | None = None
 
 
 class EmailReadDisabledError(PermissionError):
@@ -108,8 +115,8 @@ class EmailSearchQueryError(ValueError):
     """Raised when a local search query is empty, invalid, or too long."""
 
 
-class SendingUnavailableError(PermissionError):
-    """Raised because this version cannot send email."""
+class DraftingDisabledError(PermissionError):
+    """Raised when local draft storage is not explicitly enabled."""
 
 
 class EmailPlugin:
@@ -122,16 +129,20 @@ class EmailPlugin:
         context_source: HermesContextSource | None = None,
         provider: EmailProvider | None = None,
         observation_store: SqliteObservationStore | None = None,
+        draft_store: SqliteDraftStore | None = None,
         runtime_state: EmailRuntimeState | None = None,
         runtime_diagnostic: str | None = None,
+        draft_diagnostic: str | None = None,
     ) -> None:
         self.config = config or EmailPluginConfig()
         self.context_source = context_source
         self.provider = provider
         self.observation_store = observation_store
+        self.draft_store = draft_store
         self._closed = False
         self._runtime_state = runtime_state or self._initial_runtime_state(provider)
         self._runtime_diagnostic = runtime_diagnostic
+        self._draft_diagnostic = draft_diagnostic
 
     @staticmethod
     def _initial_runtime_state(provider: EmailProvider | None) -> EmailRuntimeState:
@@ -149,6 +160,7 @@ class EmailPlugin:
         context_source: HermesContextSource | None = None,
         secret_resolver: SecretResolver | None = None,
         observation_store: SqliteObservationStore | None = None,
+        draft_store: SqliteDraftStore | None = None,
     ) -> Self:
         """Create a disconnected plugin using only the configured provider resolver."""
         provider = resolve_email_provider(config, secret_resolver=secret_resolver)
@@ -157,6 +169,7 @@ class EmailPlugin:
             context_source=context_source,
             provider=provider,
             observation_store=observation_store,
+            draft_store=draft_store,
         )
 
     def get_hermes_context(self) -> HermesContext:
@@ -185,14 +198,10 @@ class EmailPlugin:
                 and self.provider.capabilities.fetch
             ),
             storage_enabled=self.observation_store is not None and not self._closed,
-            draft_enabled=(
-                ready
-                and self.config.email.draft_mode == "mock"
-                and self.provider is not None
-                and self.provider.capabilities.drafts
-            ),
+            draft_enabled=self.draft_store is not None and not self._closed,
             send_enabled=False,
             diagnostic=self._runtime_diagnostic,
+            draft_diagnostic=self._draft_diagnostic,
         )
 
     def _read_provider(self) -> EmailProvider:
@@ -210,11 +219,16 @@ class EmailPlugin:
         self._closed = True
         provider = self.provider
         observation_store = self.observation_store
+        draft_store = self.draft_store
         self.provider = None
         self.observation_store = None
+        self.draft_store = None
         self.context_source = None
         self._runtime_state = EmailRuntimeState.DISABLED
         self._runtime_diagnostic = None
+        self._draft_diagnostic = None
+        if draft_store is not None:
+            draft_store.close()
         if observation_store is not None:
             observation_store.close()
         if provider is not None:
@@ -404,16 +418,92 @@ class EmailPlugin:
             next_cursor=page.next_cursor,
         )
 
-    def prepare_draft(self, draft: EmailDraft) -> EmailDraft:
-        """Return a local draft value without provider or network effects."""
-        if self.config.email.draft_mode == "disabled":
-            raise PermissionError("draft creation is disabled")
-        return draft
+    def _local_draft_store(self) -> SqliteDraftStore:
+        if self._closed:
+            raise DraftingDisabledError("local drafting runtime is closed")
+        if self.draft_store is None or self.config.drafts.mode != "sqlite":
+            raise DraftingDisabledError("local drafting is disabled")
+        return self.draft_store
 
-    async def send_message(self, draft_id: str) -> None:
-        """Refuse sending unconditionally in version 0.16.0."""
-        del draft_id
-        raise SendingUnavailableError("email sending is not implemented in version 0.16.0")
+    async def _run_draft_operation(self, method: Any, *arguments: Any) -> Any:
+        task = asyncio.create_task(asyncio.to_thread(method, *arguments))
+        try:
+            result = await asyncio.shield(task)
+        except asyncio.CancelledError:
+            while not task.done():
+                try:
+                    await asyncio.shield(task)
+                except asyncio.CancelledError:
+                    continue
+            outcome_error = task.exception()
+            if isinstance(outcome_error, DraftStorageError) and not self._closed:
+                self._draft_diagnostic = "draft-storage-error"
+            raise
+        except DraftStorageError:
+            if not self._closed:
+                self._draft_diagnostic = "draft-storage-error"
+            raise
+        else:
+            if not self._closed:
+                self._draft_diagnostic = None
+            return result
+
+    async def create_draft(
+        self, draft: EmailDraft, operation_id: str
+    ) -> DraftMutation:
+        """Persist one explicit local draft without provider activity."""
+        store = self._local_draft_store()
+        return await self._run_draft_operation(
+            store.create_draft, draft, operation_id
+        )
+
+    async def get_draft(self, draft_id: str) -> EmailDraft | None:
+        """Return one active local draft without provider activity."""
+        store = self._local_draft_store()
+        return await self._run_draft_operation(store.get_draft, draft_id)
+
+    async def list_drafts(
+        self, *, state: str = "active", limit: int = 10, cursor: str | None = None
+    ) -> EmailDraftPage:
+        """Return one caller-selected local draft summary page."""
+        store = self._local_draft_store()
+        method = lambda: store.list_drafts(state=state, limit=limit, cursor=cursor)
+        return await self._run_draft_operation(method)
+
+    async def update_draft(
+        self,
+        draft_id: str,
+        expected_revision: int,
+        draft: EmailDraft,
+        operation_id: str,
+    ) -> DraftMutation:
+        """Replace one exact active local draft revision."""
+        store = self._local_draft_store()
+        return await self._run_draft_operation(
+            store.update_draft,
+            draft_id,
+            expected_revision,
+            draft,
+            operation_id,
+        )
+
+    async def trash_draft(
+        self, draft_id: str, expected_revision: int, operation_id: str
+    ) -> DraftMutation:
+        """Move one exact local draft revision to reversible trash."""
+        store = self._local_draft_store()
+        return await self._run_draft_operation(
+            store.trash_draft, draft_id, expected_revision, operation_id
+        )
+
+    async def restore_draft(
+        self, draft_id: str, expected_revision: int, operation_id: str
+    ) -> DraftMutation:
+        """Restore one exact trashed local draft revision."""
+        store = self._local_draft_store()
+        return await self._run_draft_operation(
+            store.restore_draft, draft_id, expected_revision, operation_id
+        )
 
 
 def format_runtime_status(status: EmailRuntimeStatus) -> str:
@@ -427,6 +517,8 @@ def format_runtime_status(status: EmailRuntimeStatus) -> str:
     ]
     if status.diagnostic is not None:
         lines.append(f"Diagnostic: {status.diagnostic}")
+    if status.draft_diagnostic is not None:
+        lines.append(f"Draft diagnostic: {status.draft_diagnostic}")
     lines.extend(
         (
             f"Read: {'enabled' if status.read_enabled else 'disabled'}",
@@ -467,6 +559,15 @@ def _create_observation_store(
     )
 
 
+def _create_draft_store(ctx: Any, config: EmailPluginConfig) -> SqliteDraftStore | None:
+    if config.drafts.mode != "sqlite":
+        return None
+    data_dir = ctx.state.data_dir
+    if not isinstance(data_dir, Path):
+        raise RuntimeError("Hermes plugin state directory is unavailable")
+    return SqliteDraftStore(data_dir / "email-drafts.sqlite3", config.drafts)
+
+
 def _create_runtime_plugin(ctx: Any) -> EmailPlugin:
     context_source = ActiveProfileContextSource(ctx)
     try:
@@ -479,18 +580,22 @@ def _create_runtime_plugin(ctx: Any) -> EmailPlugin:
         )
 
     observation_store = _create_observation_store(ctx, config)
+    draft_store = _create_draft_store(ctx, config)
     provider_name = config.email.provider
     if (
         (provider_name is None or not provider_name.strip())
         and config.email.read_mode == "disabled"
     ):
-        return EmailPlugin(config, context_source=context_source)
+        return EmailPlugin(
+            config, context_source=context_source, draft_store=draft_store
+        )
 
     try:
         return EmailPlugin.from_config(
             config,
             context_source=context_source,
             observation_store=observation_store,
+            draft_store=draft_store,
         )
     except EmailProviderResolutionError as exc:
         diagnostic = (
@@ -501,6 +606,7 @@ def _create_runtime_plugin(ctx: Any) -> EmailPlugin:
         return EmailPlugin(
             config,
             context_source=context_source,
+            draft_store=draft_store,
             runtime_state=EmailRuntimeState.CONFIGURATION_ERROR,
             runtime_diagnostic=diagnostic,
         )
@@ -509,7 +615,7 @@ def _create_runtime_plugin(ctx: Any) -> EmailPlugin:
 def register(ctx: Any) -> EmailPlugin:
     """Load safe settings and register read tools, status, skill, and cleanup.
 
-    Version 0.16.0 registers no model hooks, pollers, background tasks, or
+    Version 0.17.0 registers no model hooks, pollers, background tasks, or
     account connections during registration.
     """
     runtime = _create_runtime_plugin(ctx)
@@ -517,20 +623,35 @@ def register(ctx: Any) -> EmailPlugin:
     def release_runtime_context() -> None:
         runtime.close()
 
-    ctx.on_unload(release_runtime_context)
-    ctx.register_command(
-        "email-status",
-        handler=lambda raw_args: _handle_email_status(runtime, raw_args),
-        description="Show safe Hermes Email runtime status.",
-    )
+    from .draft_tools import register_draft_tools
     from .tools import register_read_tools
 
-    register_read_tools(ctx, runtime)
-
-    skill_path = Path(__file__).resolve().parent.parent / "skill" / "SKILL.md"
-    ctx.register_skill(
-        "email",
-        skill_path,
-        description="Handle email using the active Hermes profile safely.",
-    )
+    unload_handle: Any | None = None
+    command_handle: Any | None = None
+    draft_handles: tuple[Any, ...] = ()
+    read_handles: tuple[Any, ...] = ()
+    try:
+        unload_handle = ctx.on_unload(release_runtime_context)
+        command_handle = ctx.register_command(
+            "email-status",
+            handler=lambda raw_args: _handle_email_status(runtime, raw_args),
+            description="Show safe Hermes Email runtime status.",
+        )
+        draft_handles = register_draft_tools(ctx, runtime)
+        read_handles = register_read_tools(ctx, runtime)
+        skill_path = Path(__file__).resolve().parent.parent / "skill" / "SKILL.md"
+        ctx.register_skill(
+            "email",
+            skill_path,
+            description="Handle email using the active Hermes profile safely.",
+        )
+    except Exception:
+        for handle in reversed(read_handles + draft_handles):
+            handle.dispose()
+        if command_handle is not None:
+            command_handle.dispose()
+        if unload_handle is not None:
+            unload_handle.dispose()
+        runtime.close()
+        raise
     return runtime

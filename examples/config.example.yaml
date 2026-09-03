@@ -1,7 +1,6 @@
 email:
   provider: null
   read_mode: disabled
-  draft_mode: mock
 
 hermes:
   profile: auto
@@ -28,6 +27,13 @@ storage:
   retention_days: 90
   max_observations: 10000
   max_database_bytes: 16777216
+
+drafts:
+  mode: disabled
+  account_namespace: null
+  max_drafts: 1000
+  max_operations: 10000
+  max_database_bytes: 33554432
 
 behavior:
   inherit_persona: true

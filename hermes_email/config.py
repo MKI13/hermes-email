@@ -23,13 +23,11 @@ class EmailSettings:
 
     provider: str | None = None
     read_mode: str = "disabled"
-    draft_mode: str = "mock"
 
     def __post_init__(self) -> None:
         if self.provider is not None and not isinstance(self.provider, str):
             raise ConfigError("email.provider must be a string or null")
         _choice("email.read_mode", self.read_mode, {"disabled", "mock", "readonly"})
-        _choice("email.draft_mode", self.draft_mode, {"disabled", "mock"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -159,6 +157,40 @@ class StorageSettings:
 
 
 @dataclass(frozen=True, slots=True)
+class DraftSettings:
+    """Opt-in local draft database resource limits."""
+
+    mode: str = "disabled"
+    account_namespace: str | None = None
+    max_drafts: int = 1_000
+    max_operations: int = 10_000
+    max_database_bytes: int = 33_554_432
+
+    def __post_init__(self) -> None:
+        _choice("drafts.mode", self.mode, {"disabled", "sqlite"})
+        namespace = self.account_namespace
+        if namespace is not None and (
+            not isinstance(namespace, str)
+            or re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}", namespace) is None
+        ):
+            raise ConfigError(
+                "drafts.account_namespace must be 1 to 64 portable identifier characters"
+            )
+        if self.mode == "sqlite" and namespace is None:
+            raise ConfigError(
+                "drafts.account_namespace is required when local drafts are enabled"
+            )
+        _bounded_integer("drafts.max_drafts", self.max_drafts, 1, 10_000)
+        _bounded_integer("drafts.max_operations", self.max_operations, 1, 100_000)
+        _bounded_integer(
+            "drafts.max_database_bytes",
+            self.max_database_bytes,
+            1_048_576,
+            268_435_456,
+        )
+
+
+@dataclass(frozen=True, slots=True)
 class BehaviorSettings:
     """Controls which active Hermes characteristics should be inherited."""
 
@@ -193,6 +225,7 @@ class EmailPluginConfig:
     credentials: CredentialReferences = field(default_factory=CredentialReferences)
     imap: ImapSettings = field(default_factory=ImapSettings)
     storage: StorageSettings = field(default_factory=StorageSettings)
+    drafts: DraftSettings = field(default_factory=DraftSettings)
     behavior: BehaviorSettings = field(default_factory=BehaviorSettings)
     safety: SafetySettings = field(default_factory=SafetySettings)
 
@@ -210,6 +243,12 @@ class EmailPluginConfig:
                 )
         if normalized_provider == "mock" and self.email.read_mode == "readonly":
             raise ConfigError("email.read_mode readonly requires a non-mock provider")
+        if any(
+            (self.safety.allow_send, self.safety.allow_delete, self.safety.allow_move)
+        ):
+            raise ConfigError(
+                "send, mailbox delete, and mailbox move are unavailable in this version"
+            )
         if self.storage.mode == "sqlite" and (
             normalized_provider is None
             or self.email.read_mode not in {"mock", "readonly"}
@@ -227,7 +266,16 @@ class EmailPluginConfig:
         _reject_unknown(
             "configuration",
             raw,
-            {"email", "hermes", "credentials", "imap", "storage", "behavior", "safety"},
+            {
+                "email",
+                "hermes",
+                "credentials",
+                "imap",
+                "storage",
+                "drafts",
+                "behavior",
+                "safety",
+            },
         )
         return cls(
             email=_build_section(EmailSettings, "email", raw.get("email")),
@@ -237,6 +285,7 @@ class EmailPluginConfig:
             ),
             imap=_build_section(ImapSettings, "imap", raw.get("imap")),
             storage=_build_section(StorageSettings, "storage", raw.get("storage")),
+            drafts=_build_section(DraftSettings, "drafts", raw.get("drafts")),
             behavior=_build_section(BehaviorSettings, "behavior", raw.get("behavior")),
             safety=_build_section(SafetySettings, "safety", raw.get("safety")),
         )
@@ -249,6 +298,7 @@ Section = TypeVar(
     CredentialReferences,
     ImapSettings,
     StorageSettings,
+    DraftSettings,
     BehaviorSettings,
     SafetySettings,
 )

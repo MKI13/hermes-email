@@ -5,7 +5,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
-from ..models import EmailDraft, EmailMessage, EmailMessagePage
+from ..models import EmailMessage, EmailMessagePage
 
 
 @dataclass(frozen=True, slots=True)
@@ -13,10 +13,6 @@ class ProviderCapabilities:
     """Operations a provider explicitly declares as supported."""
 
     fetch: bool = False
-    drafts: bool = False
-    send: bool = False
-    delete: bool = False
-    move: bool = False
     get: bool = False
 
 
@@ -44,17 +40,6 @@ class EmailProvider(ABC):
     @abstractmethod
     async def get_message(self, message_id: str) -> EmailMessage | None:
         """Return one normalized message by provider-stable identifier."""
-
-    @abstractmethod
-    async def create_draft(self, draft: EmailDraft) -> EmailDraft:
-        """Store a draft without sending it."""
-
-    @abstractmethod
-    async def send_message(self, draft_id: str) -> None:
-        """Send a stored draft only after independent safety authorization.
-
-        Providers without send capability must fail closed.
-        """
 
     async def check_health(self) -> None:
         """Validate provider readiness without reading or changing messages."""

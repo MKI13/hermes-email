@@ -1,10 +1,16 @@
 manifest_version: 1
 name: hermes-email
-version: 0.16.0
+version: 0.17.0
 kind: standalone
-description: Safe email read tools with optional observation deduplication
+description: Safe email read tools and local reviewable drafts
 author: MKI13
 provides_tools:
   - email_list_messages
   - email_get_message
   - email_search_messages
+  - email_create_draft
+  - email_list_drafts
+  - email_get_draft
+  - email_update_draft
+  - email_trash_draft
+  - email_restore_draft

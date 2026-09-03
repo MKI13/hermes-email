@@ -6,12 +6,8 @@ from dataclasses import replace
 from datetime import UTC, datetime
 from typing import Final, Sequence
 
-from ..models import EmailAddress, EmailDraft, EmailMessage, EmailMessagePage
+from ..models import EmailAddress, EmailMessage, EmailMessagePage
 from .base import EmailProvider, ProviderCapabilities
-
-
-class MockSendBlockedError(PermissionError):
-    """Raised whenever the mock provider is asked to send email."""
 
 
 class MockCursorError(ValueError):
@@ -19,17 +15,10 @@ class MockCursorError(ValueError):
 
 
 class MockEmailProvider(EmailProvider):
-    """Local provider with deterministic messages and in-memory drafts."""
+    """Local provider with deterministic read-only messages."""
 
     NAME: Final = "mock"
-    capabilities = ProviderCapabilities(
-        fetch=True,
-        get=True,
-        drafts=True,
-        send=False,
-        delete=False,
-        move=False,
-    )
+    capabilities = ProviderCapabilities(fetch=True, get=True)
 
     def __init__(self, messages: Sequence[EmailMessage] | None = None) -> None:
         source = messages if messages is not None else _default_messages()
@@ -37,8 +26,6 @@ class MockEmailProvider(EmailProvider):
         self._messages_by_id = {message.message_id: message for message in self._messages}
         if len(self._messages_by_id) != len(self._messages):
             raise ValueError("mock message IDs must be unique")
-        self._drafts: dict[str, EmailDraft] = {}
-        self._draft_sequence = 0
 
     @property
     def name(self) -> str:
@@ -83,27 +70,6 @@ class MockEmailProvider(EmailProvider):
         """Return a local message by ID, or ``None`` when it is unknown."""
         message = self._messages_by_id.get(message_id)
         return _copy_message(message) if message is not None else None
-
-    async def create_draft(self, draft: EmailDraft) -> EmailDraft:
-        """Store and return a draft in this provider instance only."""
-        draft_id = draft.draft_id or self._next_draft_id()
-        stored = replace(draft, draft_id=draft_id, metadata=dict(draft.metadata))
-        self._drafts[draft_id] = stored
-        return replace(stored, metadata=dict(stored.metadata))
-
-    async def send_message(self, draft_id: str) -> None:
-        """Block sending regardless of whether the draft exists."""
-        raise MockSendBlockedError(
-            f"mock provider cannot send draft {draft_id!r}; send capability is disabled"
-        )
-
-    def _next_draft_id(self) -> str:
-        while True:
-            self._draft_sequence += 1
-            draft_id = f"mock-draft-{self._draft_sequence:04d}"
-            if draft_id not in self._drafts:
-                return draft_id
-
 
 def _copy_message(message: EmailMessage) -> EmailMessage:
     return replace(message, metadata=dict(message.metadata))

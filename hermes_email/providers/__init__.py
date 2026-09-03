@@ -16,9 +16,8 @@ from .imap import (
     ImapLimitError,
     ImapMessageIdError,
     ImapReadOnlyProvider,
-    ImapWriteBlockedError,
 )
-from .mock import MockCursorError, MockEmailProvider, MockSendBlockedError
+from .mock import MockCursorError, MockEmailProvider
 from .resolver import (
     EmailProviderResolutionError,
     ProviderNotConfiguredError,
@@ -34,10 +33,8 @@ __all__ = [
     "ImapLimitError",
     "ImapMessageIdError",
     "ImapReadOnlyProvider",
-    "ImapWriteBlockedError",
     "MockCursorError",
     "MockEmailProvider",
-    "MockSendBlockedError",
     "ProviderAuthenticationError",
     "ProviderCapabilities",
     "ProviderConnectionError",

@@ -28,7 +28,7 @@ def resolve_email_provider(
 ) -> EmailProvider:
     """Create the explicitly configured provider without connecting it.
 
-    Version 0.16.0 recognizes ``mock`` and read-only ``imap``. Configuration values are normalized
+    Version 0.17.0 recognizes ``mock`` and read-only ``imap``. Configuration values are normalized
     as user-facing identifiers and are never interpreted as modules, classes,
     paths, entry points, or executable code.
     """
