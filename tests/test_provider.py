@@ -11,8 +11,6 @@ def test_provider_base_interface_exists() -> None:
         "name",
         "fetch_messages",
         "get_message",
-        "create_draft",
-        "send_message",
     }
 
     with pytest.raises(TypeError):
@@ -24,7 +22,4 @@ def test_provider_capabilities_default_to_disabled() -> None:
 
     assert capabilities.fetch is False
     assert capabilities.get is False
-    assert capabilities.drafts is False
-    assert capabilities.send is False
-    assert capabilities.delete is False
-    assert capabilities.move is False
+    assert set(capabilities.__dataclass_fields__) == {"fetch", "get"}

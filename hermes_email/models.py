@@ -73,11 +73,58 @@ class EmailMessagePage(Sequence[EmailMessage]):
 
 @dataclass(frozen=True, slots=True)
 class EmailDraft:
-    """Provider-neutral draft content without send authority."""
+    """Provider-neutral, reviewable draft content without send authority."""
 
     recipients: tuple[EmailAddress, ...]
     subject: str
     body_text: str
+    cc: tuple[EmailAddress, ...] = ()
+    bcc: tuple[EmailAddress, ...] = ()
     draft_id: str | None = None
     in_reply_to: str | None = None
-    metadata: dict[str, str] = field(default_factory=dict)
+    revision: int | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class EmailDraftSummary:
+    """Bounded local draft metadata without body content."""
+
+    draft_id: str
+    revision: int
+    state: str
+    subject: str
+    recipient_count: int
+    body_character_count: int
+    in_reply_to: str | None
+    created_at: datetime
+    updated_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class EmailDraftPage(Sequence[EmailDraftSummary]):
+    """One immutable local draft-summary page with a caller-driven cursor."""
+
+    drafts: tuple[EmailDraftSummary, ...]
+    next_cursor: str | None = None
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "drafts", tuple(self.drafts))
+
+    def __len__(self) -> int:
+        return len(self.drafts)
+
+    @overload
+    def __getitem__(self, index: int) -> EmailDraftSummary: ...
+
+    @overload
+    def __getitem__(self, index: slice) -> tuple[EmailDraftSummary, ...]: ...
+
+    def __getitem__(
+        self, index: int | slice
+    ) -> EmailDraftSummary | tuple[EmailDraftSummary, ...]:
+        return self.drafts[index]
+
+    def __iter__(self) -> Iterator[EmailDraftSummary]:
+        return iter(self.drafts)

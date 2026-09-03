@@ -45,7 +45,7 @@ jobs:
         run: python -m pytest
 
       - name: Verify installed import
-        run: python -c "import hermes_email; assert hermes_email.__version__ == '0.16.0'; print(hermes_email.__version__)"
+        run: python -c "import hermes_email; assert hermes_email.__version__ == '0.17.0'; print(hermes_email.__version__)"
 
       - name: Build distributions
         run: python -m build
@@ -84,4 +84,4 @@ jobs:
           HOME="${RUNNER_TEMP}/hermes-home" hermes plugins doctor . --ci
 
       - name: Verify tools and storage through pinned Hermes APIs
-        run: python -m pytest tests/test_tools.py tests/test_persistence_integration.py
+        run: python -m pytest tests/test_tools.py tests/test_persistence_integration.py tests/test_draft_integration.py tests/test_draft_tools.py

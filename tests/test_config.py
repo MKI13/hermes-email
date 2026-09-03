@@ -4,6 +4,7 @@ import pytest
 
 from hermes_email.config import (
     ConfigError,
+    DraftSettings,
     EmailPluginConfig,
     ImapSettings,
     StorageSettings,
@@ -16,7 +17,6 @@ def test_defaults_are_safe() -> None:
 
     assert config.email.provider is None
     assert config.email.read_mode == "disabled"
-    assert config.email.draft_mode == "mock"
     assert getattr(config.hermes, "profile") == "auto"
     assert config.credentials.username_ref is None
     assert config.credentials.password_ref is None
@@ -27,6 +27,9 @@ def test_defaults_are_safe() -> None:
     assert config.storage == StorageSettings()
     assert config.storage.mode == "disabled"
     assert config.storage.account_namespace is None
+    assert config.drafts == DraftSettings()
+    assert config.drafts.mode == "disabled"
+    assert config.drafts.account_namespace is None
     assert config.safety.allow_send is False
     assert config.safety.allow_delete is False
     assert config.safety.allow_move is False
@@ -96,7 +99,7 @@ def test_literal_credential_value_is_rejected_without_echo() -> None:
 
 def valid_imap_mapping() -> dict[str, object]:
     return {
-        "email": {"provider": "imap", "read_mode": "readonly", "draft_mode": "disabled"},
+        "email": {"provider": "imap", "read_mode": "readonly"},
         "imap": {
             "host": "mail.example.invalid",
             "port": 993,
@@ -195,6 +198,54 @@ def test_mock_provider_rejects_readonly_mode() -> None:
 def test_imap_resource_bounds_are_enforced(field_name: str, value: int) -> None:
     with pytest.raises(ConfigError, match=field_name):
         ImapSettings(**{field_name: value})
+
+
+def test_valid_local_draft_configuration_is_provider_independent() -> None:
+    config = EmailPluginConfig.from_mapping(
+        {
+            "drafts": {
+                "mode": "sqlite",
+                "account_namespace": "primary-account",
+                "max_drafts": 500,
+                "max_operations": 5000,
+                "max_database_bytes": 33554432,
+            }
+        }
+    )
+
+    assert config.email.provider is None
+    assert config.email.read_mode == "disabled"
+    assert config.drafts.mode == "sqlite"
+    assert config.drafts.account_namespace == "primary-account"
+
+
+def test_local_drafts_require_portable_account_namespace() -> None:
+    with pytest.raises(ConfigError, match="account_namespace is required"):
+        EmailPluginConfig.from_mapping({"drafts": {"mode": "sqlite"}})
+    with pytest.raises(ConfigError, match="portable identifier"):
+        DraftSettings(mode="sqlite", account_namespace="private address@example.invalid")
+
+
+@pytest.mark.parametrize("field_name", ["allow_send", "allow_delete", "allow_move"])
+def test_unavailable_external_or_mailbox_side_effect_opt_in_is_rejected(
+    field_name: str,
+) -> None:
+    with pytest.raises(ConfigError, match="unavailable"):
+        EmailPluginConfig.from_mapping({"safety": {field_name: True}})
+
+
+def test_legacy_provider_draft_mode_is_rejected() -> None:
+    with pytest.raises(ConfigError, match="draft_mode"):
+        EmailPluginConfig.from_mapping({"email": {"draft_mode": "mock"}})
+
+
+def test_draft_resource_bounds_reject_booleans_and_oversize_values() -> None:
+    with pytest.raises(ConfigError, match="max_drafts"):
+        DraftSettings(max_drafts=True)
+    with pytest.raises(ConfigError, match="max_operations"):
+        DraftSettings(max_operations=100_001)
+    with pytest.raises(ConfigError, match="max_database_bytes"):
+        DraftSettings(max_database_bytes=1_048_575)
 
 
 def test_explicit_sqlite_storage_configuration_is_valid() -> None:

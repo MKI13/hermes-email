@@ -26,7 +26,7 @@ def test_from_config_creates_plugin_with_mock_provider() -> None:
 
     assert isinstance(plugin, EmailPlugin)
     assert isinstance(plugin.provider, MockEmailProvider)
-    assert plugin.provider.capabilities.send is False
+    assert set(plugin.provider.capabilities.__dataclass_fields__) == {"fetch", "get"}
 
 
 def test_from_config_uses_provider_resolver(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -28,7 +28,6 @@ def persistent_config() -> EmailPluginConfig:
             "email": {
                 "provider": "mock",
                 "read_mode": "mock",
-                "draft_mode": "disabled",
             },
             "storage": {
                 "mode": "sqlite",
@@ -270,7 +269,6 @@ def test_registration_uses_public_state_data_dir_but_opens_storage_lazily(
             "email": {
                 "provider": "mock",
                 "read_mode": "mock",
-                "draft_mode": "disabled",
             },
             "storage": {
                 "mode": "sqlite",
@@ -307,7 +305,6 @@ def test_pinned_hermes_context_supplies_profile_scoped_storage_path(
         "email": {
             "provider": "mock",
             "read_mode": "mock",
-            "draft_mode": "disabled",
         },
         "storage": {
             "mode": "sqlite",

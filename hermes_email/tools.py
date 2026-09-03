@@ -157,7 +157,7 @@ SEARCH_SCHEMA: Final = {
 }
 
 
-def register_read_tools(ctx: Any, plugin: EmailPlugin) -> None:
+def register_read_tools(ctx: Any, plugin: EmailPlugin) -> tuple[Any, ...]:
     """Register three read-only tools through Hermes' public plugin API."""
     registrations = (
         (LIST_TOOL, LIST_SCHEMA, _list_handler(plugin), _fetch_available, "📬"),
@@ -185,6 +185,7 @@ def register_read_tools(ctx: Any, plugin: EmailPlugin) -> None:
         for handle in reversed(handles):
             handle.dispose()
         raise
+    return tuple(handles)
 
 
 def _fetch_available(plugin: EmailPlugin) -> bool:

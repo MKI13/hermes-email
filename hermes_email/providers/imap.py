@@ -20,7 +20,7 @@ from html.parser import HTMLParser
 from typing import Any, Final, Never
 
 from ..config import ImapSettings
-from ..models import EmailAddress, EmailDraft, EmailMessage, EmailMessagePage
+from ..models import EmailAddress, EmailMessage, EmailMessagePage
 from ..secrets import SecretResolutionError, SecretResolver
 from .base import EmailProvider, ProviderCapabilities
 from .errors import (
@@ -59,10 +59,6 @@ class ImapMessageIdError(ValueError):
     """Raised when an IMAP message identifier is malformed or stale."""
 
 
-class ImapWriteBlockedError(PermissionError):
-    """Raised for every draft or send request on the read-only provider."""
-
-
 def _raise_redacted(error: Exception) -> Never:
     """Raise a fixed error without retaining a sensitive handled exception."""
     try:
@@ -76,14 +72,7 @@ class ImapReadOnlyProvider(EmailProvider):
     """Read one bounded UID window per verified, read-only IMAP transaction."""
 
     NAME: Final = "imap"
-    capabilities = ProviderCapabilities(
-        fetch=True,
-        get=True,
-        drafts=False,
-        send=False,
-        delete=False,
-        move=False,
-    )
+    capabilities = ProviderCapabilities(fetch=True, get=True)
 
     def __init__(
         self,
@@ -138,16 +127,6 @@ class ImapReadOnlyProvider(EmailProvider):
             )
         except EmailProviderError as error:
             _raise_redacted(type(error)(str(error)))
-
-    async def create_draft(self, draft: EmailDraft) -> EmailDraft:
-        """Reject draft storage because IMAP is read-only."""
-        del draft
-        raise ImapWriteBlockedError("the read-only IMAP provider cannot store drafts")
-
-    async def send_message(self, draft_id: str) -> None:
-        """Reject sending because IMAP is read-only."""
-        del draft_id
-        raise ImapWriteBlockedError("the read-only IMAP provider cannot send messages")
 
     def close(self) -> None:
         """Prevent new work, interrupt sockets, and wait one timeout for workers."""

@@ -51,7 +51,6 @@ def mock_settings() -> dict[str, Any]:
         "email": {
             "provider": "mock",
             "read_mode": "mock",
-            "draft_mode": "mock",
         },
         "hermes": {"profile": "auto"},
         "safety": {
@@ -67,7 +66,6 @@ def imap_settings() -> dict[str, Any]:
         "email": {
             "provider": "imap",
             "read_mode": "readonly",
-            "draft_mode": "disabled",
         },
         "imap": {
             "host": "mail.example.invalid",
@@ -111,6 +109,7 @@ def test_register_reads_only_official_plugin_setting_sections() -> None:
         "credentials",
         "imap",
         "storage",
+        "drafts",
         "behavior",
         "safety",
     ]
@@ -125,7 +124,7 @@ def test_valid_mock_configuration_is_ready() -> None:
     assert status.provider == "mock"
     assert getattr(status, "profile") == "ef-sinn-mail"
     assert status.read_enabled is True
-    assert status.draft_enabled is True
+    assert status.draft_enabled is False
     assert status.send_enabled is False
     assert status.diagnostic is None
     assert isinstance(plugin.provider, MockEmailProvider)
@@ -248,6 +247,7 @@ def test_status_contains_no_secrets_or_message_content() -> None:
         "draft_enabled",
         "send_enabled",
         "diagnostic",
+        "draft_diagnostic",
     }
 
 

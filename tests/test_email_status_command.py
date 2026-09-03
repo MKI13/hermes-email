@@ -50,7 +50,6 @@ def mock_settings() -> dict[str, Any]:
         "email": {
             "provider": "mock",
             "read_mode": "mock",
-            "draft_mode": "mock",
         },
         "safety": {
             "allow_send": False,
@@ -65,7 +64,6 @@ def imap_settings() -> dict[str, Any]:
         "email": {
             "provider": "imap",
             "read_mode": "readonly",
-            "draft_mode": "disabled",
         },
         "imap": {
             "host": "mail.example.invalid",
@@ -124,7 +122,7 @@ def test_mock_ready_status_command_output() -> None:
     assert "Provider: mock" in output
     assert "Profile: mock-profile" in output
     assert "Read: enabled" in output
-    assert "Draft: enabled" in output
+    assert "Draft: disabled" in output
     assert "Send: disabled" in output
 
 
@@ -223,8 +221,12 @@ def test_command_invokes_no_mail_operation(monkeypatch: pytest.MonkeyPatch) -> N
         "fetch_messages",
         "get_message",
         "search_messages",
-        "prepare_draft",
-        "send_message",
+        "create_draft",
+        "get_draft",
+        "list_drafts",
+        "update_draft",
+        "trash_draft",
+        "restore_draft",
     ):
         monkeypatch.setattr(EmailPlugin, method_name, forbidden)
 
@@ -254,8 +256,12 @@ def test_command_handler_has_no_mail_operation_references() -> None:
         "fetch_messages",
         "get_message",
         "search_messages",
-        "prepare_draft",
-        "send_message",
+        "create_draft",
+        "get_draft",
+        "list_drafts",
+        "update_draft",
+        "trash_draft",
+        "restore_draft",
     ):
         assert forbidden_name not in source
     assert "get_runtime_status" in source

@@ -2,6 +2,7 @@
 
 from .config import (
     CredentialReferences,
+    DraftSettings,
     EmailPluginConfig,
     ImapSettings,
     StorageSettings,
@@ -21,6 +22,7 @@ from .secrets import (
 __all__ = [
     "ActiveProfileContextSource",
     "CredentialReferences",
+    "DraftSettings",
     "EmailPluginConfig",
     "EnvironmentSecretResolver",
     "HermesContext",
@@ -35,4 +37,4 @@ __all__ = [
     "load_config",
     "validate_secret_reference",
 ]
-__version__ = "0.16.0"
+__version__ = "0.17.0"

@@ -71,7 +71,6 @@ def readonly_config(*, enabled: bool = True) -> EmailPluginConfig:
             "email": {
                 "provider": "imap",
                 "read_mode": "readonly" if enabled else "disabled",
-                "draft_mode": "disabled",
             },
             "imap": {
                 "host": "mail.example.invalid",

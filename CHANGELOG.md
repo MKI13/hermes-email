@@ -4,6 +4,32 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-09-07
+
+### Added
+
+- Opt-in provider-independent local SQLite drafts with explicit account namespaces and separate content storage.
+- Six tools for create, body-free list, bounded get, full-replacement update, reversible trash, and restore.
+- Durable content-free mutation receipts, caller operation IDs, optimistic revisions, opaque draft IDs, and cancellation-safe outcomes.
+- Bounded normalized To, Cc, Bcc, subject, body, reply reference, pagination, draft count, operation count, and database size.
+
+### Changed
+
+- Provider capability and method surfaces are read-only; provider draft and send methods were removed.
+- Drafting is disabled by default and configured independently under `drafts` rather than an email-provider mode.
+- `/email-status` reports draft readiness and a separate fixed draft diagnostic without opening storage.
+- The bundled skill requires a direct current-user request for mutations, exact-revision review, and prompt-injection resistance.
+- Project version advanced to `0.17.0` across package, manifest, skill, CI, examples, and documentation.
+
+### Security
+
+- Draft content is isolated in fixed `email-drafts.sqlite3` and never enters the content-free observation ledger.
+- Mutation idempotency binds operation kind and normalized request digest; changed reuse and stale revisions fail closed.
+- Lists omit body and recipient details, gets expose bounded untrusted windows, and mutation receipts contain no message content.
+- Draft operations perform no provider, mailbox, network, DNS, environment, secret, hook, timer, retry, or automatic action.
+- Plaintext storage limitations, POSIX permissions, Windows ACL responsibility, backup exposure, and secure-delete limitations are documented.
+- SMTP, sending, provider drafts, mailbox writes, purge, polling, automatic replies, and automatic sending remain unavailable.
+
 ## [0.16.0] - 2026-09-06
 
 ### Added
@@ -271,7 +297,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - Initial project metadata and safe-by-default foundation.
 
-[Unreleased]: https://github.com/MKI13/hermes-email/compare/v0.16.0...HEAD
+[Unreleased]: https://github.com/MKI13/hermes-email/compare/v0.17.0...HEAD
+[0.17.0]: https://github.com/MKI13/hermes-email/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/MKI13/hermes-email/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/MKI13/hermes-email/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/MKI13/hermes-email/compare/v0.13.0...v0.14.0

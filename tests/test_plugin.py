@@ -1,10 +1,6 @@
-import asyncio
 from pathlib import Path
 
-import pytest
-
-from hermes_email.models import EmailAddress, EmailDraft
-from hermes_email.plugin import EmailPlugin, SendingUnavailableError, register
+from hermes_email.plugin import register
 
 
 class FakePluginContext:
@@ -33,7 +29,7 @@ class FakePluginContext:
         self.skills.append((name, path, description))
 
 
-def test_register_adds_bundled_skill_and_three_read_tools() -> None:
+def test_register_adds_bundled_skill_and_all_local_draft_and_read_tools() -> None:
     context = FakePluginContext()
 
     runtime = register(context)
@@ -45,27 +41,15 @@ def test_register_adds_bundled_skill_and_three_read_tools() -> None:
         "email_list_messages",
         "email_get_message",
         "email_search_messages",
+        "email_create_draft",
+        "email_list_drafts",
+        "email_get_draft",
+        "email_update_draft",
+        "email_trash_draft",
+        "email_restore_draft",
     }
     name, path, description = context.skills[0]
     assert name == "email"
     assert path.name == "SKILL.md"
     assert path.exists()
     assert "active Hermes profile" in description
-
-
-def test_prepare_draft_has_no_external_effect() -> None:
-    draft = EmailDraft(
-        recipients=(EmailAddress("recipient@example.invalid"),),
-        subject="Example",
-        body_text="Draft body",
-    )
-
-    assert EmailPlugin().prepare_draft(draft) is draft
-
-
-def test_sending_is_unavailable_even_with_local_opt_in() -> None:
-    async def attempt_send() -> None:
-        with pytest.raises(SendingUnavailableError, match="not implemented"):
-            await EmailPlugin().send_message("draft-1")
-
-    asyncio.run(attempt_send())

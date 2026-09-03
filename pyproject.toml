@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hermes-email"
-version = "0.16.0"
-description = "Safe Hermes email read tools with optional observation deduplication."
+version = "0.17.0"
+description = "Safe Hermes email read tools and local reviewable drafts."
 readme = "README.md"
 requires-python = ">=3.11,<3.14"
 license = "MIT"
