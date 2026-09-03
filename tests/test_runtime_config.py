@@ -9,7 +9,7 @@ import hermes_email
 import hermes_email.plugin as plugin_module
 from hermes_email.config import EmailPluginConfig
 from hermes_email.plugin import EmailRuntimeState, register
-from hermes_email.providers import MockEmailProvider
+from hermes_email.providers import ImapReadOnlyProvider, MockEmailProvider
 from hermes_email.secrets import EnvironmentSecretResolver
 
 
@@ -57,6 +57,26 @@ def mock_settings() -> dict[str, Any]:
     }
 
 
+def imap_settings() -> dict[str, Any]:
+    return {
+        "email": {
+            "provider": "imap",
+            "read_mode": "readonly",
+            "draft_mode": "disabled",
+        },
+        "imap": {
+            "host": "mail.example.invalid",
+            "username_ref": "HERMES_EMAIL_IMAP_USERNAME",
+            "password_ref": "HERMES_EMAIL_IMAP_PASSWORD",
+        },
+        "safety": {
+            "allow_send": False,
+            "allow_delete": False,
+            "allow_move": False,
+        },
+    }
+
+
 def test_register_without_configuration_is_disabled() -> None:
     context = FakeHermesContext()
 
@@ -84,6 +104,7 @@ def test_register_reads_only_official_plugin_setting_sections() -> None:
         "email",
         "hermes",
         "credentials",
+        "imap",
         "behavior",
         "safety",
     ]
@@ -107,11 +128,35 @@ def test_valid_mock_configuration_is_ready() -> None:
     assert plugin.config.safety.allow_move is False
 
 
+def test_imap_registration_is_configured_without_secret_or_network_access(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def forbidden(*args, **kwargs):
+        raise AssertionError(f"unexpected external access: {args!r} {kwargs!r}")
+
+    monkeypatch.setattr(EnvironmentSecretResolver, "get_secret", forbidden)
+    monkeypatch.setattr(socket, "socket", forbidden)
+
+    plugin = register(FakeHermesContext(imap_settings()))
+    status = plugin.get_runtime_status()
+
+    assert isinstance(plugin.provider, ImapReadOnlyProvider)
+    assert status.state is EmailRuntimeState.PROVIDER_CONFIGURED
+    assert status.provider == "imap"
+    assert status.read_enabled is False
+    assert status.draft_enabled is False
+    assert status.send_enabled is False
+    assert status.diagnostic is None
+
+
 def test_runtime_mock_provider_uses_existing_resolver(monkeypatch: pytest.MonkeyPatch) -> None:
     resolved_provider = MockEmailProvider()
     received_configs: list[EmailPluginConfig] = []
 
-    def fake_resolver(config: EmailPluginConfig) -> MockEmailProvider:
+    def fake_resolver(
+        config: EmailPluginConfig, *, secret_resolver=None
+    ) -> MockEmailProvider:
+        assert secret_resolver is None
         received_configs.append(config)
         return resolved_provider
 
@@ -162,8 +207,8 @@ def test_invalid_settings_become_configuration_error() -> None:
 
 
 def test_unexpected_resolver_failure_is_not_swallowed(monkeypatch: pytest.MonkeyPatch) -> None:
-    def broken_resolver(config: EmailPluginConfig):
-        del config
+    def broken_resolver(config: EmailPluginConfig, *, secret_resolver=None):
+        del config, secret_resolver
         raise RuntimeError("programming failure")
 
     monkeypatch.setattr(plugin_module, "resolve_email_provider", broken_resolver)
@@ -257,12 +302,29 @@ def test_credential_values_never_reach_runtime_status_or_logs(
     assert sensitive_value not in caplog.text
 
 
-def test_runtime_lifecycle_cleanup_still_releases_context() -> None:
+def test_runtime_lifecycle_closes_provider_and_releases_context(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     context = FakeHermesContext(mock_settings())
+    provider = MockEmailProvider()
+    close_calls = 0
+
+    def close() -> None:
+        nonlocal close_calls
+        close_calls += 1
+
+    monkeypatch.setattr(provider, "close", close)
+
+    def fake_resolver(config: EmailPluginConfig, *, secret_resolver=None):
+        del config, secret_resolver
+        return provider
+
+    monkeypatch.setattr(plugin_module, "resolve_email_provider", fake_resolver)
     plugin = register(context)
 
     assert len(context.unload_callbacks) == 1
     context.unload_callbacks[0]()
 
+    assert close_calls == 1
     assert plugin.context_source is None
     assert getattr(plugin.get_runtime_status(), "profile") is None

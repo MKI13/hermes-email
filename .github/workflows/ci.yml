@@ -45,7 +45,7 @@ jobs:
         run: python -m pytest
 
       - name: Verify installed import
-        run: python -c "import hermes_email; assert hermes_email.__version__ == '0.13.0'; print(hermes_email.__version__)"
+        run: python -c "import hermes_email; assert hermes_email.__version__ == '0.14.0'; print(hermes_email.__version__)"
 
       - name: Build distributions
         run: python -m build

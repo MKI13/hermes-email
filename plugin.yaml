@@ -1,6 +1,6 @@
 manifest_version: 1
 name: hermes-email
-version: 0.13.0
+version: 0.14.0
 kind: standalone
-description: Safe, provider-neutral email plugin and skill foundation
+description: Safe provider-neutral email plugin with read-only IMAP
 author: MKI13

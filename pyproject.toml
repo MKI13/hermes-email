@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hermes-email"
-version = "0.13.0"
-description = "Safe-by-default foundation for a universal Hermes email plugin and skill."
+version = "0.14.0"
+description = "Safe provider-neutral Hermes email plugin with read-only IMAP."
 readme = "README.md"
 requires-python = ">=3.11,<3.14"
 license = "MIT"

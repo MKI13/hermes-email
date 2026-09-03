@@ -10,16 +10,17 @@ Hermes remains the intelligence, personality, and decision-maker. The plugin pro
 
 A friendly German Hermes profile should produce friendly, concise German drafts. A formal English profile should preserve that profile's language and style. Provider adapters must not alter this behavior.
 
-## Version 0.13.0
+## Version 0.14.0
 
-This release adds a provider-neutral foundation for resolving future credentials without adding a production mail provider:
+This release adds the first production transport: bounded, read-only IMAP over verified implicit TLS.
 
-- configuration stores only optional `username_ref` and `password_ref` identifiers;
-- references must use the plugin-scoped `HERMES_EMAIL_...` format;
-- `EnvironmentSecretResolver` reads exactly one validated reference on explicit request;
-- `SecretValue` redacts both string and representation output and is never serialized or persisted;
-- plugin registration, disabled mode, and mock mode never request a secret;
-- the mock-only provider boundary, bounded caller-driven pagination, disabled sending, and all existing safety controls remain unchanged.
+- IMAP credentials remain validated references and resolve only for an explicit health, fetch, or lookup operation;
+- every connection uses certificate and hostname verification with TLS 1.2 or newer;
+- mailboxes open with IMAP `EXAMINE`, and every message request uses UID `BODY.PEEK` partial fetches;
+- UID cursors are caller-driven, strictly decreasing, bound to `UIDVALIDITY`, and never followed automatically;
+- MIME is parsed as untrusted data, attachments are omitted, and HTML becomes bounded plain text without scripts, attributes, links, images, or remote access;
+- provider health is explicit and redacted; registration and `/email-status` never connect;
+- SMTP, sending, tools, polling, persistence, and automation remain unavailable.
 
 ### Runtime health
 
@@ -27,38 +28,50 @@ This release adds a provider-neutral foundation for resolving future credentials
 |---|---|
 | `disabled` | No explicit provider is configured; no mail operation is available. |
 | `mock-ready` | The explicit mock provider resolved successfully. |
+| `provider-configured` | IMAP settings are valid, but no live operation has run. |
+| `provider-ready` | An explicit IMAP health or read operation succeeded. |
+| `authentication-error` | Authentication failed without exposing server or credential details. |
+| `provider-unreachable` | TLS, timeout, connection, mailbox, or protocol validation failed. |
 | `configuration-error` | Expected settings validation or provider resolution failed; Hermes registration continues. |
 
 Type `/email-status` in a Hermes session to display the fixed fields from `EmailPlugin.get_runtime_status()`: `version`, `state`, `provider`, `profile`, `read_enabled`, `draft_enabled`, `send_enabled`, and `diagnostic`.
 
 ### Deliberately not included
 
-Version `0.13.0` does not connect to production mail accounts, fetch real messages, send email, delete or move messages, run background polling, implement OAuth, classify mail, automate replies, route LLM calls, or persist state in a database.
+Version `0.14.0` can read one explicitly configured IMAP mailbox, but it does not send email, store provider drafts, delete or move messages, run background polling, implement OAuth, classify mail, automate replies, register model tools, route LLM calls, or persist state in a database.
 
 ## Safety defaults
 
-| Operation | Version 0.13.0 |
+| Operation | Version 0.14.0 |
 |---|---|
-| Read mail | Disabled or mock only |
+| Read mail | Disabled, deterministic mock, or explicit read-only IMAP |
 | Prepare a draft | Local value/mock only |
 | Send mail | Unconditionally unavailable |
 | Delete mail | Unavailable |
 | Move mail | Unavailable |
-| Connect an account | Unavailable |
+| Connect an account | Explicit IMAP configuration; verified TLS and read-only mailbox only |
 
-No credentials are required. `.env` files and common private-key formats are ignored by Git.
+Disabled and mock modes require no credentials. IMAP requires user-managed environment values referenced by configuration; `.env` files and private-key formats remain ignored by Git and excluded from distributions.
 
 ## Credential references
 
-Secret values must never be placed in plugin settings. Future providers may receive validated references instead:
+Secret values must never be placed in plugin settings. IMAP configuration stores references only:
 
 ```yaml
-credentials:
-  username_ref: HERMES_EMAIL_USERNAME
-  password_ref: HERMES_EMAIL_PASSWORD
+email:
+  provider: imap
+  read_mode: readonly
+  draft_mode: disabled
+imap:
+  host: mail.example.com
+  port: 993
+  security: tls
+  username_ref: HERMES_EMAIL_IMAP_USERNAME
+  password_ref: HERMES_EMAIL_IMAP_PASSWORD
+  mailbox: INBOX
 ```
 
-The referenced environment values are available only through an explicit `SecretResolver.get_secret()` call. Version 0.13.0 makes no such call during registration, disabled operation, or mock operation. The resolver does not enumerate the environment, expand shell syntax, read files, use the network, log values, or cache them.
+The referenced environment values are available only during an explicit IMAP health or read operation. Registration, disabled operation, mock operation, and `/email-status` do not resolve them. The resolver does not enumerate the environment, expand shell syntax, read files, log values, or cache them.
 
 ## Installation and skill loading
 
@@ -70,7 +83,7 @@ hermes plugins enable hermes-email
 hermes plugins doctor hermes-email --ci
 ```
 
-The plugin registers the read-only skill as `hermes-email:email`, the in-session command `/email-status`, and one official unload callback for runtime context cleanup. Version 0.13.0 registers no tools, model hooks, account integrations, or background tasks.
+The plugin registers the read-only skill as `hermes-email:email`, the in-session command `/email-status`, and one official unload callback for runtime cleanup. Version 0.14.0 registers no model tools, hooks, pollers, or background tasks. IMAP access is currently available through the Python facade; Hermes-facing read tools are the next release milestone.
 
 ## Development
 

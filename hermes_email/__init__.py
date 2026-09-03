@@ -1,6 +1,6 @@
 """Universal Hermes email plugin foundation."""
 
-from .config import CredentialReferences, EmailPluginConfig, load_config
+from .config import CredentialReferences, EmailPluginConfig, ImapSettings, load_config
 from .context import ActiveProfileContextSource, HermesContext, HermesContextSource
 from .secrets import (
     EnvironmentSecretResolver,
@@ -19,6 +19,7 @@ __all__ = [
     "EnvironmentSecretResolver",
     "HermesContext",
     "HermesContextSource",
+    "ImapSettings",
     "InvalidSecretReferenceError",
     "SecretNotFoundError",
     "SecretResolutionError",
@@ -27,4 +28,4 @@ __all__ = [
     "load_config",
     "validate_secret_reference",
 ]
-__version__ = "0.13.0"
+__version__ = "0.14.0"
