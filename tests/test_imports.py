@@ -1,4 +1,5 @@
 import hermes_email
+import hermes_email.addressing
 import hermes_email.config
 import hermes_email.context
 import hermes_email.draft_storage
@@ -9,12 +10,14 @@ import hermes_email.providers
 import hermes_email.providers.errors
 import hermes_email.providers.imap
 import hermes_email.secrets
+import hermes_email.sending
+import hermes_email.smtp
 import hermes_email.storage
 import hermes_email.tools
 
 
 def test_public_modules_import() -> None:
-    assert hermes_email.__version__ == "0.17.0"
+    assert hermes_email.__version__ == "0.18.0"
     assert hermes_email.config.EmailPluginConfig is hermes_email.EmailPluginConfig
     assert hermes_email.context.HermesContext is hermes_email.HermesContext
     assert hermes_email.models.EmailDraft is not None

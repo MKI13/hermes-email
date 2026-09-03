@@ -21,6 +21,14 @@ DENIED_NAMES = {
     ".pypirc",
 }
 DENIED_SUFFIXES = {".key", ".p12", ".pem", ".pfx"}
+REQUIRED_RUNTIME_PATHS = {
+    "hermes_email/__init__.py",
+    "hermes_email/addressing.py",
+    "hermes_email/config.py",
+    "hermes_email/draft_storage.py",
+    "hermes_email/sending.py",
+    "hermes_email/smtp.py",
+}
 
 
 def _reject_path(name: str) -> None:
@@ -52,8 +60,21 @@ def main() -> None:
 
     with ZipFile(wheels[0]) as archive:
         wheel_names = [name for name in archive.namelist() if not name.endswith("/")]
+        metadata_names = [name for name in wheel_names if name.endswith(".dist-info/METADATA")]
+        if len(metadata_names) != 1:
+            raise AssertionError("wheel must contain exactly one metadata record")
+        metadata = archive.read(metadata_names[0]).decode("utf-8")
     if not wheel_names:
         raise AssertionError("wheel is empty")
+    missing_runtime = REQUIRED_RUNTIME_PATHS.difference(wheel_names)
+    if missing_runtime:
+        raise AssertionError(
+            "wheel is missing required runtime paths: " + ", ".join(sorted(missing_runtime))
+        )
+    if f"Version: {version}\n" not in metadata:
+        raise AssertionError("wheel metadata version does not match the project")
+    if "Requires-Dist: PyYAML" not in metadata:
+        raise AssertionError("wheel metadata is missing the runtime dependency")
     for name in wheel_names:
         _reject_path(name)
         if not (name.startswith("hermes_email/") or ".dist-info/" in name):

@@ -12,7 +12,7 @@ Registration creates no network client or database file, resolves no secret, inv
 
 ## Plugin facade
 
-`hermes_email.plugin.EmailPlugin` owns validated configuration, an optional read provider, an optional content-free observation store, an optional local draft store, an optional Hermes context source, and separate redacted read and draft diagnostics. `EmailPlugin.from_config()` is the provider factory. Draft operations never call it or require a provider.
+`hermes_email.plugin.EmailPlugin` owns validated configuration, an optional read provider, an optional content-free observation store, an optional local draft store, an optional Hermes context source, and separate redacted read and draft diagnostics. It does not own or instantiate an SMTP transport. `EmailPlugin.from_config()` is the provider factory. Draft operations never call it or require a provider.
 
 Read methods enforce explicit read mode and provider capabilities before one bounded provider call. Search filters one fetched page locally. Provider order and opaque cursors are preserved. Explicit reads may atomically record observations before results return.
 
@@ -25,6 +25,18 @@ Unload marks the facade closed, detaches provider and stores, clears context, cl
 `EmailProvider` exposes health, one-page fetch, single-message lookup, and lifecycle methods. Its capability record contains only `fetch` and `get`. No provider draft, send, delete, or move method exists.
 
 `MockEmailProvider` supplies deterministic local read fixtures. `ImapReadOnlyProvider` creates a connection for each explicit operation, establishes verified implicit TLS 1.2 or newer, resolves credentials after TLS, authenticates with SASL PLAIN, opens the mailbox with read-only `EXAMINE`, validates `READ-ONLY`, `UIDVALIDITY`, and `UIDNEXT`, and accesses messages only through bounded UID `BODY.PEEK` partial fetches. Callers alone decide whether to follow an opaque descending cursor. MIME normalization excludes attachments and active or remote HTML content.
+
+## SMTP transport and technical gates
+
+`SmtplibTransport` is a separate internal seam rather than an `EmailProvider` capability. It supports verified implicit TLS and mandatory STARTTLS using system trust, hostname verification, TLS 1.2 or newer, no key logging, a fixed local EHLO identity, disabled protocol debug, and SASL PLAIN after TLS. Separate SMTP secrets resolve lazily only after TLS and capability checks. Credentials must be ASCII because the standard-library AUTH API cannot safely represent other values in this mode.
+
+`SmtpSubmission` owns one validated ASCII envelope and exact CRLF-framed message byte sequence. It rejects Bcc headers, NUL, bare line endings, overlong lines, duplicate recipients, invalid addresses, and byte-limit violations. The transport rechecks the configured fixed sender and final configured byte limit before opening a connection.
+
+A submission uses one connection and no retry. MAIL must succeed, then every RCPT must succeed before DATA. Any RCPT rejection triggers RSET and no DATA. A non-250 final DATA reply is a definite rejection. A transport exception, timeout, or interruption after DATA begins becomes `SmtpDeliveryUnknownError`; a final 250 becomes accepted by the server and remains accepted if QUIT fails.
+
+`prepare_send_candidate()` is a non-network technical gate. It requires explicit deployment enablement, matching SMTP/draft namespaces, one exact active draft revision, at least one bounded recipient, authorization of every To/Cc/Bcc address, the fixed sender, a caller-supplied validated Message-ID and aware date, and the final serialized-byte cap. It emits deterministic plain-text MIME with quoted-printable body encoding, no Bcc header, no HTML, no attachments, no custom headers, and no `In-Reply-To` derived from the provider-local draft locator.
+
+Version 0.18.0 deliberately leaves both APIs disconnected from `EmailPlugin`, Hermes tools, commands, callbacks, hooks, and timers. Deployment `allow_send` arms only candidate eligibility. Runtime `send_enabled` is always false. Confirmation, durable audit, immutable send-intent binding, idempotent dispatch, and delivery-unknown recovery are prerequisites for the v0.19.0 bridge.
 
 ## Observation storage
 
@@ -56,7 +68,7 @@ Draft lists omit bodies and all recipient details, including Bcc. Draft get retu
 
 ## Status and context
 
-`/email-status` formats only `EmailPlugin.get_runtime_status()`. It invokes no provider, store, file, environment, secret, or tool operation. Read readiness and draft-store readiness are independent.
+`/email-status` formats only `EmailPlugin.get_runtime_status()`. It invokes no provider, store, file, environment, secret, or tool operation. Read readiness and draft-store readiness are independent. SMTP configuration and armed technical-gate booleans are non-secret configuration facts; they do not make sending available.
 
 `ActiveProfileContextSource` reads only public `ctx.profile_name`. Other persona and preference fields remain empty unless a public API or explicit caller supplies them. The plugin never reads private Hermes files or invents a fallback personality.
 
@@ -74,6 +86,11 @@ Hermes register(ctx)
         -> /email-status -> immutable redacted snapshot
         -> unload -> both stores and provider close
     -> email skill
+
+Disconnected internal library only:
+    exact active draft revision -> pure technical gates -> immutable SMTP bytes
+    immutable SMTP bytes -> single-attempt SMTP transport
+    (no arrow from EmailPlugin, tool, command, hook, callback, or timer)
 ```
 
 The skill is provider-independent. Providers never define persona or behavior. A stored draft grants no external authorization.

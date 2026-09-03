@@ -10,6 +10,12 @@ from typing import Any, Mapping, TypeVar
 
 import yaml
 
+from .addressing import (
+    AddressValidationError,
+    canonical_address,
+    normalize_ascii_address,
+    normalize_display_name,
+)
 from .secrets import InvalidSecretReferenceError, validate_secret_reference
 
 
@@ -191,6 +197,142 @@ class DraftSettings:
 
 
 @dataclass(frozen=True, slots=True)
+class SmtpSettings:
+    """Disconnected SMTP submission configuration with a fixed sender."""
+
+    mode: str = "disabled"
+    account_namespace: str | None = None
+    host: str | None = None
+    port: int = 465
+    security: str = "implicit_tls"
+    username_ref: str | None = None
+    password_ref: str | None = None
+    sender_address: str | None = None
+    sender_display_name: str | None = None
+    timeout_seconds: int = 15
+    max_message_bytes: int = 1_000_000
+
+    def __post_init__(self) -> None:
+        _choice("smtp.mode", self.mode, {"disabled", "submission"})
+        _choice("smtp.security", self.security, {"implicit_tls", "starttls"})
+        _bounded_integer("smtp.port", self.port, 1, 65_535)
+        _bounded_integer("smtp.timeout_seconds", self.timeout_seconds, 1, 120)
+        _bounded_integer(
+            "smtp.max_message_bytes", self.max_message_bytes, 1_024, 10_000_000
+        )
+        if self.account_namespace is not None:
+            _portable_namespace("smtp.account_namespace", self.account_namespace)
+        if self.host is not None:
+            _validate_service_host("smtp.host", self.host)
+        for field_name in ("username_ref", "password_ref"):
+            reference = getattr(self, field_name)
+            if reference is None:
+                continue
+            if not isinstance(reference, str):
+                raise ConfigError(f"smtp.{field_name} must be a string or null")
+            try:
+                validate_secret_reference(reference)
+                if not reference.startswith("HERMES_EMAIL_SMTP_"):
+                    raise InvalidSecretReferenceError(
+                        "SMTP secret references require their dedicated namespace"
+                    )
+            except InvalidSecretReferenceError as exc:
+                raise ConfigError(
+                    f"smtp.{field_name} must be a valid SMTP secret reference"
+                ) from exc
+        if (self.username_ref is None) != (self.password_ref is None):
+            raise ConfigError("smtp username and password references must be configured together")
+        if self.sender_address is not None:
+            try:
+                sender = normalize_ascii_address(self.sender_address)
+            except AddressValidationError as exc:
+                raise ConfigError("smtp.sender_address must be an ASCII email address") from exc
+            object.__setattr__(self, "sender_address", sender)
+        if self.sender_display_name is not None:
+            try:
+                display_name = normalize_display_name(self.sender_display_name)
+            except AddressValidationError as exc:
+                raise ConfigError("smtp.sender_display_name is invalid") from exc
+            object.__setattr__(self, "sender_display_name", display_name)
+        if self.mode == "submission":
+            required = (
+                self.account_namespace,
+                self.host,
+                self.username_ref,
+                self.password_ref,
+                self.sender_address,
+            )
+            if any(value is None for value in required):
+                raise ConfigError(
+                    "SMTP submission requires account namespace, host, credentials, and sender"
+                )
+
+
+@dataclass(frozen=True, slots=True)
+class RecipientPolicySettings:
+    """Deployment authorization for SMTP envelope recipients."""
+
+    mode: str = "deny"
+    allowed_addresses: tuple[str, ...] = ()
+    allowed_domains: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        _choice("recipient_policy.mode", self.mode, {"deny", "allowlist", "all"})
+        addresses = _string_sequence(
+            "recipient_policy.allowed_addresses", self.allowed_addresses, 100
+        )
+        domains = _string_sequence(
+            "recipient_policy.allowed_domains", self.allowed_domains, 100
+        )
+        normalized_addresses = []
+        for value in addresses:
+            try:
+                normalized_addresses.append(canonical_address(value))
+            except AddressValidationError as exc:
+                raise ConfigError(
+                    "recipient_policy.allowed_addresses contains an invalid address"
+                ) from exc
+        normalized_domains = []
+        for value in domains:
+            if (
+                not value.isascii()
+                or value != value.strip()
+                or value != value.casefold()
+                or len(value) > 253
+            ):
+                raise ConfigError(
+                    "recipient_policy.allowed_domains must contain lowercase ASCII domains"
+                )
+            try:
+                normalize_ascii_address("local@" + value)
+            except AddressValidationError as exc:
+                raise ConfigError(
+                    "recipient_policy.allowed_domains contains an invalid domain"
+                ) from exc
+            normalized_domains.append(value)
+        if len(set(normalized_addresses)) != len(normalized_addresses):
+            raise ConfigError("recipient_policy.allowed_addresses contains duplicates")
+        if len(set(normalized_domains)) != len(normalized_domains):
+            raise ConfigError("recipient_policy.allowed_domains contains duplicates")
+        if self.mode == "allowlist" and not normalized_addresses and not normalized_domains:
+            raise ConfigError("recipient allowlist must contain an address or domain")
+        if self.mode != "allowlist" and (normalized_addresses or normalized_domains):
+            raise ConfigError("recipient lists require recipient_policy.mode allowlist")
+        object.__setattr__(self, "allowed_addresses", tuple(normalized_addresses))
+        object.__setattr__(self, "allowed_domains", tuple(normalized_domains))
+
+    def permits(self, address: str) -> bool:
+        """Return whether one validated ASCII address is deployment-authorized."""
+        if self.mode == "all":
+            return True
+        if self.mode == "deny":
+            return False
+        canonical = canonical_address(address)
+        domain = canonical.rsplit("@", 1)[1]
+        return canonical in self.allowed_addresses or domain in self.allowed_domains
+
+
+@dataclass(frozen=True, slots=True)
 class BehaviorSettings:
     """Controls which active Hermes characteristics should be inherited."""
 
@@ -226,6 +368,10 @@ class EmailPluginConfig:
     imap: ImapSettings = field(default_factory=ImapSettings)
     storage: StorageSettings = field(default_factory=StorageSettings)
     drafts: DraftSettings = field(default_factory=DraftSettings)
+    smtp: SmtpSettings = field(default_factory=SmtpSettings)
+    recipient_policy: RecipientPolicySettings = field(
+        default_factory=RecipientPolicySettings
+    )
     behavior: BehaviorSettings = field(default_factory=BehaviorSettings)
     safety: SafetySettings = field(default_factory=SafetySettings)
 
@@ -243,11 +389,18 @@ class EmailPluginConfig:
                 )
         if normalized_provider == "mock" and self.email.read_mode == "readonly":
             raise ConfigError("email.read_mode readonly requires a non-mock provider")
-        if any(
-            (self.safety.allow_send, self.safety.allow_delete, self.safety.allow_move)
+        if self.safety.allow_delete or self.safety.allow_move:
+            raise ConfigError("mailbox delete and mailbox move are unavailable in this version")
+        if self.smtp.mode == "submission":
+            if self.drafts.mode != "sqlite":
+                raise ConfigError("SMTP submission requires enabled local draft storage")
+            if self.smtp.account_namespace != self.drafts.account_namespace:
+                raise ConfigError("SMTP and draft account namespaces must match")
+        if self.safety.allow_send and (
+            self.smtp.mode != "submission" or self.recipient_policy.mode == "deny"
         ):
             raise ConfigError(
-                "send, mailbox delete, and mailbox move are unavailable in this version"
+                "allow_send requires SMTP submission and an authorized recipient policy"
             )
         if self.storage.mode == "sqlite" and (
             normalized_provider is None
@@ -273,6 +426,8 @@ class EmailPluginConfig:
                 "imap",
                 "storage",
                 "drafts",
+                "smtp",
+                "recipient_policy",
                 "behavior",
                 "safety",
             },
@@ -286,6 +441,12 @@ class EmailPluginConfig:
             imap=_build_section(ImapSettings, "imap", raw.get("imap")),
             storage=_build_section(StorageSettings, "storage", raw.get("storage")),
             drafts=_build_section(DraftSettings, "drafts", raw.get("drafts")),
+            smtp=_build_section(SmtpSettings, "smtp", raw.get("smtp")),
+            recipient_policy=_build_section(
+                RecipientPolicySettings,
+                "recipient_policy",
+                raw.get("recipient_policy"),
+            ),
             behavior=_build_section(BehaviorSettings, "behavior", raw.get("behavior")),
             safety=_build_section(SafetySettings, "safety", raw.get("safety")),
         )
@@ -299,6 +460,8 @@ Section = TypeVar(
     ImapSettings,
     StorageSettings,
     DraftSettings,
+    SmtpSettings,
+    RecipientPolicySettings,
     BehaviorSettings,
     SafetySettings,
 )
@@ -337,17 +500,21 @@ def _validate_booleans(name: str, value: object) -> None:
 
 
 def _validate_imap_host(host: str) -> None:
+    _validate_service_host("imap.host", host)
+
+
+def _validate_service_host(name: str, host: str) -> None:
     if not isinstance(host, str) or host != host.strip() or not host or len(host) > 253:
-        raise ConfigError("imap.host must be a non-empty ASCII hostname")
+        raise ConfigError(f"{name} must be a non-empty ASCII hostname")
     try:
         host.encode("ascii")
     except UnicodeEncodeError:
-        raise ConfigError("imap.host must be an ASCII hostname") from None
+        raise ConfigError(f"{name} must be an ASCII hostname") from None
     if ":" in host or all(character.isdigit() or character == "." for character in host):
         try:
             ip_address(host)
         except ValueError:
-            raise ConfigError("imap.host must be a valid hostname or IP address") from None
+            raise ConfigError(f"{name} must be a valid hostname or IP address") from None
         return
     labels = host.rstrip(".").split(".")
     if any(
@@ -358,7 +525,24 @@ def _validate_imap_host(host: str) -> None:
         or any(not character.isalnum() and character != "-" for character in label)
         for label in labels
     ):
-        raise ConfigError("imap.host must be a valid hostname or IP address")
+        raise ConfigError(f"{name} must be a valid hostname or IP address")
+
+
+def _portable_namespace(name: str, value: object) -> str:
+    if (
+        not isinstance(value, str)
+        or re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}", value) is None
+    ):
+        raise ConfigError(f"{name} must be 1 to 64 portable identifier characters")
+    return value
+
+
+def _string_sequence(name: str, value: object, maximum: int) -> tuple[str, ...]:
+    if not isinstance(value, (list, tuple)) or len(value) > maximum:
+        raise ConfigError(f"{name} must be a bounded string list")
+    if any(not isinstance(item, str) for item in value):
+        raise ConfigError(f"{name} must be a bounded string list")
+    return tuple(value)
 
 
 def _bounded_integer(name: str, value: Any, minimum: int, maximum: int) -> None:

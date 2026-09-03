@@ -107,7 +107,9 @@ def test_disabled_status_command_output() -> None:
             "Read: disabled",
             "Storage: disabled",
             "Draft: disabled",
-            "Send: disabled",
+            "SMTP: disabled",
+            "Technical send gates: disabled",
+            "Send: unavailable in v0.18",
         )
     )
 
@@ -123,7 +125,7 @@ def test_mock_ready_status_command_output() -> None:
     assert "Profile: mock-profile" in output
     assert "Read: enabled" in output
     assert "Draft: disabled" in output
-    assert "Send: disabled" in output
+    assert "Send: unavailable in v0.18" in output
 
 
 def test_imap_status_is_configured_without_live_health_or_secret_output() -> None:
@@ -137,7 +139,7 @@ def test_imap_status_is_configured_without_live_health_or_secret_output() -> Non
     assert "Profile: default" in output
     assert "Read: disabled" in output
     assert "Draft: disabled" in output
-    assert "Send: disabled" in output
+    assert "Send: unavailable in v0.18" in output
     assert "mail.example.invalid" not in output
     assert "HERMES_EMAIL_IMAP_USERNAME" not in output
     assert "HERMES_EMAIL_IMAP_PASSWORD" not in output
@@ -154,7 +156,7 @@ def test_configuration_error_command_shows_safe_diagnostic() -> None:
     assert "Diagnostic: unsupported-provider" in output
     assert "Read: disabled" in output
     assert "Draft: disabled" in output
-    assert "Send: disabled" in output
+    assert "Send: unavailable in v0.18" in output
 
 
 def test_command_uses_same_registered_runtime_instance(

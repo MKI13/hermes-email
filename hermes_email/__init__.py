@@ -5,6 +5,8 @@ from .config import (
     DraftSettings,
     EmailPluginConfig,
     ImapSettings,
+    RecipientPolicySettings,
+    SmtpSettings,
     StorageSettings,
     load_config,
 )
@@ -29,6 +31,8 @@ __all__ = [
     "HermesContextSource",
     "ImapSettings",
     "InvalidSecretReferenceError",
+    "RecipientPolicySettings",
+    "SmtpSettings",
     "SecretNotFoundError",
     "SecretResolutionError",
     "SecretResolver",
@@ -37,4 +41,4 @@ __all__ = [
     "load_config",
     "validate_secret_reference",
 ]
-__version__ = "0.17.0"
+__version__ = "0.18.0"
