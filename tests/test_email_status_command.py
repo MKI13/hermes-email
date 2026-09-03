@@ -55,6 +55,21 @@ def mock_settings() -> dict[str, Any]:
     }
 
 
+def imap_settings() -> dict[str, Any]:
+    return {
+        "email": {
+            "provider": "imap",
+            "read_mode": "readonly",
+            "draft_mode": "disabled",
+        },
+        "imap": {
+            "host": "mail.example.invalid",
+            "username_ref": "HERMES_EMAIL_IMAP_USERNAME",
+            "password_ref": "HERMES_EMAIL_IMAP_PASSWORD",
+        },
+    }
+
+
 def registered_command(
     context: FakeHermesContext,
 ) -> Callable[[str], str]:
@@ -105,6 +120,23 @@ def test_mock_ready_status_command_output() -> None:
     assert "Read: enabled" in output
     assert "Draft: enabled" in output
     assert "Send: disabled" in output
+
+
+def test_imap_status_is_configured_without_live_health_or_secret_output() -> None:
+    context = FakeHermesContext(imap_settings(), profile_name="default")
+    register(context)
+
+    output = registered_command(context)("")
+
+    assert "Status: provider-configured" in output
+    assert "Provider: imap" in output
+    assert "Profile: default" in output
+    assert "Read: disabled" in output
+    assert "Draft: disabled" in output
+    assert "Send: disabled" in output
+    assert "mail.example.invalid" not in output
+    assert "HERMES_EMAIL_IMAP_USERNAME" not in output
+    assert "HERMES_EMAIL_IMAP_PASSWORD" not in output
 
 
 def test_configuration_error_command_shows_safe_diagnostic() -> None:

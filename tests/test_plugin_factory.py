@@ -36,7 +36,10 @@ def test_from_config_uses_provider_resolver(monkeypatch: pytest.MonkeyPatch) -> 
     resolved_provider = MockEmailProvider()
     received_configs: list[EmailPluginConfig] = []
 
-    def fake_resolver(received: EmailPluginConfig) -> MockEmailProvider:
+    def fake_resolver(
+        received: EmailPluginConfig, *, secret_resolver=None
+    ) -> MockEmailProvider:
+        assert secret_resolver is None
         received_configs.append(received)
         return resolved_provider
 
@@ -55,7 +58,7 @@ def test_from_config_propagates_missing_provider_error() -> None:
 
 def test_from_config_propagates_unsupported_provider_error() -> None:
     with pytest.raises(UnsupportedEmailProviderError, match="unsupported email provider"):
-        EmailPlugin.from_config(config_with_provider("imap"))
+        EmailPlugin.from_config(config_with_provider("gmail"))
 
 
 def test_from_config_has_no_silent_mock_fallback() -> None:

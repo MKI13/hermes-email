@@ -13,10 +13,18 @@ from .context import ActiveProfileContextSource, HermesContext, HermesContextSou
 from .models import EmailDraft, EmailMessage, EmailMessagePage
 from .providers import (
     EmailProvider,
+    EmailProviderError,
     EmailProviderResolutionError,
+    ProviderAuthenticationError,
+    ProviderConnectionError,
+    ProviderMailboxError,
     ProviderNotConfiguredError,
+    ProviderProtocolError,
+    ProviderTimeoutError,
+    ProviderTlsError,
     resolve_email_provider,
 )
+from .secrets import SecretResolver
 
 
 MAX_FETCH_LIMIT: Final = 100
@@ -26,6 +34,7 @@ _RUNTIME_CONFIG_SECTIONS: Final = (
     "email",
     "hermes",
     "credentials",
+    "imap",
     "behavior",
     "safety",
 )
@@ -37,6 +46,10 @@ class EmailRuntimeState(StrEnum):
 
     DISABLED = "disabled"
     MOCK_READY = "mock-ready"
+    PROVIDER_CONFIGURED = "provider-configured"
+    PROVIDER_READY = "provider-ready"
+    AUTHENTICATION_ERROR = "authentication-error"
+    PROVIDER_UNREACHABLE = "provider-unreachable"
     CONFIGURATION_ERROR = "configuration-error"
 
 
@@ -91,7 +104,7 @@ class SendingUnavailableError(PermissionError):
 
 
 class EmailPlugin:
-    """Minimal orchestrator for future provider and Hermes adapters."""
+    """Provider-neutral orchestrator for mail access and Hermes integration."""
 
     def __init__(
         self,
@@ -105,10 +118,17 @@ class EmailPlugin:
         self.config = config or EmailPluginConfig()
         self.context_source = context_source
         self.provider = provider
-        self._runtime_state = runtime_state or (
-            EmailRuntimeState.MOCK_READY if provider is not None else EmailRuntimeState.DISABLED
-        )
+        self._closed = False
+        self._runtime_state = runtime_state or self._initial_runtime_state(provider)
         self._runtime_diagnostic = runtime_diagnostic
+
+    @staticmethod
+    def _initial_runtime_state(provider: EmailProvider | None) -> EmailRuntimeState:
+        if provider is None:
+            return EmailRuntimeState.DISABLED
+        if provider.name == "mock":
+            return EmailRuntimeState.MOCK_READY
+        return EmailRuntimeState.PROVIDER_CONFIGURED
 
     @classmethod
     def from_config(
@@ -116,9 +136,10 @@ class EmailPlugin:
         config: EmailPluginConfig,
         *,
         context_source: HermesContextSource | None = None,
+        secret_resolver: SecretResolver | None = None,
     ) -> Self:
-        """Create a plugin using only the configured provider resolver."""
-        provider = resolve_email_provider(config)
+        """Create a disconnected plugin using only the configured provider resolver."""
+        provider = resolve_email_provider(config, secret_resolver=secret_resolver)
         return cls(config, context_source=context_source, provider=provider)
 
     def get_hermes_context(self) -> HermesContext:
@@ -130,7 +151,10 @@ class EmailPlugin:
     def get_runtime_status(self) -> EmailRuntimeStatus:
         """Return non-sensitive readiness data without mailbox activity."""
         context = self.get_hermes_context()
-        ready = self._runtime_state is EmailRuntimeState.MOCK_READY
+        ready = self._runtime_state in {
+            EmailRuntimeState.MOCK_READY,
+            EmailRuntimeState.PROVIDER_READY,
+        }
         provider_name = self.provider.name if self.provider is not None else None
         return EmailRuntimeStatus(
             version=__version__,
@@ -139,7 +163,7 @@ class EmailPlugin:
             profile=context.profile_name,
             read_enabled=(
                 ready
-                and self.config.email.read_mode == "mock"
+                and self.config.email.read_mode in {"mock", "readonly"}
                 and self.provider is not None
                 and self.provider.capabilities.fetch
             ),
@@ -155,11 +179,79 @@ class EmailPlugin:
 
     def _read_provider(self) -> EmailProvider:
         """Return the provider after shared read-policy gates pass."""
-        if self.config.email.read_mode != "mock":
-            raise EmailReadDisabledError("email reading is disabled; read_mode must be mock")
+        if self.config.email.read_mode not in {"mock", "readonly"}:
+            raise EmailReadDisabledError(
+                "email reading is disabled; read_mode must explicitly allow reading"
+            )
         if self.provider is None:
             raise EmailProviderUnavailableError("no email provider is configured on the plugin")
         return self.provider
+
+    def close(self) -> None:
+        """Disable the runtime and release provider and Hermes references."""
+        self._closed = True
+        provider = self.provider
+        self.provider = None
+        self.context_source = None
+        self._runtime_state = EmailRuntimeState.DISABLED
+        self._runtime_diagnostic = None
+        if provider is not None:
+            provider.close()
+
+    async def check_provider_health(self) -> EmailRuntimeStatus:
+        """Run one explicit provider health probe and retain only a safe result code."""
+        if self.config.email.read_mode == "disabled":
+            raise EmailReadDisabledError("email reading is disabled")
+        provider = self.provider
+        if provider is None:
+            raise EmailProviderUnavailableError("no email provider is configured on the plugin")
+        try:
+            await provider.check_health()
+        except EmailProviderError as exc:
+            self._record_provider_failure(exc)
+        else:
+            if not self._closed:
+                self._runtime_state = (
+                    EmailRuntimeState.MOCK_READY
+                    if provider.name == "mock"
+                    else EmailRuntimeState.PROVIDER_READY
+                )
+                self._runtime_diagnostic = None
+        return self.get_runtime_status()
+
+    def _ensure_open_after_operation(self) -> None:
+        if self._closed:
+            raise EmailProviderUnavailableError("email plugin is closed")
+
+    def _record_provider_failure(self, error: EmailProviderError) -> None:
+        if self._closed:
+            return
+        if isinstance(error, ProviderAuthenticationError):
+            self._runtime_state = EmailRuntimeState.AUTHENTICATION_ERROR
+            self._runtime_diagnostic = "authentication-failed"
+        elif isinstance(error, ProviderTlsError):
+            self._runtime_state = EmailRuntimeState.PROVIDER_UNREACHABLE
+            self._runtime_diagnostic = "tls-failed"
+        elif isinstance(error, ProviderTimeoutError):
+            self._runtime_state = EmailRuntimeState.PROVIDER_UNREACHABLE
+            self._runtime_diagnostic = "provider-timeout"
+        elif isinstance(error, ProviderConnectionError):
+            self._runtime_state = EmailRuntimeState.PROVIDER_UNREACHABLE
+            self._runtime_diagnostic = "connection-failed"
+        elif isinstance(error, ProviderMailboxError):
+            self._runtime_state = EmailRuntimeState.PROVIDER_UNREACHABLE
+            self._runtime_diagnostic = "mailbox-unavailable"
+        elif isinstance(error, ProviderProtocolError):
+            self._runtime_state = EmailRuntimeState.PROVIDER_UNREACHABLE
+            self._runtime_diagnostic = "protocol-error"
+        else:
+            self._runtime_state = EmailRuntimeState.PROVIDER_UNREACHABLE
+            self._runtime_diagnostic = "provider-error"
+
+    def _record_provider_success(self) -> None:
+        if not self._closed and self.provider is not None and self.provider.name != "mock":
+            self._runtime_state = EmailRuntimeState.PROVIDER_READY
+            self._runtime_diagnostic = None
 
     async def fetch_messages(
         self, *, limit: int = 50, cursor: str | None = None
@@ -172,7 +264,14 @@ class EmailPlugin:
             )
         self._validate_fetch_limit(limit)
         self._validate_fetch_cursor(cursor)
-        return await provider.fetch_messages(limit=limit, cursor=cursor)
+        try:
+            page = await provider.fetch_messages(limit=limit, cursor=cursor)
+        except EmailProviderError as exc:
+            self._record_provider_failure(exc)
+            raise
+        self._ensure_open_after_operation()
+        self._record_provider_success()
+        return page
 
     @staticmethod
     def _validate_fetch_limit(limit: int) -> None:
@@ -199,7 +298,14 @@ class EmailPlugin:
             )
         if not isinstance(message_id, str) or not message_id.strip():
             raise EmailMessageIdError("message_id must be a non-empty string")
-        return await provider.get_message(message_id)
+        try:
+            message = await provider.get_message(message_id)
+        except EmailProviderError as exc:
+            self._record_provider_failure(exc)
+            raise
+        self._ensure_open_after_operation()
+        self._record_provider_success()
+        return message
 
     async def search_messages(
         self,
@@ -226,7 +332,13 @@ class EmailPlugin:
         self._validate_fetch_limit(limit)
         self._validate_fetch_cursor(cursor)
 
-        page = await provider.fetch_messages(limit=limit, cursor=cursor)
+        try:
+            page = await provider.fetch_messages(limit=limit, cursor=cursor)
+        except EmailProviderError as exc:
+            self._record_provider_failure(exc)
+            raise
+        self._ensure_open_after_operation()
+        self._record_provider_success()
         needle = normalized_query.casefold()
         return EmailMessagePage(
             messages=tuple(
@@ -252,9 +364,9 @@ class EmailPlugin:
         return draft
 
     async def send_message(self, draft_id: str) -> None:
-        """Refuse sending unconditionally in version 0.13.0."""
+        """Refuse sending unconditionally in version 0.14.0."""
         del draft_id
-        raise SendingUnavailableError("email sending is not implemented in version 0.13.0")
+        raise SendingUnavailableError("email sending is not implemented in version 0.14.0")
 
 
 def format_runtime_status(status: EmailRuntimeStatus) -> str:
@@ -329,13 +441,13 @@ def _create_runtime_plugin(ctx: Any) -> EmailPlugin:
 def register(ctx: Any) -> EmailPlugin:
     """Load safe runtime settings, bind Hermes context, and register the skill.
 
-    Version 0.13.0 deliberately registers no tools, model hooks, pollers,
+    Version 0.14.0 deliberately registers no tools, model hooks, pollers,
     background tasks, or account connections.
     """
     runtime = _create_runtime_plugin(ctx)
 
     def release_runtime_context() -> None:
-        runtime.context_source = None
+        runtime.close()
 
     ctx.on_unload(release_runtime_context)
     ctx.register_command(

@@ -55,3 +55,9 @@ class EmailProvider(ABC):
 
         Providers without send capability must fail closed.
         """
+
+    async def check_health(self) -> None:
+        """Validate provider readiness without reading or changing messages."""
+
+    def close(self) -> None:
+        """Release active provider resources without mailbox mutation."""

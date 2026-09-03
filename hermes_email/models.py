@@ -27,7 +27,7 @@ class EmailAddress:
 
 @dataclass(frozen=True, slots=True)
 class EmailMessage:
-    """Normalized message data returned by a future provider."""
+    """Normalized message data returned by a provider."""
 
     message_id: str
     subject: str

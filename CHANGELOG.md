@@ -4,6 +4,32 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-09-04
+
+### Added
+
+- Production `ImapReadOnlyProvider` for explicit health, bounded page fetch, and single-message lookup.
+- Provider-neutral connection, authentication, TLS, timeout, mailbox, protocol, and message error taxonomy.
+- IMAP-specific settings for implicit TLS, credential references, mailbox selection, timeout, mailbox count, per-message bytes, and per-page bytes.
+- Redacted runtime health states for configured, ready, authentication failure, and provider reachability.
+- Security-focused protocol fakes covering TLS, SASL, read-only selection, UID pagination, partial literals, MIME normalization, lifecycle races, and denial paths.
+
+### Changed
+
+- Provider lifecycle now includes explicit health and cleanup methods.
+- Runtime unload closes the provider, prevents late health completion from restoring readiness, and releases the Hermes context.
+- Project version advanced to `0.14.0` across package, manifest, skill, CI, and documentation metadata.
+
+### Security
+
+- IMAP permits only verified implicit TLS 1.2 or newer and ignores process-level TLS key-log configuration.
+- Authentication uses SASL PLAIN over verified TLS rather than the CPython IMAP LOGIN command path.
+- Every mailbox operation requires read-only selection and uses bounded UID `BODY.PEEK` partial fetches; no mutating IMAP commands are implemented.
+- UID cursors bind to `UIDVALIDITY`, descend within the current `UIDNEXT` snapshot, and are never followed automatically.
+- MIME normalization skips attachments and remote HTML resources, suppresses active or hidden elements, strips control characters, caps content, and marks partial messages.
+- Registration, disabled mode, mock mode, `/email-status`, and provider resolution perform no secret or network access.
+- SMTP, sends, deletes, moves, polling, retries, tools, and persistence remain unavailable.
+
 ## [0.13.0] - 2026-09-03
 
 ### Added
@@ -201,7 +227,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - Initial project metadata and safe-by-default foundation.
 
-[Unreleased]: https://github.com/MKI13/hermes-email/compare/v0.13.0...HEAD
+[Unreleased]: https://github.com/MKI13/hermes-email/compare/v0.14.0...HEAD
+[0.14.0]: https://github.com/MKI13/hermes-email/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/MKI13/hermes-email/compare/v0.12.1...v0.13.0
 [0.12.1]: https://github.com/MKI13/hermes-email/compare/v0.12.0...v0.12.1
 [0.12.0]: https://github.com/MKI13/hermes-email/compare/v0.11.1...v0.12.0

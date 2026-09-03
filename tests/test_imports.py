@@ -4,11 +4,13 @@ import hermes_email.context
 import hermes_email.models
 import hermes_email.plugin
 import hermes_email.providers
+import hermes_email.providers.errors
+import hermes_email.providers.imap
 import hermes_email.secrets
 
 
 def test_public_modules_import() -> None:
-    assert hermes_email.__version__ == "0.13.0"
+    assert hermes_email.__version__ == "0.14.0"
     assert hermes_email.config.EmailPluginConfig is hermes_email.EmailPluginConfig
     assert hermes_email.context.HermesContext is hermes_email.HermesContext
     assert hermes_email.models.EmailDraft is not None
@@ -23,3 +25,6 @@ def test_public_modules_import() -> None:
         is hermes_email.validate_secret_reference
     )
     assert hermes_email.providers.EmailProvider is not None
+    assert hermes_email.config.ImapSettings is hermes_email.ImapSettings
+    assert hermes_email.providers.ImapReadOnlyProvider is not None
+    assert hermes_email.providers.ProviderAuthenticationError is not None

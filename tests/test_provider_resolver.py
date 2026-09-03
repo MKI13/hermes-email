@@ -6,6 +6,7 @@ import pytest
 from hermes_email.config import EmailPluginConfig
 from hermes_email.providers import (
     EmailProvider,
+    ImapReadOnlyProvider,
     MockEmailProvider,
     ProviderNotConfiguredError,
     UnsupportedEmailProviderError,
@@ -33,9 +34,36 @@ def test_mock_name_is_normalized(configured_name: str) -> None:
     )
 
 
+def test_imap_resolves_without_secret_or_network_access(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from hermes_email.secrets import EnvironmentSecretResolver
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError(f"unexpected external access: {args!r} {kwargs!r}")
+
+    monkeypatch.setattr(EnvironmentSecretResolver, "get_secret", forbidden)
+    monkeypatch.setattr(socket, "socket", forbidden)
+    config = EmailPluginConfig.from_mapping(
+        {
+            "email": {"provider": "imap", "read_mode": "readonly"},
+            "imap": {
+                "host": "mail.example.invalid",
+                "username_ref": "HERMES_EMAIL_IMAP_USERNAME",
+                "password_ref": "HERMES_EMAIL_IMAP_PASSWORD",
+            },
+        }
+    )
+
+    provider = resolve_email_provider(config)
+
+    assert isinstance(provider, ImapReadOnlyProvider)
+    assert provider.name == "imap"
+
+
 @pytest.mark.parametrize(
     "configured_name",
-    ["imap", "gmail", "proton", "outlook", "unknown"],
+    ["gmail", "proton", "outlook", "unknown"],
 )
 def test_unknown_provider_is_blocked(configured_name: str) -> None:
     with pytest.raises(

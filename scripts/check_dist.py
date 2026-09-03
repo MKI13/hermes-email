@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import tarfile
+import tomllib
 from pathlib import Path, PurePosixPath
 from zipfile import ZipFile
 
-import hermes_email
 
-
-DIST = Path("dist")
+ROOT = Path(__file__).resolve().parents[1]
+DIST = ROOT / "dist"
 DENIED_PARTS = {".git", ".github", ".pytest_cache", ".venv", "__pycache__"}
 DENIED_NAMES = {
     "config.yaml",
@@ -41,7 +41,8 @@ def _reject_path(name: str) -> None:
 
 def main() -> None:
     """Validate the single wheel and source distribution produced by build."""
-    version = hermes_email.__version__
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    version = project["project"]["version"]
     wheels = list(DIST.glob("hermes_email-*.whl"))
     sdists = list(DIST.glob("hermes_email-*.tar.gz"))
     if len(wheels) != 1 or len(sdists) != 1:
