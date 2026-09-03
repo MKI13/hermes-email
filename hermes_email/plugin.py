@@ -48,6 +48,8 @@ _RUNTIME_CONFIG_SECTIONS: Final = (
     "imap",
     "storage",
     "drafts",
+    "smtp",
+    "recipient_policy",
     "behavior",
     "safety",
 )
@@ -78,6 +80,8 @@ class EmailRuntimeStatus:
     read_enabled: bool
     storage_enabled: bool
     draft_enabled: bool
+    smtp_configured: bool
+    technical_send_armed: bool
     send_enabled: bool
     diagnostic: str | None = None
     draft_diagnostic: str | None = None
@@ -199,6 +203,14 @@ class EmailPlugin:
             ),
             storage_enabled=self.observation_store is not None and not self._closed,
             draft_enabled=self.draft_store is not None and not self._closed,
+            smtp_configured=self.config.smtp.mode == "submission",
+            technical_send_armed=(
+                not self._closed
+                and self.config.safety.allow_send
+                and self.config.smtp.mode == "submission"
+                and self.config.recipient_policy.mode != "deny"
+                and self.draft_store is not None
+            ),
             send_enabled=False,
             diagnostic=self._runtime_diagnostic,
             draft_diagnostic=self._draft_diagnostic,
@@ -524,7 +536,10 @@ def format_runtime_status(status: EmailRuntimeStatus) -> str:
             f"Read: {'enabled' if status.read_enabled else 'disabled'}",
             f"Storage: {'enabled' if status.storage_enabled else 'disabled'}",
             f"Draft: {'enabled' if status.draft_enabled else 'disabled'}",
-            f"Send: {'enabled' if status.send_enabled else 'disabled'}",
+            f"SMTP: {'configured' if status.smtp_configured else 'disabled'}",
+            "Technical send gates: "
+            + ("armed" if status.technical_send_armed else "disabled"),
+            "Send: unavailable in v0.18",
         )
     )
     return "\n".join(lines)
@@ -615,7 +630,7 @@ def _create_runtime_plugin(ctx: Any) -> EmailPlugin:
 def register(ctx: Any) -> EmailPlugin:
     """Load safe settings and register read tools, status, skill, and cleanup.
 
-    Version 0.17.0 registers no model hooks, pollers, background tasks, or
+    Version 0.18.0 registers no model hooks, pollers, background tasks, or
     account connections during registration.
     """
     runtime = _create_runtime_plugin(ctx)

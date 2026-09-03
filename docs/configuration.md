@@ -2,11 +2,11 @@
 
 ## Principles
 
-Configuration is profile- and deployment-owned. The repository contains no personal addresses, provider credentials, company rules, or fixed writing style. `hermes.profile: auto` means integrations use the active Hermes profile. Version 0.17.0 binds only public plugin properties and never inspects private profile files.
+Operators define settings per Hermes profile and deployment. Project sources include no personal addresses, provider credentials, company rules, or fixed writing style. `hermes.profile: auto` means integrations use the active Hermes profile. Version 0.18.0 binds only public plugin properties and never inspects private profile files.
 
 ## Hermes runtime settings
 
-Place settings and secret references under `plugins.entries.hermes-email.settings`. The plugin reads only its `email`, `hermes`, `credentials`, `imap`, `storage`, `drafts`, `behavior`, and `safety` sections through `ctx.get_config()`:
+Place settings and secret references under `plugins.entries.hermes-email.settings`. The plugin reads only its `email`, `hermes`, `credentials`, `imap`, `storage`, `drafts`, `smtp`, `recipient_policy`, `behavior`, and `safety` sections through `ctx.get_config()`:
 
 ```yaml
 plugins:
@@ -30,15 +30,19 @@ plugins:
           max_drafts: 1000
           max_operations: 10000
           max_database_bytes: 33554432
+        smtp:
+          mode: disabled
+        recipient_policy:
+          mode: deny
         safety:
           allow_send: false
           allow_delete: false
           allow_move: false
 ```
 
-Absent settings load with read and draft access disabled. Valid mock settings produce `mock-ready`; valid IMAP settings produce `provider-configured` without connecting. Local drafts are independent of these read states and require no provider. Invalid self-contained settings fail closed; unsupported provider resolution produces `configuration-error` without secret or network access.
+Absent settings load with read, draft, SMTP, and technical-send access disabled. Valid mock settings produce `mock-ready`; valid IMAP settings produce `provider-configured` without connecting. Local drafts are independent of these read states and require no provider. Invalid self-contained settings fail closed; unsupported provider resolution produces `configuration-error` without secret or network access.
 
-`/email-status` displays only the existing runtime snapshot. Nine tools are registered statically, while offline availability checks expose read and draft tools only when their independent gates permit them.
+`/email-status` displays only the fixed runtime snapshot, including non-secret `SMTP` configuration and `Technical send gates` state. Nine tools are registered statically, while offline availability checks expose only read and draft tools when their independent gates permit them. No SMTP or send tool or command is registered.
 
 ## Read-only IMAP with independent storage
 
@@ -130,13 +134,36 @@ Draft SQLite is provider-independent. Its path is fixed to `email-drafts.sqlite3
 
 Use a local filesystem with SQLite locking semantics; network filesystems are unsupported. POSIX paths require exact owner-only permissions. On Windows, configure the profile ACL for account-only access. Draft SQLite is plaintext and contains sensitive content; use encrypted storage and protected backups where required.
 
+### `smtp`
+
+- `mode`: `disabled` by default or explicit `submission`.
+- `account_namespace`: required for submission and must exactly equal the enabled draft namespace.
+- `host`: required ASCII DNS name or IP address; URLs, paths, whitespace, and controls are rejected.
+- `port`: default `465`, bounded to `1..65535`; choose the operator's verified implicit-TLS or STARTTLS submission endpoint.
+- `security`: `implicit_tls` or mandatory `starttls`; plaintext and opportunistic downgrade are unavailable.
+- `username_ref` and `password_ref`: separate SMTP references required together for submission and resolved only after verified TLS and AUTH PLAIN capability checks.
+- `sender_address`: required fixed ASCII envelope/header sender. A draft or model cannot replace it.
+- `sender_display_name`: optional bounded Unicode display name; CR, LF, NUL, and other controls are rejected.
+- `timeout_seconds`: finite operation timeout from 1 through 120 seconds, default 15.
+- `max_message_bytes`: final serialized-message cap from 1024 through 10000000 bytes, default 1000000.
+
+SMTP configuration requires enabled local draft storage even when `safety.allow_send` remains false. Configuration alone creates no connection, resolves no secret, and exposes no dispatch surface.
+
+### `recipient_policy`
+
+- `mode`: `deny` by default, `allowlist`, or explicit `all`.
+- `allowed_addresses`: at most 100 exact ASCII addr-spec values. Domain comparison is case-insensitive; local-part comparison remains case-sensitive.
+- `allowed_domains`: at most 100 exact lowercase ASCII domains. A domain entry does not include subdomains.
+
+Lists are allowed only with `allowlist`, which requires at least one entry. To, Cc, and Bcc recipients must all pass the policy before a candidate is prepared. Policy is deployment authorization, not current-user confirmation.
+
 ### `behavior`
 
 All inheritance flags default to `true`. They express intended behavior for context adapters and do not authorize private runtime access.
 
 ### `safety`
 
-`allow_send`, `allow_delete`, and `allow_move` must remain `false`. Version 0.17.0 rejects `true` because those operations are unavailable. Local draft permission comes only from explicit `drafts.mode: sqlite`; it does not authorize sending or mailbox changes.
+`allow_delete` and `allow_move` must remain `false`. `allow_send: true` is valid only with complete SMTP submission settings, matching enabled draft storage, and a non-deny recipient policy. In v0.18.0 this flag arms only pure candidate eligibility gates; it does not indicate user confirmation, set runtime `send_enabled`, instantiate a transport, or authorize a Hermes send. Local draft permission does not authorize sending or mailbox changes.
 
 ## Standalone example and loading
 

@@ -4,6 +4,28 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-09-08
+
+### Added
+
+- Strict SMTP submission configuration, separate lazy credential references, fixed sender and account binding, and deployment-owned deny/allowlist/allow-all recipient policy.
+- Deterministic bounded plain-text MIME candidate preparation for one exact active local draft revision.
+- Single-attempt production SMTP transport with verified implicit TLS or mandatory STARTTLS, AUTH PLAIN after TLS, all-recipient RCPT gating, and explicit accepted, rejected, definite pre-DATA, and delivery-unknown outcomes.
+- Protocol fakes covering TLS, authentication, command order, recipient rejection, DATA ambiguity, no retry, keylog suppression, redaction, close, and lifecycle behavior.
+
+### Changed
+
+- Shared ASCII address and display-name normalization now serves draft storage, recipient policy, MIME preparation, and SMTP envelopes.
+- `/email-status` reports non-secret SMTP configuration and armed technical-gate state while `send_enabled` remains false.
+- Project version advanced to `0.18.0` across package, manifest, skill, CI, examples, and documentation.
+
+### Security
+
+- SMTP defaults disabled and recipient authorization defaults deny. Secrets resolve only after verified TLS and AUTH PLAIN capability checks; protocol debug and TLS key logging remain disabled.
+- The fixed configured sender, matching draft/SMTP namespace, exact draft revision, all To/Cc/Bcc recipients, final MIME size, framing, line length, and absence of a Bcc header fail closed.
+- Any RCPT rejection prevents DATA. A transport exception after DATA starts becomes delivery-unknown and receives no automatic retry; final server acceptance does not claim delivery.
+- SMTP dispatch remains unreachable from `EmailPlugin`, all nine Hermes tools, `/email-status`, the skill, hooks, callbacks, timers, and pollers. Status exposes only fixed non-secret configuration booleans. v0.19.0 must add confirmation, durable audit, and send idempotency before exposing dispatch.
+
 ## [0.17.0] - 2026-09-07
 
 ### Added
@@ -297,7 +319,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - Initial project metadata and safe-by-default foundation.
 
-[Unreleased]: https://github.com/MKI13/hermes-email/compare/v0.17.0...HEAD
+[Unreleased]: https://github.com/MKI13/hermes-email/compare/v0.18.0...HEAD
+[0.18.0]: https://github.com/MKI13/hermes-email/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/MKI13/hermes-email/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/MKI13/hermes-email/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/MKI13/hermes-email/compare/v0.14.0...v0.15.0

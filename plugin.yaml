@@ -1,8 +1,8 @@
 manifest_version: 1
 name: hermes-email
-version: 0.17.0
+version: 0.18.0
 kind: standalone
-description: Safe email read tools and local reviewable drafts
+description: Safe email access, local drafts, and disconnected gated SMTP transport
 author: MKI13
 provides_tools:
   - email_list_messages

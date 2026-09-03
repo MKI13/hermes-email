@@ -6,6 +6,8 @@ from hermes_email.config import (
     ConfigError,
     DraftSettings,
     EmailPluginConfig,
+    RecipientPolicySettings,
+    SmtpSettings,
     ImapSettings,
     StorageSettings,
     load_config,
@@ -226,8 +228,8 @@ def test_local_drafts_require_portable_account_namespace() -> None:
         DraftSettings(mode="sqlite", account_namespace="private address@example.invalid")
 
 
-@pytest.mark.parametrize("field_name", ["allow_send", "allow_delete", "allow_move"])
-def test_unavailable_external_or_mailbox_side_effect_opt_in_is_rejected(
+@pytest.mark.parametrize("field_name", ["allow_delete", "allow_move"])
+def test_unavailable_mailbox_side_effect_opt_in_is_rejected(
     field_name: str,
 ) -> None:
     with pytest.raises(ConfigError, match="unavailable"):
@@ -246,6 +248,116 @@ def test_draft_resource_bounds_reject_booleans_and_oversize_values() -> None:
         DraftSettings(max_operations=100_001)
     with pytest.raises(ConfigError, match="max_database_bytes"):
         DraftSettings(max_database_bytes=1_048_575)
+
+
+def valid_smtp_mapping() -> dict[str, object]:
+    return {
+        "drafts": {"mode": "sqlite", "account_namespace": "smtp-account"},
+        "smtp": {
+            "mode": "submission",
+            "account_namespace": "smtp-account",
+            "host": "smtp.example.invalid",
+            "port": 465,
+            "security": "implicit_tls",
+            "username_ref": "HERMES_EMAIL_SMTP_USERNAME",
+            "password_ref": "HERMES_EMAIL_SMTP_PASSWORD",
+            "sender_address": "sender@example.invalid",
+            "sender_display_name": "Sender",
+            "timeout_seconds": 15,
+            "max_message_bytes": 1000000,
+        },
+        "recipient_policy": {"mode": "all"},
+        "safety": {"allow_send": True},
+    }
+
+
+def test_smtp_defaults_are_disconnected_and_deny_recipients() -> None:
+    config = EmailPluginConfig()
+
+    assert config.smtp == SmtpSettings()
+    assert config.smtp.mode == "disabled"
+    assert config.recipient_policy == RecipientPolicySettings()
+    assert config.recipient_policy.mode == "deny"
+    assert config.safety.allow_send is False
+
+
+def test_valid_smtp_configuration_arms_technical_gate_only() -> None:
+    config = EmailPluginConfig.from_mapping(valid_smtp_mapping())
+
+    assert config.smtp.mode == "submission"
+    assert config.smtp.account_namespace == config.drafts.account_namespace
+    assert config.smtp.sender_address == "sender@example.invalid"
+    assert config.recipient_policy.permits("anyone@anywhere.invalid") is True
+    assert config.safety.allow_send is True
+
+
+@pytest.mark.parametrize(
+    "missing",
+    ["account_namespace", "host", "username_ref", "password_ref", "sender_address"],
+)
+def test_smtp_submission_requires_complete_nonsecret_configuration(
+    missing: str,
+) -> None:
+    mapping = valid_smtp_mapping()
+    del mapping["smtp"][missing]  # type: ignore[index]
+    with pytest.raises(ConfigError, match="SMTP submission requires|configured together"):
+        EmailPluginConfig.from_mapping(mapping)
+
+
+def test_smtp_requires_enabled_drafts_and_exact_account_binding() -> None:
+    mapping = valid_smtp_mapping()
+    mapping["drafts"] = {"mode": "disabled"}
+    with pytest.raises(ConfigError, match="requires enabled local draft"):
+        EmailPluginConfig.from_mapping(mapping)
+
+    mapping = valid_smtp_mapping()
+    mapping["smtp"]["account_namespace"] = "other-account"  # type: ignore[index]
+    with pytest.raises(ConfigError, match="namespaces must match"):
+        EmailPluginConfig.from_mapping(mapping)
+
+
+def test_allow_send_requires_transport_and_non_deny_recipient_policy() -> None:
+    with pytest.raises(ConfigError, match="allow_send requires"):
+        EmailPluginConfig.from_mapping({"safety": {"allow_send": True}})
+    mapping = valid_smtp_mapping()
+    mapping["recipient_policy"] = {"mode": "deny"}
+    with pytest.raises(ConfigError, match="allow_send requires"):
+        EmailPluginConfig.from_mapping(mapping)
+
+
+def test_recipient_allowlist_normalizes_domain_only_and_rejects_ambiguity() -> None:
+    policy = RecipientPolicySettings(
+        mode="allowlist",
+        allowed_addresses=["Case@EXAMPLE.invalid"],  # type: ignore[arg-type]
+        allowed_domains=["allowed.invalid"],  # type: ignore[arg-type]
+    )
+
+    assert policy.permits("Case@example.INVALID") is True
+    assert policy.permits("case@example.invalid") is False
+    assert policy.permits("person@ALLOWED.INVALID") is True
+    assert policy.permits("person@denied.invalid") is False
+    with pytest.raises(ConfigError, match="must contain"):
+        RecipientPolicySettings(mode="allowlist")
+    with pytest.raises(ConfigError, match="require"):
+        RecipientPolicySettings(mode="all", allowed_domains=("example.invalid",))
+    with pytest.raises(ConfigError, match="lowercase ASCII"):
+        RecipientPolicySettings(mode="allowlist", allowed_domains=("Example.invalid",))
+
+
+def test_smtp_rejects_header_injection_unicode_envelope_and_insecure_modes() -> None:
+    with pytest.raises(ConfigError, match="SMTP secret reference"):
+        SmtpSettings(
+            username_ref="HERMES_EMAIL_IMAP_USERNAME",
+            password_ref="HERMES_EMAIL_SMTP_PASSWORD",
+        )
+    with pytest.raises(ConfigError, match="ASCII email address"):
+        SmtpSettings(sender_address="victim@example.invalid\r\nBcc: bad@example.invalid")
+    with pytest.raises(ConfigError, match="ASCII email address"):
+        SmtpSettings(sender_address="tést@example.invalid")
+    with pytest.raises(ConfigError, match="smtp.security"):
+        SmtpSettings(security="plaintext")
+    with pytest.raises(ConfigError, match="smtp.host"):
+        SmtpSettings(host="https://smtp.example.invalid/path")
 
 
 def test_explicit_sqlite_storage_configuration_is_valid() -> None:

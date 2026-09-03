@@ -35,6 +35,24 @@ drafts:
   max_operations: 10000
   max_database_bytes: 33554432
 
+smtp:
+  mode: disabled
+  account_namespace: null
+  host: null
+  port: 465
+  security: implicit_tls
+  username_ref: null
+  password_ref: null
+  sender_address: null
+  sender_display_name: null
+  timeout_seconds: 15
+  max_message_bytes: 1000000
+
+recipient_policy:
+  mode: deny
+  allowed_addresses: []
+  allowed_domains: []
+
 behavior:
   inherit_persona: true
   inherit_language: true

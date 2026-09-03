@@ -19,6 +19,12 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Callable, Final, Literal
 
+from .addressing import (
+    AddressValidationError,
+    canonical_address,
+    normalize_ascii_address,
+    normalize_display_name,
+)
 from .config import DraftSettings
 from .models import EmailAddress, EmailDraft, EmailDraftPage, EmailDraftSummary
 
@@ -29,10 +35,6 @@ _MAX_DRAFT_ID: Final = 64
 _MAX_OPERATION_ID: Final = 128
 _MAX_CURSOR: Final = 512
 _MAX_RECIPIENTS: Final = 50
-_MAX_ADDRESS_CHARACTERS: Final = 320
-_MAX_ADDRESS_BYTES: Final = 1_280
-_MAX_DISPLAY_NAME_CHARACTERS: Final = 200
-_MAX_DISPLAY_NAME_BYTES: Final = 800
 _MAX_SUBJECT_CHARACTERS: Final = 500
 _MAX_SUBJECT_BYTES: Final = 2_000
 _MAX_BODY_CHARACTERS: Final = 20_000
@@ -41,10 +43,6 @@ _MAX_IN_REPLY_TO: Final = 512
 _MAX_REVISION: Final = 2_147_483_647
 _DRAFT_ID_PATTERN: Final = re.compile(r"draft_[A-Za-z0-9_-]{32}")
 _OPERATION_ID_PATTERN: Final = re.compile(r"[A-Za-z0-9_-]{16,128}")
-_LOCAL_PART_PATTERN: Final = re.compile(r"[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+")
-_DOMAIN_PATTERN: Final = re.compile(
-    r"(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*"
-)
 
 _CREATE_DRAFTS_SQL: Final = (
     "CREATE TABLE drafts ("
@@ -364,6 +362,38 @@ class SqliteDraftStore:
             except DraftError:
                 raise
             except sqlite3.DatabaseError as error:
+                self._raise_database_error(error)
+            finally:
+                connection.close()
+
+    def get_active_revision(self, draft_id: str, expected_revision: int) -> EmailDraft:
+        """Return one immutable active revision snapshot for a technical gate."""
+        identifier = _draft_id(draft_id)
+        revision = _revision(expected_revision)
+        with self._lock:
+            self._ensure_open()
+            connection = self._connect()
+            try:
+                self._initialize(connection)
+                connection.execute("BEGIN")
+                mutation = self._mutation_row(connection, identifier)
+                self._require_active_revision(mutation, revision)
+                row = connection.execute(
+                    "SELECT draft_id,revision,subject,body_text,in_reply_to,created_at,updated_at "
+                    "FROM drafts WHERE draft_id=? AND account_namespace=? "
+                    "AND state='active' AND revision=?",
+                    (identifier, self.settings.account_namespace, revision),
+                ).fetchone()
+                if row is None:
+                    raise DraftConflictError("draft changed concurrently")
+                result = self._draft_from_row(connection, row)
+                connection.commit()
+                return result
+            except DraftError:
+                connection.rollback()
+                raise
+            except sqlite3.DatabaseError as error:
+                connection.rollback()
                 self._raise_database_error(error)
             finally:
                 connection.close()
@@ -971,45 +1001,23 @@ def _addresses(values: object, name: str) -> tuple[EmailAddress, ...]:
         address = _email_address(value.address)
         display_name = None
         if value.display_name is not None:
-            display_name = _text(
-                value.display_name,
-                "display name",
-                max_characters=_MAX_DISPLAY_NAME_CHARACTERS,
-                max_bytes=_MAX_DISPLAY_NAME_BYTES,
-                allow_body_controls=False,
-                require_nonempty=True,
-            )
+            try:
+                display_name = normalize_display_name(value.display_name)
+            except AddressValidationError:
+                raise DraftValidationError("draft display name is invalid") from None
         result.append(EmailAddress(address, display_name))
     return tuple(result)
 
 
 def _email_address(value: object) -> str:
-    address = _text(
-        value,
-        "address",
-        max_characters=_MAX_ADDRESS_CHARACTERS,
-        max_bytes=_MAX_ADDRESS_BYTES,
-        allow_body_controls=False,
-        require_nonempty=True,
-    )
-    if not address.isascii() or address.strip() != address or address.count("@") != 1:
-        raise DraftValidationError("email address syntax is unsupported")
-    local, domain = address.rsplit("@", 1)
-    if (
-        not _LOCAL_PART_PATTERN.fullmatch(local)
-        or local.startswith(".")
-        or local.endswith(".")
-        or ".." in local
-        or not _DOMAIN_PATTERN.fullmatch(domain)
-        or len(domain) > 253
-    ):
-        raise DraftValidationError("email address syntax is unsupported")
-    return address
+    try:
+        return normalize_ascii_address(value)
+    except AddressValidationError:
+        raise DraftValidationError("email address syntax is unsupported") from None
 
 
 def _canonical_address(address: str) -> str:
-    local, domain = address.rsplit("@", 1)
-    return local + "@" + domain.casefold()
+    return canonical_address(address)
 
 
 def _text(

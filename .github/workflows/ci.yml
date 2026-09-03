@@ -45,13 +45,19 @@ jobs:
         run: python -m pytest
 
       - name: Verify installed import
-        run: python -c "import hermes_email; assert hermes_email.__version__ == '0.17.0'; print(hermes_email.__version__)"
+        run: python -c "import hermes_email; assert hermes_email.__version__ == '0.18.0'; print(hermes_email.__version__)"
 
       - name: Build distributions
         run: python -m build
 
       - name: Verify distribution contents
         run: python scripts/check_dist.py
+
+      - name: Verify clean wheel import
+        run: |
+          python -c "from pathlib import Path; from zipfile import ZipFile; wheel, = Path('dist').glob('*.whl'); ZipFile(wheel).extractall(Path('${RUNNER_TEMP}') / 'wheel-smoke')"
+          cd "${RUNNER_TEMP}"
+          PYTHONPATH="${RUNNER_TEMP}/wheel-smoke" python -c "import hermes_email, hermes_email.addressing, hermes_email.sending, hermes_email.smtp; assert hermes_email.__version__ == '0.18.0'"
 
   plugin-doctor:
     name: Hermes Plugin Doctor
@@ -84,4 +90,4 @@ jobs:
           HOME="${RUNNER_TEMP}/hermes-home" hermes plugins doctor . --ci
 
       - name: Verify tools and storage through pinned Hermes APIs
-        run: python -m pytest tests/test_tools.py tests/test_persistence_integration.py tests/test_draft_integration.py tests/test_draft_tools.py
+        run: python -m pytest tests/test_tools.py tests/test_persistence_integration.py tests/test_draft_integration.py tests/test_draft_tools.py tests/test_smtp_runtime.py tests/test_sending.py
