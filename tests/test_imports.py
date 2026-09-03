@@ -7,11 +7,12 @@ import hermes_email.providers
 import hermes_email.providers.errors
 import hermes_email.providers.imap
 import hermes_email.secrets
+import hermes_email.storage
 import hermes_email.tools
 
 
 def test_public_modules_import() -> None:
-    assert hermes_email.__version__ == "0.15.0"
+    assert hermes_email.__version__ == "0.16.0"
     assert hermes_email.config.EmailPluginConfig is hermes_email.EmailPluginConfig
     assert hermes_email.context.HermesContext is hermes_email.HermesContext
     assert hermes_email.models.EmailDraft is not None
@@ -27,6 +28,8 @@ def test_public_modules_import() -> None:
     )
     assert hermes_email.providers.EmailProvider is not None
     assert hermes_email.config.ImapSettings is hermes_email.ImapSettings
+    assert hermes_email.config.StorageSettings is hermes_email.StorageSettings
+    assert hermes_email.storage.SqliteObservationStore is not None
     assert hermes_email.providers.ImapReadOnlyProvider is not None
     assert hermes_email.providers.ProviderAuthenticationError is not None
     assert hermes_email.tools.LIST_TOOL == "email_list_messages"

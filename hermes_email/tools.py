@@ -32,6 +32,13 @@ from .providers import (
     ImapMessageIdError,
     MockCursorError,
 )
+from .storage import (
+    EmailStorageError,
+    EmailStorageResourceError,
+    EmailStorageSchemaError,
+    EmailStorageSecurityError,
+    EmailStorageValidationError,
+)
 
 TOOLSET: Final = "hermes_email"
 LIST_TOOL: Final = "email_list_messages"
@@ -425,6 +432,16 @@ def _json_error(operation: str, error: Exception) -> str:
         code = "invalid-cursor"
     elif isinstance(error, (ImapLimitError, EmailFetchLimitError)):
         code = "invalid-arguments"
+    elif isinstance(error, EmailStorageSecurityError):
+        code = "storage-insecure"
+    elif isinstance(error, EmailStorageSchemaError):
+        code = "storage-incompatible"
+    elif isinstance(error, EmailStorageResourceError):
+        code = "storage-full"
+    elif isinstance(error, EmailStorageValidationError):
+        code = "storage-invalid"
+    elif isinstance(error, EmailStorageError):
+        code = "storage-unavailable"
     elif isinstance(error, ProviderAuthenticationError):
         code = "authentication-failed"
     elif isinstance(error, ProviderTlsError):

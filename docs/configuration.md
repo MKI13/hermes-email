@@ -4,11 +4,11 @@
 
 Configuration is profile- and deployment-owned. The repository contains no personal addresses, provider credentials, company rules, or fixed writing style.
 
-The `profile: auto` setting in the `hermes` section means that integrations should use the active Hermes profile. During plugin registration, version 0.15.0 binds only the public Hermes plugin property `ctx.profile_name`; it does not inspect private profile files.
+The `profile: auto` setting in the `hermes` section means that integrations should use the active Hermes profile. During plugin registration, version 0.16.0 binds only the public Hermes plugin property `ctx.profile_name`; it does not inspect private profile files.
 
 ## Hermes runtime settings
 
-Hermes owns the configuration location. Place non-secret settings and secret references under `plugins.entries.hermes-email.settings` in the normal Hermes configuration surface. The plugin reads only its own `email`, `hermes`, `credentials`, `imap`, `behavior`, and `safety` sections through `ctx.get_config()`:
+Hermes owns the configuration location. Place non-secret settings and secret references under `plugins.entries.hermes-email.settings` in the normal Hermes configuration surface. The plugin reads only its own `email`, `hermes`, `credentials`, `imap`, `storage`, `behavior`, and `safety` sections through `ctx.get_config()`:
 
 ```yaml
 plugins:
@@ -24,6 +24,9 @@ plugins:
         credentials:
           username_ref: null
           password_ref: null
+        storage:
+          mode: disabled
+          account_namespace: null
         safety:
           allow_send: false
           allow_delete: false
@@ -32,7 +35,7 @@ plugins:
 
 If these settings are absent, the plugin loads as `disabled` without selecting a provider. Valid mock settings produce `mock-ready`; valid IMAP settings produce `provider-configured` without connecting. An explicit successful health or read operation produces `provider-ready`. Expected failures produce fixed redacted status states, while invalid settings or unsupported providers produce `configuration-error` and registration continues.
 
-Use `/email-status` in a Hermes session to display only the existing runtime health snapshot. The command neither displays configuration nor invokes a provider operation. The three read tools are model-visible only when `read_mode` and provider capabilities permit reading; evaluating availability does not connect, resolve secrets, or perform health checks.
+Use `/email-status` in a Hermes session to display only the existing runtime health and storage-enabled snapshot. The command neither displays configuration nor invokes a provider operation. The three read tools are model-visible only when `read_mode` and provider capabilities permit reading; evaluating availability does not connect, resolve secrets, or perform health checks.
 
 A read-only IMAP setup uses provider-specific references and disables drafts:
 
@@ -56,6 +59,12 @@ plugins:
           max_mailbox_messages: 10000
           max_message_bytes: 2000000
           max_page_bytes: 5000000
+        storage:
+          mode: sqlite
+          account_namespace: primary-inbox
+          retention_days: 90
+          max_observations: 10000
+          max_database_bytes: 16777216
 ```
 
 ## Standalone configuration example
@@ -85,6 +94,13 @@ imap:
   max_message_bytes: 2000000
   max_page_bytes: 5000000
 
+storage:
+  mode: disabled
+  account_namespace: null
+  retention_days: 90
+  max_observations: 10000
+  max_database_bytes: 16777216
+
 behavior:
   inherit_persona: true
   inherit_language: true
@@ -104,20 +120,20 @@ The complete example is in `examples/config.example.yaml`.
 
 ### `email`
 
-- `provider`: explicit provider identifier or `null`. Version 0.15.0 accepts `mock` and `imap`; `null` and empty values do not select a fallback.
+- `provider`: explicit provider identifier or `null`. Version 0.16.0 accepts `mock` and `imap`; `null` and empty values do not select a fallback.
 - `read_mode`: `disabled`, `mock`, or `readonly`. Mock requires `mock`; IMAP accepts `readonly` or `disabled`.
 - `draft_mode`: `disabled` or `mock`.
 
 ### `hermes`
 
-- `profile`: `auto` or a future explicit profile identifier. Version 0.15.0 stores and validates this value but does not switch profiles.
+- `profile`: `auto` or a future explicit profile identifier. Version 0.16.0 stores and validates this value but does not switch profiles.
 
 ### `credentials`
 
 - `username_ref`: reserved optional provider-neutral username reference.
 - `password_ref`: reserved optional provider-neutral password reference.
 
-Both fields contain references, never credential values. These provider-neutral placeholders remain accepted for compatibility with version 0.13.0; version 0.15.0 does not resolve them. IMAP uses its own references so later read and send transports can use different accounts safely.
+Both fields contain references, never credential values. These provider-neutral placeholders remain accepted for compatibility with version 0.13.0; version 0.16.0 does not resolve them. IMAP uses its own references so later read and send transports can use different accounts safely.
 
 ### `imap`
 
@@ -133,13 +149,23 @@ Both fields contain references, never credential values. These provider-neutral 
 
 All references are at most 128 characters, start with `HERMES_EMAIL_`, and contain only uppercase letters, digits, and single underscores between segments. Values such as `HOME`, paths, shell expressions, templates, and dotted identifiers are rejected before environment access. Registration, disabled mode, mock mode, and `/email-status` never resolve secrets.
 
+### `storage`
+
+- `mode`: `disabled` by default or explicit `sqlite`.
+- `account_namespace`: required with SQLite; a stable 1-to-64-character identifier containing only ASCII letters, digits, dot, underscore, or hyphen and beginning with a letter or digit. Use a different value for every account and mailbox. Do not put an address, hostname, credential, or personal label here.
+- `retention_days`: opportunistic observation retention, default 90 and bounded to 1 through 3650 days.
+- `max_observations`: global row cap, default 10000 and maximum 100000.
+- `max_database_bytes`: SQLite page cap, default 16777216 bytes and bounded from 1048576 through 1073741824 bytes.
+
+SQLite requires an explicitly readable provider. The database path is fixed to `email-observations.sqlite3` under Hermes' public profile-scoped plugin data directory and is not configurable. Place that directory on a local filesystem with SQLite locking semantics; network filesystems are unsupported. POSIX paths require owner-only permissions. On Windows, the operator must configure the Hermes profile-directory ACL for account-only access because portable Python cannot audit ACL membership. Registration computes the path but creates no directory or file; the first explicit successful provider read opens storage. The ledger contains identity and timing metadata only, not mail content. Retention has no background timer and takes effect on a later explicit observation transaction.
+
 ### `behavior`
 
 All inheritance flags default to `true`. They express the intended behavior of future context adapters; they do not authorize private runtime access.
 
 ### `safety`
 
-`allow_send`, `allow_delete`, and `allow_move` all default to `false`. Version 0.15.0 does not implement these operations even if a local test configuration changes a flag to `true`.
+`allow_send`, `allow_delete`, and `allow_move` all default to `false`. Version 0.16.0 does not implement these operations even if a local test configuration changes a flag to `true`.
 
 ## Loading
 

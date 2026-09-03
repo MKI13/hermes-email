@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
@@ -25,6 +26,11 @@ from .providers import (
     resolve_email_provider,
 )
 from .secrets import SecretResolver
+from .storage import (
+    EmailStorageError,
+    SqliteObservationStore,
+    observation_namespace,
+)
 
 
 MAX_FETCH_LIMIT: Final = 100
@@ -35,6 +41,7 @@ _RUNTIME_CONFIG_SECTIONS: Final = (
     "hermes",
     "credentials",
     "imap",
+    "storage",
     "behavior",
     "safety",
 )
@@ -50,6 +57,7 @@ class EmailRuntimeState(StrEnum):
     PROVIDER_READY = "provider-ready"
     AUTHENTICATION_ERROR = "authentication-error"
     PROVIDER_UNREACHABLE = "provider-unreachable"
+    STORAGE_ERROR = "storage-error"
     CONFIGURATION_ERROR = "configuration-error"
 
 
@@ -62,6 +70,7 @@ class EmailRuntimeStatus:
     provider: str | None
     profile: str | None
     read_enabled: bool
+    storage_enabled: bool
     draft_enabled: bool
     send_enabled: bool
     diagnostic: str | None = None
@@ -112,12 +121,14 @@ class EmailPlugin:
         *,
         context_source: HermesContextSource | None = None,
         provider: EmailProvider | None = None,
+        observation_store: SqliteObservationStore | None = None,
         runtime_state: EmailRuntimeState | None = None,
         runtime_diagnostic: str | None = None,
     ) -> None:
         self.config = config or EmailPluginConfig()
         self.context_source = context_source
         self.provider = provider
+        self.observation_store = observation_store
         self._closed = False
         self._runtime_state = runtime_state or self._initial_runtime_state(provider)
         self._runtime_diagnostic = runtime_diagnostic
@@ -137,10 +148,16 @@ class EmailPlugin:
         *,
         context_source: HermesContextSource | None = None,
         secret_resolver: SecretResolver | None = None,
+        observation_store: SqliteObservationStore | None = None,
     ) -> Self:
         """Create a disconnected plugin using only the configured provider resolver."""
         provider = resolve_email_provider(config, secret_resolver=secret_resolver)
-        return cls(config, context_source=context_source, provider=provider)
+        return cls(
+            config,
+            context_source=context_source,
+            provider=provider,
+            observation_store=observation_store,
+        )
 
     def get_hermes_context(self) -> HermesContext:
         """Return inherited context or an intentionally empty snapshot."""
@@ -167,6 +184,7 @@ class EmailPlugin:
                 and self.provider is not None
                 and self.provider.capabilities.fetch
             ),
+            storage_enabled=self.observation_store is not None and not self._closed,
             draft_enabled=(
                 ready
                 and self.config.email.draft_mode == "mock"
@@ -191,10 +209,14 @@ class EmailPlugin:
         """Disable the runtime and release provider and Hermes references."""
         self._closed = True
         provider = self.provider
+        observation_store = self.observation_store
         self.provider = None
+        self.observation_store = None
         self.context_source = None
         self._runtime_state = EmailRuntimeState.DISABLED
         self._runtime_diagnostic = None
+        if observation_store is not None:
+            observation_store.close()
         if provider is not None:
             provider.close()
 
@@ -210,7 +232,10 @@ class EmailPlugin:
         except EmailProviderError as exc:
             self._record_provider_failure(exc)
         else:
-            if not self._closed:
+            if (
+                not self._closed
+                and self._runtime_state is not EmailRuntimeState.STORAGE_ERROR
+            ):
                 self._runtime_state = (
                     EmailRuntimeState.MOCK_READY
                     if provider.name == "mock"
@@ -249,9 +274,37 @@ class EmailPlugin:
             self._runtime_diagnostic = "provider-error"
 
     def _record_provider_success(self) -> None:
-        if not self._closed and self.provider is not None and self.provider.name != "mock":
-            self._runtime_state = EmailRuntimeState.PROVIDER_READY
+        if not self._closed and self.provider is not None:
+            self._runtime_state = (
+                EmailRuntimeState.MOCK_READY
+                if self.provider.name == "mock"
+                else EmailRuntimeState.PROVIDER_READY
+            )
             self._runtime_diagnostic = None
+
+    def _record_storage_failure(self) -> None:
+        if not self._closed:
+            self._runtime_state = EmailRuntimeState.STORAGE_ERROR
+            self._runtime_diagnostic = "storage-error"
+
+    async def _observe_messages(self, messages: tuple[EmailMessage, ...]) -> None:
+        observation_store = self.observation_store
+        if observation_store is None:
+            return
+        task = asyncio.create_task(
+            asyncio.to_thread(observation_store.observe_messages, messages)
+        )
+        try:
+            await asyncio.shield(task)
+        except asyncio.CancelledError:
+            try:
+                await task
+            except EmailStorageError:
+                self._record_storage_failure()
+            raise
+        except EmailStorageError:
+            self._record_storage_failure()
+            raise
 
     async def fetch_messages(
         self, *, limit: int = 50, cursor: str | None = None
@@ -269,6 +322,12 @@ class EmailPlugin:
         except EmailProviderError as exc:
             self._record_provider_failure(exc)
             raise
+        self._ensure_open_after_operation()
+        if len(page.messages) > limit:
+            error = ProviderProtocolError("provider returned too many messages")
+            self._record_provider_failure(error)
+            raise error
+        await self._observe_messages(page.messages)
         self._ensure_open_after_operation()
         self._record_provider_success()
         return page
@@ -304,6 +363,8 @@ class EmailPlugin:
             self._record_provider_failure(exc)
             raise
         self._ensure_open_after_operation()
+        await self._observe_messages((message,) if message is not None else ())
+        self._ensure_open_after_operation()
         self._record_provider_success()
         return message
 
@@ -324,21 +385,7 @@ class EmailPlugin:
                 f"query must not exceed {SEARCH_QUERY_MAX_LENGTH} characters"
             )
 
-        provider = self._read_provider()
-        if not provider.capabilities.fetch:
-            raise EmailFetchUnsupportedError(
-                f"email provider {provider.name!r} does not support message fetching"
-            )
-        self._validate_fetch_limit(limit)
-        self._validate_fetch_cursor(cursor)
-
-        try:
-            page = await provider.fetch_messages(limit=limit, cursor=cursor)
-        except EmailProviderError as exc:
-            self._record_provider_failure(exc)
-            raise
-        self._ensure_open_after_operation()
-        self._record_provider_success()
+        page = await self.fetch_messages(limit=limit, cursor=cursor)
         needle = normalized_query.casefold()
         return EmailMessagePage(
             messages=tuple(
@@ -364,9 +411,9 @@ class EmailPlugin:
         return draft
 
     async def send_message(self, draft_id: str) -> None:
-        """Refuse sending unconditionally in version 0.15.0."""
+        """Refuse sending unconditionally in version 0.16.0."""
         del draft_id
-        raise SendingUnavailableError("email sending is not implemented in version 0.15.0")
+        raise SendingUnavailableError("email sending is not implemented in version 0.16.0")
 
 
 def format_runtime_status(status: EmailRuntimeStatus) -> str:
@@ -383,6 +430,7 @@ def format_runtime_status(status: EmailRuntimeStatus) -> str:
     lines.extend(
         (
             f"Read: {'enabled' if status.read_enabled else 'disabled'}",
+            f"Storage: {'enabled' if status.storage_enabled else 'disabled'}",
             f"Draft: {'enabled' if status.draft_enabled else 'disabled'}",
             f"Send: {'enabled' if status.send_enabled else 'disabled'}",
         )
@@ -404,6 +452,21 @@ def _load_runtime_config(ctx: Any) -> EmailPluginConfig:
     return EmailPluginConfig.from_mapping(raw_config)
 
 
+def _create_observation_store(
+    ctx: Any, config: EmailPluginConfig
+) -> SqliteObservationStore | None:
+    if config.storage.mode != "sqlite":
+        return None
+    data_dir = ctx.state.data_dir
+    if not isinstance(data_dir, Path):
+        raise RuntimeError("Hermes plugin state directory is unavailable")
+    return SqliteObservationStore(
+        data_dir / "email-observations.sqlite3",
+        observation_namespace(config),
+        config.storage,
+    )
+
+
 def _create_runtime_plugin(ctx: Any) -> EmailPlugin:
     context_source = ActiveProfileContextSource(ctx)
     try:
@@ -415,6 +478,7 @@ def _create_runtime_plugin(ctx: Any) -> EmailPlugin:
             runtime_diagnostic="invalid-plugin-settings",
         )
 
+    observation_store = _create_observation_store(ctx, config)
     provider_name = config.email.provider
     if (
         (provider_name is None or not provider_name.strip())
@@ -423,7 +487,11 @@ def _create_runtime_plugin(ctx: Any) -> EmailPlugin:
         return EmailPlugin(config, context_source=context_source)
 
     try:
-        return EmailPlugin.from_config(config, context_source=context_source)
+        return EmailPlugin.from_config(
+            config,
+            context_source=context_source,
+            observation_store=observation_store,
+        )
     except EmailProviderResolutionError as exc:
         diagnostic = (
             "provider-not-configured"
@@ -441,7 +509,7 @@ def _create_runtime_plugin(ctx: Any) -> EmailPlugin:
 def register(ctx: Any) -> EmailPlugin:
     """Load safe settings and register read tools, status, skill, and cleanup.
 
-    Version 0.15.0 registers no model hooks, pollers, background tasks, or
+    Version 0.16.0 registers no model hooks, pollers, background tasks, or
     account connections during registration.
     """
     runtime = _create_runtime_plugin(ctx)

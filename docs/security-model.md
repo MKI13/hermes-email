@@ -1,20 +1,20 @@
 # Security Model
 
-## Version 0.15.0 boundary
+## Version 0.16.0 boundary
 
-Version 0.15.0 adds bounded Hermes tools for one-page listing, single-message lookup, and one-page local search. It adds no SMTP, provider draft storage, sending, deletion, movement, polling, retries, OAuth, database, or persistence.
+Version 0.16.0 adds opt-in, content-free SQLite persistence for exact provider-message observations made during explicit reads. It adds no cached mail content, processed-state claim, SMTP, stored drafts, sending, deletion, movement, polling, retries, OAuth, or automatic action.
 
 ## Safe by default
 
 - Missing runtime settings load as `disabled` with no provider or fallback.
-- Plugin registration, read-tool availability checks, disabled mode, mock mode, reload, and `/email-status` never resolve a secret or connect to a provider.
+- Plugin registration, read-tool availability checks, disabled mode, mock mode, reload, and `/email-status` never resolve a secret or connect to a provider. Registration creates no database directory or file.
 - Real providers start as `provider-configured`, not ready. Only an explicit successful health or read operation produces `provider-ready`.
 - Health snapshots expose fixed fields and diagnostic codes without configuration values, hosts, references, credentials, server responses, headers, or bodies.
 - `/email-status` formats only the existing runtime snapshot; it invokes no provider or mailbox method.
 - Secret references use the strict plugin-scoped `HERMES_EMAIL_...` format. `SecretValue` redacts string and representation output, and no provider caches or persists values.
 - Expected connection, authentication, TLS, timeout, mailbox, protocol, and parsing failures use provider-neutral fixed messages. Runtime status maps them to a small fixed diagnostic set.
 - Every IMAP operation creates one connection, performs one bounded action, logs out, and discards the client. There is no retry, polling, cursor following, or connection pool.
-- Unload prevents new provider workers, shuts down active sockets without a mailbox close command, waits up to the configured operation timeout for active workers, disables the facade, and releases the Hermes context reference. A completion after closure cannot restore ready state or return mail; provider closure checks prevent a delayed connection or credential lookup from advancing to authentication.
+- Unload closes observation storage first, prevents new provider workers, shuts down active sockets without a mailbox close command, waits up to the configured operation timeout for active workers, disables the facade, and releases the Hermes context reference. A completion after closure cannot restore ready state or return mail; provider closure checks prevent a delayed connection or credential lookup from advancing to authentication.
 - Sending, deletion, and movement flags remain false by default and have no production implementation.
 
 ## IMAP transport and authentication
@@ -47,6 +47,18 @@ The provider rejects mailboxes above `max_mailbox_messages`. Each fetch requests
 
 `EmailPlugin.search_messages()` remains local case-insensitive substring filtering over one fetched page. It never issues an unbounded server search or follows a cursor.
 
+## Observation persistence and deduplication
+
+Persistence is disabled by default. Explicit SQLite mode requires an operator-defined stable account namespace and a readable provider. The fixed database path comes only from Hermes' public profile-scoped `ctx.state.data_dir`; settings cannot redirect it. The containing directory and database must be non-symlink regular objects. Existing POSIX objects must already have the effective owner and exact `0700`/`0600` permissions, and the verified device/inode identity must still match after SQLite opens the path. On Windows, Hermes' profile directory ACL must grant access only to the operator account; Python's portable standard library cannot audit that ACL. The plugin rejects detectable symlinks and identity changes but does not claim protection from malicious code running under the same OS account.
+
+The ledger stores only `(account namespace, provider, hashed mailbox namespace, opaque provider message ID)`, first/last observation times, and an observation count. It never stores subjects, addresses, bodies, raw MIME, raw RFC Message-ID, hosts, profile/persona data, prompts, credentials, credential references, tool arguments, or arbitrary provider metadata. Account namespace is non-secret but remains sensitive metadata. SQLite itself provides no application-layer encryption; operators requiring encryption at rest must use encrypted local storage and protected backups.
+
+Deduplication means uniqueness of one exact provider identity in this observation ledger. It never suppresses explicit list, lookup, or search results and never marks mail processed, trusted, drafted, sent, or safe. IMAP IDs include `UIDVALIDITY` and UID, so a new UID epoch or mailbox copy remains distinct. Attacker-controlled RFC Message-ID is never a uniqueness key. This observation history is not the future idempotency record for sending or another external action.
+
+A new database receives a fixed application ID and monotonic schema version in an exclusive transaction. Every open verifies identity, exact objects and columns, and `quick_check`. Connections use a fixed rollback journal, `synchronous=FULL`, `secure_delete=ON`, `trusted_schema=OFF`, parameterized values, bounded lock timeout, and page count cap. Writes use `BEGIN IMMEDIATE`; one page commits atomically before mail returns. Cancellation waits for the worker transaction outcome. There is no automatic retry, fallback to memory, destructive reset, downgrade, extension loading, background retention, or vacuum.
+
+Retention age, row count, page size, message-ID length, and page observations are bounded independently. Retention and row pruning happen only in an explicit observation transaction. Insecure paths, corruption, incompatible schemas, busy/read-only storage, I/O failures, and full databases fail closed with fixed tool and runtime codes; the original database remains in place for operator recovery.
+
 ## Untrusted message normalization
 
 Messages, headers, MIME structure, HTML, attachments, and quoted content are untrusted input. The provider parses bounded bytes with Python's standard email parser, caps MIME parts, header text, body text, and address counts, and degrades malformed message-local fields without exposing raw server protocol text.
@@ -69,11 +81,11 @@ Provider adapters are trusted plugin code running with the user's process permis
 
 ### Hermes context
 
-At registration, the plugin wraps the public runtime context with `ActiveProfileContextSource` and reads only `ctx.profile_name`. It does not serialize live Hermes objects, inspect private Hermes files, or replace missing context with a plugin-defined personality.
+At registration, the plugin wraps the public runtime context with `ActiveProfileContextSource`, reads `ctx.profile_name`, and, only for explicit SQLite mode, obtains a fixed child path from public `ctx.state.data_dir`. It does not serialize live Hermes objects, inspect private Hermes files, or replace missing context with a plugin-defined personality.
 
 ### Capability versus authorization
 
-A provider capability and a user safety setting are independent checks. Supporting an operation never grants permission to perform it. Version 0.15.0 exposes no production write capability at either layer.
+A provider capability and a user safety setting are independent checks. Supporting an operation never grants permission to perform it. Version 0.16.0 exposes no production mail-write capability at either layer.
 
 ## Future side-effect requirements
 

@@ -109,12 +109,12 @@ def test_search_filters_one_provider_page_and_preserves_its_cursor() -> None:
 
         cursor = "".join(("  opaque", " cursor  "))
 
-        page = await plugin.search_messages("needle", limit=1, cursor=cursor)
+        page = await plugin.search_messages("needle", limit=2, cursor=cursor)
 
         assert isinstance(page, EmailMessagePage)
         assert [item.message_id for item in page.messages] == ["match"]
         assert page.next_cursor == "provider-next-page"
-        assert provider.fetch_calls == [(1, cursor)]
+        assert provider.fetch_calls == [(2, cursor)]
         assert provider.fetch_calls[0][1] is cursor
         assert provider.write_calls == []
 

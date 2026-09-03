@@ -4,6 +4,28 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-09-06
+
+### Added
+
+- Opt-in profile-scoped SQLite observation ledger with exact provider-message deduplication.
+- Explicit stable account namespace plus hashed mailbox namespace for cross-account isolation.
+- Fixed database application ID, monotonic schema version, integrity verification, retention, row, page, and file-size limits.
+- Fixed runtime and tool errors for unavailable, insecure, incompatible, invalid, or full storage.
+
+### Changed
+
+- Explicit list, lookup, and search results are atomically observed before returning when storage is enabled.
+- `/email-status` reports whether observation persistence is enabled without opening the database.
+- Project version advanced to `0.16.0` across package, manifest, skill, CI, and documentation metadata.
+
+### Security
+
+- Persistence is disabled by default and uses only Hermes' public profile-scoped plugin data directory with a fixed filename.
+- The ledger stores no subject, address, body, MIME, RFC Message-ID, host, credential, reference, prompt, tool argument, or arbitrary provider metadata.
+- Existing POSIX paths must be private, owner-controlled regular objects; Windows uses the operator-protected Hermes profile directory; corrupt or incompatible databases fail without deletion, recreation, retry, or memory fallback.
+- Observation does not mean processed and never suppresses explicit reads or authorize an action.
+
 ## [0.15.0] - 2026-09-05
 
 ### Added
@@ -249,7 +271,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - Initial project metadata and safe-by-default foundation.
 
-[Unreleased]: https://github.com/MKI13/hermes-email/compare/v0.15.0...HEAD
+[Unreleased]: https://github.com/MKI13/hermes-email/compare/v0.16.0...HEAD
+[0.16.0]: https://github.com/MKI13/hermes-email/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/MKI13/hermes-email/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/MKI13/hermes-email/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/MKI13/hermes-email/compare/v0.12.1...v0.13.0

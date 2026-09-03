@@ -442,7 +442,7 @@ def test_unexpected_failure_returns_internal_error_without_detail() -> None:
 def test_pinned_hermes_registry_bridges_async_handlers_and_unloads() -> None:
     plugins = pytest.importorskip("hermes_cli.plugins")
     registry_module = pytest.importorskip("tools.registry")
-    scope = "hermes-email-v015-read-tools-test"
+    scope = "hermes-email-v016-read-tools-test"
     manager = plugins.PluginManager(scope_key=scope)
     manifest = plugins.PluginManifest(
         name="hermes-email-read-tools-test",
@@ -473,7 +473,7 @@ def test_pinned_hermes_registry_bridges_async_handlers_and_unloads() -> None:
 def test_pinned_hermes_collision_rejects_and_rolls_back_toolset() -> None:
     plugins = pytest.importorskip("hermes_cli.plugins")
     registry_module = pytest.importorskip("tools.registry")
-    scope = "hermes-email-v015-collision-test"
+    scope = "hermes-email-v016-collision-test"
     foreign_manager = plugins.PluginManager(scope_key=scope)
     target_manager = plugins.PluginManager(scope_key=scope)
     foreign_manifest = plugins.PluginManifest(name="foreign-tool", key="foreign-tool")

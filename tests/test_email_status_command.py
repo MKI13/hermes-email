@@ -107,6 +107,7 @@ def test_disabled_status_command_output() -> None:
             "Provider: none",
             "Profile: ef-sinn-mail",
             "Read: disabled",
+            "Storage: disabled",
             "Draft: disabled",
             "Send: disabled",
         )
