@@ -13,6 +13,7 @@ class FakePluginContext:
     def __init__(self) -> None:
         self.skills: list[tuple[str, Path, str]] = []
         self.commands = []
+        self.tools = []
         self.unload_callbacks = []
 
     def get_config(self, key: str, default=None):
@@ -24,11 +25,15 @@ class FakePluginContext:
     def register_command(self, name: str, handler, description: str = "") -> None:
         self.commands.append((name, handler, description))
 
+    def register_tool(self, **kwargs) -> object:
+        self.tools.append(kwargs)
+        return object()
+
     def register_skill(self, name: str, path: Path, *, description: str) -> None:
         self.skills.append((name, path, description))
 
 
-def test_register_adds_only_the_bundled_skill() -> None:
+def test_register_adds_bundled_skill_and_three_read_tools() -> None:
     context = FakePluginContext()
 
     runtime = register(context)
@@ -36,6 +41,11 @@ def test_register_adds_only_the_bundled_skill() -> None:
     assert runtime.get_hermes_context().profile_name == "test-profile"
     assert len(context.unload_callbacks) == 1
     assert len(context.skills) == 1
+    assert {tool["name"] for tool in context.tools} == {
+        "email_list_messages",
+        "email_get_message",
+        "email_search_messages",
+    }
     name, path, description = context.skills[0]
     assert name == "email"
     assert path.name == "SKILL.md"

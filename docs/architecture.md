@@ -8,7 +8,7 @@ Hermes Email separates technical email infrastructure from agent behavior. The a
 
 ### Hermes directory-plugin entry point
 
-The root `plugin.yaml` targets Hermes manifest v1 and `__init__.py` follows the native standalone directory-plugin entry-point convention. Manifest schema selection is independent of the runtime context API. `register(ctx)` reads plugin-scoped settings through `ctx.get_config()`, creates one `EmailPlugin` runtime, binds `ActiveProfileContextSource`, registers `/email-status` through `ctx.register_command()`, registers one `ctx.on_unload()` cleanup callback, and registers the bundled skill. Registration creates no network client, tool, model hook, poller, or background task.
+The root `plugin.yaml` targets Hermes manifest v1 and `__init__.py` follows the native standalone directory-plugin entry-point convention. Manifest schema selection is independent of the runtime context API. `register(ctx)` reads plugin-scoped settings through `ctx.get_config()`, creates one `EmailPlugin` runtime, binds `ActiveProfileContextSource`, registers `/email-status` through `ctx.register_command()`, three read tools through `ctx.register_tool()`, one `ctx.on_unload()` cleanup callback, and the bundled skill. Registration creates no network client, invokes no provider operation, and starts no model hook, poller, or background task.
 
 ### Plugin facade
 
@@ -25,7 +25,7 @@ Future technical responsibilities belong behind this facade:
 - privacy-aware logging;
 - independent safety authorization.
 
-Version 0.14.0 exposes deterministic mock retrieval and bounded production IMAP retrieval through the guarded Python facade. Pagination is explicitly caller-driven: no component follows `next_cursor` automatically. Model tools, persistent storage, and every production write path remain unimplemented.
+Version 0.15.0 exposes deterministic mock and bounded production IMAP retrieval through both the Python facade and three Hermes read tools. Pagination is explicitly caller-driven: no component follows `next_cursor` automatically. Persistent storage and every production write path remain unimplemented.
 
 ### Provider abstraction
 
@@ -50,6 +50,12 @@ Hermes Agent v0.21.0 provides an API for plugins that implement secret-source ba
 `HermesContext` holds optional values for profile name, persona, system prompt, language, writing style, user preferences, skills, tools, safety rules, and custom instructions.
 
 Hermes currently exposes `ctx.profile_name` as a stable public plugin API. `ActiveProfileContextSource` reads only that property. `register(ctx)` binds this source to the runtime `EmailPlugin`; `get_hermes_context()` returns an owned snapshot with the active profile name. Other values remain empty until Hermes provides an appropriate public API or an explicit caller supplies them. The project does not read private Hermes files or invent a fallback personality.
+
+### Hermes read tools
+
+`hermes_email.tools` registers `email_list_messages`, `email_get_message`, and `email_search_messages` in the `hermes_email` toolset with Hermes' public asynchronous tool API. A rejected name rolls back every earlier registration in the toolset and fails plugin loading rather than accepting a foreign or partial toolset. A side-effect-free availability check exposes them only while the runtime has explicit mock or read-only provider access. Handlers call only the guarded retrieval facade and never dispatch another tool.
+
+Handlers return compact JSON strings. List and search expose bounded metadata without bodies; lookup exposes caller-selected body windows capped at 20,000 characters. Results carry explicit untrusted-content, source-truncation, and body-window fields. Invalid input, disabled access, unsupported capability, stale identifiers, provider failures, and unexpected failures become fixed codes without exception text or mail content.
 
 ### Status command
 

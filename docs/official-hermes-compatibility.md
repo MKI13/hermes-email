@@ -1,6 +1,6 @@
 # Hermes Compatibility
 
-Version 0.14.0 targets the manifest v1 schema accepted by the Hermes Agent v0.21.0 installer. The manifest uses only `manifest_version`, `name`, `version`, `kind`, `description`, and `author`. Optional v2 metadata is omitted because none is required for runtime behavior.
+Version 0.15.0 targets the manifest v1 schema accepted by the Hermes Agent v0.21.0 installer. The manifest uses only `manifest_version`, `name`, `version`, `kind`, `description`, `author`, and `provides_tools`. Optional v2 metadata is omitted because none is required for runtime behavior.
 
 Manifest version identifies the `plugin.yaml` file format; it does not select the runtime context API. An omitted `api_version` is treated as current-compatible. The plugin continues to use these public Hermes extension surfaces:
 
@@ -9,6 +9,7 @@ Manifest version identifies the `plugin.yaml` file format; it does not select th
 - `ctx.profile_name` is the stable public active-profile identifier;
 - `ctx.on_unload()` owns cleanup callbacks for plugin runtime references;
 - `ctx.register_command()` registers `/email-status` as an in-session slash command;
+- `ctx.register_tool()` registers asynchronous JSON-string handlers with side-effect-free availability checks;
 - non-secret plugin settings and secret references are read through the official plugin-scoped `ctx.get_config()` API;
 - plugin validation is available through `hermes plugins doctor`.
 
@@ -21,4 +22,4 @@ Authoritative upstream references:
 - [Creating Skills](https://hermes-agent.nousresearch.com/docs/developer-guide/creating-skills)
 - [Hermes Agent repository](https://github.com/NousResearch/hermes-agent)
 
-This project avoids private Hermes files and does not copy Hermes' bundled email platform adapter. Version 0.14.0 keeps IMAP access inside this plugin and registers no Hermes model tools; read tools arrive in the next milestone through the public tool API.
+This project avoids private Hermes files and does not copy Hermes' bundled email platform adapter. Version 0.15.0 keeps IMAP access inside this plugin and registers three bounded read tools through the public tool API; it registers no model hook or write tool.
