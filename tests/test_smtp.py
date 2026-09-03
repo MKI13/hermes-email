@@ -340,6 +340,13 @@ def test_definite_data_rejection_and_quit_failure_after_acceptance() -> None:
     assert accepted.data_calls == 1
     assert accepted.closed is True
 
+    interrupted = FakeClient()
+    interrupted.quit_error = KeyboardInterrupt()
+    interrupted_transport, _, _ = transport(interrupted)
+    assert interrupted_transport.submit_once(submission()).accepted is True
+    assert interrupted.data_calls == 1
+    assert interrupted.closed is True
+
 
 @pytest.mark.parametrize(
     ("failure", "expected"),

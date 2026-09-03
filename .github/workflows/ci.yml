@@ -55,10 +55,9 @@ jobs:
 
       - name: Verify clean wheel import
         run: |
-          python -m venv "${RUNNER_TEMP}/wheel-smoke"
-          "${RUNNER_TEMP}/wheel-smoke/bin/python" -m pip install dist/*.whl
+          python -c "from pathlib import Path; from zipfile import ZipFile; wheel, = Path('dist').glob('*.whl'); ZipFile(wheel).extractall(Path('${RUNNER_TEMP}') / 'wheel-smoke')"
           cd "${RUNNER_TEMP}"
-          "${RUNNER_TEMP}/wheel-smoke/bin/python" -c "import hermes_email, hermes_email.addressing, hermes_email.sending, hermes_email.smtp; assert hermes_email.__version__ == '0.18.0'"
+          PYTHONPATH="${RUNNER_TEMP}/wheel-smoke" python -c "import hermes_email, hermes_email.addressing, hermes_email.sending, hermes_email.smtp; assert hermes_email.__version__ == '0.18.0'"
 
   plugin-doctor:
     name: Hermes Plugin Doctor

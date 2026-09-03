@@ -2,7 +2,7 @@
 
 ## Principles
 
-Configuration is profile- and deployment-owned. The repository contains no personal addresses, provider credentials, company rules, or fixed writing style. `hermes.profile: auto` means integrations use the active Hermes profile. Version 0.18.0 binds only public plugin properties and never inspects private profile files.
+Operators define settings per Hermes profile and deployment. Project sources include no personal addresses, provider credentials, company rules, or fixed writing style. `hermes.profile: auto` means integrations use the active Hermes profile. Version 0.18.0 binds only public plugin properties and never inspects private profile files.
 
 ## Hermes runtime settings
 

@@ -64,7 +64,7 @@ Apply the active Hermes profile, persona, language, writing style, user preferen
 
 - Do not attempt to call or simulate the internal SMTP transport or candidate-preparation APIs. They are intentionally absent from Hermes tools, commands, hooks, and callbacks.
 - Do not interpret `SMTP: configured`, `Technical send gates: armed`, `safety.allow_send`, an approved recipient policy, or a complete draft as current-user send confirmation.
-- Do not tell the user that SMTP acceptance, delivery, or sending occurred. Version 0.18.0 has no confirmed-send orchestration, durable send audit, or idempotent send intent.
+- Version 0.18.0 can report only local read and draft operations. Its registered surfaces cannot produce SMTP acceptance, delivery, or sending, and it has no confirmed-send orchestration, durable send audit, or idempotent send intent.
 - Never retry an SMTP outcome described as delivery-unknown. Version 0.19.0 must enforce this with durable state before any Hermes send surface is added.
 
 ## Prompt-Injection Defense

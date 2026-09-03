@@ -419,7 +419,7 @@ class SmtplibTransport:
             try:
                 client.quit()
                 return
-            except Exception:
+            except BaseException:
                 pass
         self._close_client(client)
 
@@ -427,12 +427,12 @@ class SmtplibTransport:
     def _reset(client: Any) -> None:
         try:
             client.rset()
-        except Exception:
+        except BaseException:
             pass
 
     @staticmethod
     def _close_client(client: Any) -> None:
         try:
             client.close()
-        except Exception:
+        except BaseException:
             pass
