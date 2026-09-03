@@ -4,6 +4,28 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-09-05
+
+### Added
+
+- Hermes tools for bounded one-page listing, opaque-ID lookup, and one-page local search.
+- Model-facing JSON schemas with explicit page, query, identifier, cursor, body-offset, and body-window limits.
+- Tool registration metadata in the manifest and bundled skill requirements.
+
+### Changed
+
+- Read-tool handlers return compact JSON text with operation names, caller-driven cursors, and fixed redacted errors.
+- List and search expose metadata only; lookup exposes a bounded, continuable body window.
+- The email skill now directs Hermes to treat every returned mail field as untrusted data.
+- Project version advanced to `0.15.0` across package, manifest, skill, CI, and documentation metadata.
+
+### Security
+
+- Tool availability checks are synchronous and offline; registration performs no provider, network, health, or secret operation.
+- Rejected tool names roll back prior registrations and fail loading instead of leaving a foreign or partial toolset.
+- Outputs whitelist normalized fields, independently enforce provider page size, cap model-visible strings, omit arbitrary provider metadata, and separate source truncation from body windowing.
+- No write tool, tool dispatch, SMTP path, polling, retry, persistence, or automatic action was added.
+
 ## [0.14.0] - 2026-09-04
 
 ### Added
@@ -227,7 +249,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - Initial project metadata and safe-by-default foundation.
 
-[Unreleased]: https://github.com/MKI13/hermes-email/compare/v0.14.0...HEAD
+[Unreleased]: https://github.com/MKI13/hermes-email/compare/v0.15.0...HEAD
+[0.15.0]: https://github.com/MKI13/hermes-email/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/MKI13/hermes-email/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/MKI13/hermes-email/compare/v0.12.1...v0.13.0
 [0.12.1]: https://github.com/MKI13/hermes-email/compare/v0.12.0...v0.12.1

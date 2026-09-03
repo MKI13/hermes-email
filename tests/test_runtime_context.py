@@ -12,6 +12,7 @@ class FakeHermesContext:
         self.profile_name = profile_name
         self.skills: list[tuple[str, Path, str]] = []
         self.commands = []
+        self.tools = []
         self.unload_callbacks = []
 
     def get_config(self, key: str, default=None):
@@ -22,6 +23,10 @@ class FakeHermesContext:
 
     def register_command(self, name: str, handler, description: str = "") -> None:
         self.commands.append((name, handler, description))
+
+    def register_tool(self, **kwargs) -> object:
+        self.tools.append(kwargs)
+        return object()
 
     def register_skill(self, name: str, path: Path, *, description: str) -> None:
         self.skills.append((name, path, description))
@@ -31,6 +36,7 @@ class FakeHermesContextWithoutProfile:
     def __init__(self) -> None:
         self.skills: list[tuple[str, Path, str]] = []
         self.commands = []
+        self.tools = []
         self.unload_callbacks = []
 
     def get_config(self, key: str, default=None):
@@ -41,6 +47,10 @@ class FakeHermesContextWithoutProfile:
 
     def register_command(self, name: str, handler, description: str = "") -> None:
         self.commands.append((name, handler, description))
+
+    def register_tool(self, **kwargs) -> object:
+        self.tools.append(kwargs)
+        return object()
 
     def register_skill(self, name: str, path: Path, *, description: str) -> None:
         self.skills.append((name, path, description))

@@ -10,17 +10,17 @@ Hermes remains the intelligence, personality, and decision-maker. The plugin pro
 
 A friendly German Hermes profile should produce friendly, concise German drafts. A formal English profile should preserve that profile's language and style. Provider adapters must not alter this behavior.
 
-## Version 0.14.0
+## Version 0.15.0
 
-This release adds the first production transport: bounded, read-only IMAP over verified implicit TLS.
+This release makes bounded read-only mail available to Hermes through three public plugin tools:
 
-- IMAP credentials remain validated references and resolve only for an explicit health, fetch, or lookup operation;
-- every connection uses certificate and hostname verification with TLS 1.2 or newer;
-- mailboxes open with IMAP `EXAMINE`, and every message request uses UID `BODY.PEEK` partial fetches;
-- UID cursors are caller-driven, strictly decreasing, bound to `UIDVALIDITY`, and never followed automatically;
-- MIME is parsed as untrusted data, attachments are omitted, and HTML becomes bounded plain text without scripts, attributes, links, images, or remote access;
-- provider health is explicit and redacted; registration and `/email-status` never connect;
-- SMTP, sending, tools, polling, persistence, and automation remain unavailable.
+- `email_list_messages` returns at most 25 bounded summaries from one provider page;
+- `email_get_message` returns one message by its opaque provider identifier;
+- `email_search_messages` performs local plain-text matching over one bounded provider page;
+- every result labels message fields as untrusted external content, caps previews and bodies, and returns only fixed error codes;
+- tool availability requires an explicit mock or read-only IMAP configuration and never performs a health check, secret lookup, or connection by itself;
+- cursors remain caller-driven and are never followed automatically;
+- SMTP, sending, tool dispatch to writes, polling, persistence, and automation remain unavailable.
 
 ### Runtime health
 
@@ -38,11 +38,11 @@ Type `/email-status` in a Hermes session to display the fixed fields from `Email
 
 ### Deliberately not included
 
-Version `0.14.0` can read one explicitly configured IMAP mailbox, but it does not send email, store provider drafts, delete or move messages, run background polling, implement OAuth, classify mail, automate replies, register model tools, route LLM calls, or persist state in a database.
+Version `0.15.0` lets Hermes list, read, and search explicitly configured mail, but it does not send email, store provider drafts, delete or move messages, run background polling, implement OAuth, classify mail, automate replies, route separate LLM calls, or persist state in a database.
 
 ## Safety defaults
 
-| Operation | Version 0.14.0 |
+| Operation | Version 0.15.0 |
 |---|---|
 | Read mail | Disabled, deterministic mock, or explicit read-only IMAP |
 | Prepare a draft | Local value/mock only |
@@ -52,6 +52,10 @@ Version `0.14.0` can read one explicitly configured IMAP mailbox, but it does no
 | Connect an account | Explicit IMAP configuration; verified TLS and read-only mailbox only |
 
 Disabled and mock modes require no credentials. IMAP requires user-managed environment values referenced by configuration; `.env` files and private-key formats remain ignored by Git and excluded from distributions.
+
+## Read tools
+
+Tool schemas reject unknown properties, pages above 25 messages, empty identifiers, oversized cursors, and invalid queries. List and search omit bodies and cap subjects at 500 characters; single-message lookup returns caller-selected windows of at most 20,000 body characters and reports both source truncation and the next body offset. Errors are JSON objects with fixed codes and never include exception text, provider responses, configuration, credentials, or message content. The model must follow the bundled email skill and treat every returned mail field as untrusted data.
 
 ## Credential references
 
@@ -83,7 +87,7 @@ hermes plugins enable hermes-email
 hermes plugins doctor hermes-email --ci
 ```
 
-The plugin registers the read-only skill as `hermes-email:email`, the in-session command `/email-status`, and one official unload callback for runtime cleanup. Version 0.14.0 registers no model tools, hooks, pollers, or background tasks. IMAP access is currently available through the Python facade; Hermes-facing read tools are the next release milestone.
+The plugin registers the read-only skill as `hermes-email:email`, `/email-status`, the three `hermes_email` read tools, and one unload callback for runtime cleanup. Version 0.15.0 registers no model hooks, write tools, pollers, or background tasks.
 
 ## Development
 

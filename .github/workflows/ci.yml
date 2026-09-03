@@ -45,7 +45,7 @@ jobs:
         run: python -m pytest
 
       - name: Verify installed import
-        run: python -c "import hermes_email; assert hermes_email.__version__ == '0.14.0'; print(hermes_email.__version__)"
+        run: python -c "import hermes_email; assert hermes_email.__version__ == '0.15.0'; print(hermes_email.__version__)"
 
       - name: Build distributions
         run: python -m build
@@ -75,7 +75,13 @@ jobs:
           python -m pip install -r requirements-bootstrap.txt --upgrade
           python -m pip install -r requirements-hermes-ci.txt
 
+      - name: Install pinned test runner
+        run: python -m pip install pytest==8.3.5
+
       - name: Run Plugin Doctor without user configuration
         run: |
           mkdir -p "${RUNNER_TEMP}/hermes-home"
           HOME="${RUNNER_TEMP}/hermes-home" hermes plugins doctor . --ci
+
+      - name: Dispatch read tools through pinned Hermes registry
+        run: python -m pytest tests/test_tools.py

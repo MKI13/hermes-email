@@ -8,7 +8,7 @@ from scripts.check_dist import _reject_path
     [
         "/absolute.py",
         "hermes_email/../outside.py",
-        "hermes_email-0.14.0/../outside.txt",
+        "hermes_email-0.15.0/../outside.txt",
         "hermes_email\\outside.py",
         "hermes_email/.GIT/config",
     ],
@@ -41,8 +41,8 @@ def test_distribution_rejects_case_insensitive_sensitive_names(
     "member_name",
     [
         "hermes_email/secrets.py",
-        "hermes_email-0.14.0/README.md",
-        "hermes_email-0.14.0/docs/configuration.md",
+        "hermes_email-0.15.0/README.md",
+        "hermes_email-0.15.0/docs/configuration.md",
     ],
 )
 def test_distribution_allows_expected_source_paths(member_name: str) -> None:

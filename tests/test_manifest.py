@@ -36,6 +36,11 @@ def test_plugin_manifest_uses_only_hermes_v1_fields() -> None:
     assert manifest["name"] == "hermes-email"
     assert manifest["version"] == hermes_email.__version__
     assert manifest["kind"] == "standalone"
+    assert manifest["provides_tools"] == [
+        "email_list_messages",
+        "email_get_message",
+        "email_search_messages",
+    ]
 
 
 def test_directory_plugin_entrypoint_remains_available() -> None:

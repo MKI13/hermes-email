@@ -20,6 +20,7 @@ class FakeHermesContext:
         self.profile_name = profile_name
         self.commands: list[tuple[str, Callable[[str], str], str]] = []
         self.skills: list[tuple[str, Path, str]] = []
+        self.tools: list[dict[str, Any]] = []
         self.unload_callbacks = []
 
     def get_config(self, key: str, default=None):
@@ -35,6 +36,10 @@ class FakeHermesContext:
         description: str = "",
     ) -> None:
         self.commands.append((name, handler, description))
+
+    def register_tool(self, **kwargs: Any) -> object:
+        self.tools.append(kwargs)
+        return object()
 
     def register_skill(self, name: str, path: Path, *, description: str) -> None:
         self.skills.append((name, path, description))

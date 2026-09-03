@@ -1,13 +1,13 @@
 # Security Model
 
-## Version 0.14.0 boundary
+## Version 0.15.0 boundary
 
-Version 0.14.0 adds bounded read-only IMAP health, page fetch, and single-message lookup through the Python facade. It adds no Hermes model tools, SMTP, provider draft storage, sending, deletion, movement, polling, retries, OAuth, database, or persistence.
+Version 0.15.0 adds bounded Hermes tools for one-page listing, single-message lookup, and one-page local search. It adds no SMTP, provider draft storage, sending, deletion, movement, polling, retries, OAuth, database, or persistence.
 
 ## Safe by default
 
 - Missing runtime settings load as `disabled` with no provider or fallback.
-- Plugin registration, disabled mode, mock mode, reload, and `/email-status` never resolve a secret or connect to a provider.
+- Plugin registration, read-tool availability checks, disabled mode, mock mode, reload, and `/email-status` never resolve a secret or connect to a provider.
 - Real providers start as `provider-configured`, not ready. Only an explicit successful health or read operation produces `provider-ready`.
 - Health snapshots expose fixed fields and diagnostic codes without configuration values, hosts, references, credentials, server responses, headers, or bodies.
 - `/email-status` formats only the existing runtime snapshot; it invokes no provider or mailbox method.
@@ -55,6 +55,12 @@ Attachments are skipped. Inline plain text is preferred. HTML is converted to te
 
 The skill treats all normalized mail as data rather than instructions. Email content cannot override Hermes' system instructions, active persona, safety rules, or the requirement for future explicit send confirmation.
 
+## Hermes tool output
+
+Hermes tools whitelist normalized fields and return compact JSON text. List and search omit message bodies and arbitrary provider metadata from model output, limit a page to 25 records, and cap subjects, addresses, and display names. The current provider facade obtains a bounded normalized message page for listing, so IMAP may retrieve partial message literals within its configured per-message and per-page byte ceilings; this release does not claim a header-only transport operation. Lookup returns a caller-selected body window of at most 20,000 characters with total length, offset, and continuation offset; source truncation remains separate from response windowing. Every successful mail result carries an untrusted-content marker.
+
+Tool schemas and handlers reject unknown fields, booleans used as integers, oversized identifiers, oversized cursors, invalid queries, and out-of-range limits before provider access. Known failures map to fixed codes; exception text, traceback data, protocol responses, hosts, settings, references, credentials, and raw MIME are never returned. An unexpected exception returns only `internal-error`.
+
 ## Trust boundaries
 
 ### Providers
@@ -67,7 +73,7 @@ At registration, the plugin wraps the public runtime context with `ActiveProfile
 
 ### Capability versus authorization
 
-A provider capability and a user safety setting are independent checks. Supporting an operation never grants permission to perform it. Version 0.14.0 exposes no production write capability at either layer.
+A provider capability and a user safety setting are independent checks. Supporting an operation never grants permission to perform it. Version 0.15.0 exposes no production write capability at either layer.
 
 ## Future side-effect requirements
 
