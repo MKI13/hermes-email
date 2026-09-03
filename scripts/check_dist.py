@@ -83,8 +83,24 @@ def main() -> None:
     root = f"hermes_email-{version}/"
     with tarfile.open(sdists[0], mode="r:gz") as archive:
         members = archive.getmembers()
+        member_names = {member.name for member in members if member.isfile()}
+        required_sdist = {root + path for path in REQUIRED_RUNTIME_PATHS}
+        missing_sdist = required_sdist.difference(member_names)
+        if missing_sdist:
+            raise AssertionError(
+                "source distribution is missing required runtime paths: "
+                + ", ".join(sorted(missing_sdist))
+            )
+        package_info = archive.extractfile(root + "PKG-INFO")
+        if package_info is None:
+            raise AssertionError("source distribution is missing package metadata")
+        sdist_metadata = package_info.read().decode("utf-8")
     if not members:
         raise AssertionError("source distribution is empty")
+    if f"Version: {version}\n" not in sdist_metadata:
+        raise AssertionError("source distribution version does not match the project")
+    if "Requires-Dist: PyYAML" not in sdist_metadata:
+        raise AssertionError("source distribution is missing the runtime dependency")
     for member in members:
         if member.name != root.rstrip("/") and not member.name.startswith(root):
             raise AssertionError(f"source distribution escaped its root: {member.name}")

@@ -102,6 +102,16 @@ def test_hermes_entry_import_closure_cannot_reach_smtp_dispatch() -> None:
     visited = set()
     called_names = set()
 
+    def queue_module(candidate: str) -> None:
+        if not candidate.startswith("hermes_email"):
+            return
+        relative = candidate.split(".")[1:]
+        target_path = package.joinpath(*relative)
+        if target_path.with_suffix(".py").is_file():
+            queue.append((candidate, target_path.with_suffix(".py")))
+        elif target_path.joinpath("__init__.py").is_file():
+            queue.append((candidate, target_path / "__init__.py"))
+
     while queue:
         module_name, path = queue.pop()
         if module_name in visited:
@@ -114,6 +124,10 @@ def test_hermes_entry_import_closure_cannot_reach_smtp_dispatch() -> None:
                     called_names.add(node.func.id)
                 elif isinstance(node.func, ast.Attribute):
                     called_names.add(node.func.attr)
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    queue_module(alias.name)
+                continue
             if not isinstance(node, ast.ImportFrom):
                 continue
             if node.level:
@@ -128,17 +142,13 @@ def test_hermes_entry_import_closure_cannot_reach_smtp_dispatch() -> None:
             else:
                 target = node.module or ""
             candidates = [target]
-            if node.module is None:
-                candidates.extend(target + "." + alias.name for alias in node.names)
+            candidates.extend(
+                target + "." + alias.name
+                for alias in node.names
+                if alias.name != "*"
+            )
             for candidate in candidates:
-                if not candidate.startswith("hermes_email"):
-                    continue
-                relative = candidate.split(".")[1:]
-                target_path = package.joinpath(*relative)
-                if target_path.with_suffix(".py").is_file():
-                    queue.append((candidate, target_path.with_suffix(".py")))
-                elif target_path.joinpath("__init__.py").is_file():
-                    queue.append((candidate, target_path / "__init__.py"))
+                queue_module(candidate)
 
     assert "hermes_email.smtp" not in visited
     assert "hermes_email.sending" not in visited
