@@ -8,11 +8,11 @@ Hermes Email separates technical email infrastructure from agent behavior. The a
 
 ### Hermes directory-plugin entry point
 
-The root `plugin.yaml` targets Hermes manifest v1 and `__init__.py` follows the native standalone directory-plugin entry-point convention. Manifest schema selection is independent of the runtime context API. `register(ctx)` reads plugin-scoped settings through `ctx.get_config()`, creates one `EmailPlugin` runtime, binds `ActiveProfileContextSource`, registers `/email-status` through `ctx.register_command()`, three read tools through `ctx.register_tool()`, one `ctx.on_unload()` cleanup callback, and the bundled skill. Registration creates no network client, invokes no provider operation, and starts no model hook, poller, or background task.
+The root `plugin.yaml` targets Hermes manifest v1 and `__init__.py` follows the native standalone directory-plugin entry-point convention. Manifest schema selection is independent of the runtime context API. `register(ctx)` reads plugin-scoped settings through `ctx.get_config()`, creates one `EmailPlugin` runtime, binds `ActiveProfileContextSource`, registers `/email-status` through `ctx.register_command()`, three read tools through `ctx.register_tool()`, one `ctx.on_unload()` cleanup callback, and the bundled skill. Registration creates no network client or database file, invokes no provider operation, and starts no model hook, poller, or background task. Enabled persistence takes its fixed database path only from the public `ctx.state.data_dir` property.
 
 ### Plugin facade
 
-`hermes_email.plugin.EmailPlugin` is the provider-neutral orchestration point. It owns validated configuration, an optional provider, an optional Hermes context source, and a non-sensitive runtime state. `EmailPlugin.from_config(config)` remains the exclusive provider factory. Real providers begin as `provider-configured`; an explicit health or successful read advances them to `provider-ready`, while expected failures become fixed authentication or reachability states. `get_runtime_status()` never invokes a mailbox operation.
+`hermes_email.plugin.EmailPlugin` is the provider-neutral orchestration point. It owns validated configuration, an optional provider, an optional observation store, an optional Hermes context source, and a non-sensitive runtime state. `EmailPlugin.from_config(config)` remains the exclusive provider factory. Real providers begin as `provider-configured`; an explicit health or successful read advances them to `provider-ready`, while expected failures become fixed authentication or reachability states. `get_runtime_status()` never invokes a mailbox operation.
 
 The retrieval facades share the `read_mode` and provider-presence gates. Fetch additionally requires fetch capability, accepts only limits from 1 through 100, validates an optional non-empty opaque cursor without transforming it, and delegates exactly one page request. Search first validates and trims a query of at most 256 characters, then applies the same read, fetch-capability, limit, and cursor gates. It delegates exactly one provider page request and performs case-insensitive plain substring matching over subject, sender address, sender display name, and body text. The returned `EmailMessagePage` preserves provider order, contains only matches from that page, and carries the provider page's unchanged `next_cursor`.
 
@@ -21,11 +21,19 @@ Future technical responsibilities belong behind this facade:
 - provider connection lifecycle;
 - message ingestion and normalized events;
 - draft storage;
-- status tracking and deduplication;
+- durable processing state distinct from observation history;
 - privacy-aware logging;
 - independent safety authorization.
 
-Version 0.15.0 exposes deterministic mock and bounded production IMAP retrieval through both the Python facade and three Hermes read tools. Pagination is explicitly caller-driven: no component follows `next_cursor` automatically. Persistent storage and every production write path remain unimplemented.
+Version 0.16.0 optionally records exact provider-message observations after explicit mock or IMAP retrieval. Pagination remains caller-driven and repeated observations never suppress explicit list, lookup, or search results. Durable processing state, message-content caching, and every production mail write path remain unimplemented.
+
+### Observation storage
+
+`hermes_email.storage.SqliteObservationStore` is an opt-in content-free ledger behind `EmailPlugin`. Each successful explicit provider result is checked against its requested page limit, then persisted in a short `asyncio.to_thread` operation before mail returns to Hermes. Cancellation waits for the SQLite transaction outcome; provider network work finishes before any database transaction starts. A required-store failure prevents the read result from returning and changes runtime state to the fixed `storage-error` state.
+
+One observation identity contains an explicit operator-owned account namespace, provider name, SHA-256 mailbox namespace, and the opaque provider message ID. IMAP message IDs include `UIDVALIDITY` and UID. RFC Message-ID, subject, sender, recipients, body, host, credential references, raw MIME, and arbitrary metadata are not stored. Observation count does not mean processed, trusted, drafted, or sent.
+
+SQLite uses a fixed application ID and monotonic schema version. Creation and verification check a profile-owned directory, regular single-link file, stable device/inode identity, owner-only POSIX permissions, expected schema objects, `quick_check`, a fixed rollback-journal mode, full synchronous writes, secure deletion, a bounded busy timeout, and `max_page_count`. Writes use `BEGIN IMMEDIATE`, uniqueness enforces deduplication, and retention plus row caps run only in the same explicit transaction. Corrupt, incompatible, insecure, busy, read-only, or full storage is never deleted, recreated, downgraded, retried, or replaced with memory.
 
 ### Provider abstraction
 
@@ -33,7 +41,7 @@ Version 0.15.0 exposes deterministic mock and bounded production IMAP retrieval 
 
 The IMAP provider creates a new connection for each explicit operation, resolves credentials only after a verified TLS connection exists, authenticates with SASL PLAIN, opens the configured mailbox read-only, and requires `READ-ONLY`, `UIDVALIDITY`, and `UIDNEXT` responses. Fetch pages cover one bounded UID range and use partial `BODY.PEEK` literals. Cursors bind the next decreasing UID boundary to `UIDVALIDITY`; sparse windows may return short or empty pages, and callers decide whether to request another page. MIME normalization excludes attachments and remote resources, converts HTML to plain text, strips control characters, and reports truncation. Provider shutdown prevents new workers, closes active sockets without mailbox mutation, and waits up to the configured operation timeout for active workers before unload returns; closed-state checks prevent delayed workers from authenticating or returning mail.
 
-Future SMTP, Gmail, Microsoft, Proton Bridge, or other adapters must normalize provider data into `EmailMessage` and `EmailDraft`. A provider's declared capability is never sufficient authorization for an external or destructive action.
+Future read or send adapters must normalize provider data into `EmailMessage` and `EmailDraft`. A provider's declared capability is never sufficient authorization for an external or destructive action.
 
 ### Secret resolution
 
@@ -49,7 +57,7 @@ Hermes Agent v0.21.0 provides an API for plugins that implement secret-source ba
 
 `HermesContext` holds optional values for profile name, persona, system prompt, language, writing style, user preferences, skills, tools, safety rules, and custom instructions.
 
-Hermes currently exposes `ctx.profile_name` as a stable public plugin API. `ActiveProfileContextSource` reads only that property. `register(ctx)` binds this source to the runtime `EmailPlugin`; `get_hermes_context()` returns an owned snapshot with the active profile name. Other values remain empty until Hermes provides an appropriate public API or an explicit caller supplies them. The project does not read private Hermes files or invent a fallback personality.
+Hermes exposes `ctx.profile_name` and the profile-scoped `ctx.state.data_dir` as public plugin APIs. `ActiveProfileContextSource` reads only that property. `register(ctx)` binds this source to the runtime `EmailPlugin`; `get_hermes_context()` returns an owned snapshot with the active profile name. Other values remain empty until Hermes provides an appropriate public API or an explicit caller supplies them. The project does not read private Hermes files or invent a fallback personality.
 
 ### Hermes read tools
 

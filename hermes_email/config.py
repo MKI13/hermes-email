@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field, fields
 from ipaddress import ip_address
 from pathlib import Path
@@ -124,6 +125,40 @@ class ImapSettings:
 
 
 @dataclass(frozen=True, slots=True)
+class StorageSettings:
+    """Opt-in local observation ledger limits and account namespace."""
+
+    mode: str = "disabled"
+    account_namespace: str | None = None
+    retention_days: int = 90
+    max_observations: int = 10_000
+    max_database_bytes: int = 16_777_216
+
+    def __post_init__(self) -> None:
+        _choice("storage.mode", self.mode, {"disabled", "sqlite"})
+        namespace = self.account_namespace
+        if namespace is not None and (
+            not isinstance(namespace, str)
+            or re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}", namespace) is None
+        ):
+            raise ConfigError(
+                "storage.account_namespace must be 1 to 64 portable identifier characters"
+            )
+        if self.mode == "sqlite" and namespace is None:
+            raise ConfigError(
+                "storage.account_namespace is required when SQLite storage is enabled"
+            )
+        _bounded_integer("storage.retention_days", self.retention_days, 1, 3_650)
+        _bounded_integer("storage.max_observations", self.max_observations, 1, 100_000)
+        _bounded_integer(
+            "storage.max_database_bytes",
+            self.max_database_bytes,
+            1_048_576,
+            1_073_741_824,
+        )
+
+
+@dataclass(frozen=True, slots=True)
 class BehaviorSettings:
     """Controls which active Hermes characteristics should be inherited."""
 
@@ -157,6 +192,7 @@ class EmailPluginConfig:
     hermes: HermesSettings = field(default_factory=HermesSettings)
     credentials: CredentialReferences = field(default_factory=CredentialReferences)
     imap: ImapSettings = field(default_factory=ImapSettings)
+    storage: StorageSettings = field(default_factory=StorageSettings)
     behavior: BehaviorSettings = field(default_factory=BehaviorSettings)
     safety: SafetySettings = field(default_factory=SafetySettings)
 
@@ -174,17 +210,24 @@ class EmailPluginConfig:
                 )
         if normalized_provider == "mock" and self.email.read_mode == "readonly":
             raise ConfigError("email.read_mode readonly requires a non-mock provider")
+        if self.storage.mode == "sqlite" and (
+            normalized_provider is None
+            or self.email.read_mode not in {"mock", "readonly"}
+        ):
+            raise ConfigError(
+                "SQLite storage requires an explicitly readable email provider"
+            )
 
     @classmethod
     def from_mapping(cls, data: Mapping[str, Any] | None) -> EmailPluginConfig:
         """Build validated configuration from a YAML-compatible mapping."""
-        raw = data or {}
+        raw: Mapping[str, Any] | object = {} if data is None else data
         if not isinstance(raw, Mapping):
             raise ConfigError("configuration root must be a mapping")
         _reject_unknown(
             "configuration",
             raw,
-            {"email", "hermes", "credentials", "imap", "behavior", "safety"},
+            {"email", "hermes", "credentials", "imap", "storage", "behavior", "safety"},
         )
         return cls(
             email=_build_section(EmailSettings, "email", raw.get("email")),
@@ -193,6 +236,7 @@ class EmailPluginConfig:
                 CredentialReferences, "credentials", raw.get("credentials")
             ),
             imap=_build_section(ImapSettings, "imap", raw.get("imap")),
+            storage=_build_section(StorageSettings, "storage", raw.get("storage")),
             behavior=_build_section(BehaviorSettings, "behavior", raw.get("behavior")),
             safety=_build_section(SafetySettings, "safety", raw.get("safety")),
         )
@@ -204,6 +248,7 @@ Section = TypeVar(
     HermesSettings,
     CredentialReferences,
     ImapSettings,
+    StorageSettings,
     BehaviorSettings,
     SafetySettings,
 )

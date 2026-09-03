@@ -22,6 +22,13 @@ imap:
   max_message_bytes: 2000000
   max_page_bytes: 5000000
 
+storage:
+  mode: disabled
+  account_namespace: null
+  retention_days: 90
+  max_observations: 10000
+  max_database_bytes: 16777216
+
 behavior:
   inherit_persona: true
   inherit_language: true

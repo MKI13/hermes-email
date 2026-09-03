@@ -8,19 +8,19 @@ Hermes Email is a universal, provider-neutral email plugin and email skill for [
 
 Hermes remains the intelligence, personality, and decision-maker. The plugin provides technical infrastructure; the skill provides email-specific operating guidance. Neither defines a fixed personality, company voice, language, or user-specific behavior.
 
-A friendly German Hermes profile should produce friendly, concise German drafts. A formal English profile should preserve that profile's language and style. Provider adapters must not alter this behavior.
+Every active Hermes profile keeps its own language, style, and safety policy. Provider and storage adapters must not alter that behavior.
 
-## Version 0.15.0
+## Version 0.16.0
 
-This release makes bounded read-only mail available to Hermes through three public plugin tools:
+This release adds an opt-in SQLite observation ledger and exact provider-identity deduplication to explicit reads:
 
-- `email_list_messages` returns at most 25 bounded summaries from one provider page;
-- `email_get_message` returns one message by its opaque provider identifier;
-- `email_search_messages` performs local plain-text matching over one bounded provider page;
-- every result labels message fields as untrusted external content, caps previews and bodies, and returns only fixed error codes;
-- tool availability requires an explicit mock or read-only IMAP configuration and never performs a health check, secret lookup, or connection by itself;
-- cursors remain caller-driven and are never followed automatically;
-- SMTP, sending, tool dispatch to writes, polling, persistence, and automation remain unavailable.
+- persistence is disabled by default and uses Hermes' public profile-scoped `ctx.state.data_dir` only;
+- an operator must provide a stable non-secret account namespace before SQLite can be enabled;
+- the ledger stores provider message identifiers, a provider name, a hashed mailbox namespace, and timestamps—never subjects, addresses, bodies, raw MIME, RFC Message-ID, hosts, credentials, or arbitrary metadata;
+- repeated list, lookup, and search operations still return requested mail normally while atomically incrementing the matching observation count;
+- schema identity, integrity, private-path requirements, row count, retention, and database size are checked with fail-closed errors and no in-memory fallback;
+- storage opens lazily on the first explicit read, runs no background cleanup, and never follows a cursor automatically;
+- SMTP, sending, stored drafts, delete, move, polling, retries, and automation remain unavailable.
 
 ### Runtime health
 
@@ -32,19 +32,21 @@ This release makes bounded read-only mail available to Hermes through three publ
 | `provider-ready` | An explicit IMAP health or read operation succeeded. |
 | `authentication-error` | Authentication failed without exposing server or credential details. |
 | `provider-unreachable` | TLS, timeout, connection, mailbox, or protocol validation failed. |
+| `storage-error` | Required observation persistence failed closed with a fixed diagnostic. |
 | `configuration-error` | Expected settings validation or provider resolution failed; Hermes registration continues. |
 
-Type `/email-status` in a Hermes session to display the fixed fields from `EmailPlugin.get_runtime_status()`: `version`, `state`, `provider`, `profile`, `read_enabled`, `draft_enabled`, `send_enabled`, and `diagnostic`.
+Type `/email-status` in a Hermes session to display the fixed fields from `EmailPlugin.get_runtime_status()`: `version`, `state`, `provider`, `profile`, `read_enabled`, `storage_enabled`, `draft_enabled`, `send_enabled`, and `diagnostic`.
 
 ### Deliberately not included
 
-Version `0.15.0` lets Hermes list, read, and search explicitly configured mail, but it does not send email, store provider drafts, delete or move messages, run background polling, implement OAuth, classify mail, automate replies, route separate LLM calls, or persist state in a database.
+Version `0.16.0` can persist content-free observation identities for explicitly read mail, but it does not cache message content, send email, store drafts, delete or move messages, run background polling, implement OAuth, classify mail, automate replies, or route separate LLM calls.
 
 ## Safety defaults
 
-| Operation | Version 0.15.0 |
+| Operation | Version 0.16.0 |
 |---|---|
 | Read mail | Disabled, deterministic mock, or explicit read-only IMAP |
+| Persist observations | Disabled or explicit content-free SQLite ledger |
 | Prepare a draft | Local value/mock only |
 | Send mail | Unconditionally unavailable |
 | Delete mail | Unavailable |
@@ -56,6 +58,23 @@ Disabled and mock modes require no credentials. IMAP requires user-managed envir
 ## Read tools
 
 Tool schemas reject unknown properties, pages above 25 messages, empty identifiers, oversized cursors, and invalid queries. List and search omit bodies and cap subjects at 500 characters; single-message lookup returns caller-selected windows of at most 20,000 body characters and reports both source truncation and the next body offset. Errors are JSON objects with fixed codes and never include exception text, provider responses, configuration, credentials, or message content. The model must follow the bundled email skill and treat every returned mail field as untrusted data.
+
+## Observation persistence
+
+Enable persistence only with an explicit readable provider and a stable account namespace:
+
+```yaml
+storage:
+  mode: sqlite
+  account_namespace: primary-inbox
+  retention_days: 90
+  max_observations: 10000
+  max_database_bytes: 16777216
+```
+
+The namespace is an operator-chosen portable identifier, not an address, hostname, credential, or display label. It must remain stable for the same account and mailbox and must differ across accounts. IMAP IDs already include `UIDVALIDITY`; a new UID epoch or copied message remains a distinct observation. Attacker-controlled RFC Message-ID values never deduplicate observations. Fetching a message means only “observed,” never “processed,” “trusted,” or “acted upon.”
+
+The database is created as `email-observations.sqlite3` inside Hermes' profile-scoped plugin data directory. POSIX paths must be owned by the current account with owner-only permissions. On Windows, the operator must protect the Hermes profile directory with an account-only ACL; portable Python cannot audit that ACL. Same-account malicious processes are outside this storage threat model. The database contains no message content, but its identifiers and timing remain sensitive metadata. Use encrypted storage and protected backups where required. Retention runs only inside an explicit write transaction; there is no timer, poller, automatic vacuum, or automatic recreation after corruption.
 
 ## Credential references
 
@@ -87,7 +106,7 @@ hermes plugins enable hermes-email
 hermes plugins doctor hermes-email --ci
 ```
 
-The plugin registers the read-only skill as `hermes-email:email`, `/email-status`, the three `hermes_email` read tools, and one unload callback for runtime cleanup. Version 0.15.0 registers no model hooks, write tools, pollers, or background tasks.
+The plugin registers the read-only skill as `hermes-email:email`, `/email-status`, the three `hermes_email` read tools, and one unload callback for runtime cleanup. Version 0.16.0 registers no model hooks, write tools, pollers, or background tasks.
 
 ## Development
 

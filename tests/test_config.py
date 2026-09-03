@@ -2,7 +2,13 @@ from pathlib import Path
 
 import pytest
 
-from hermes_email.config import ConfigError, EmailPluginConfig, ImapSettings, load_config
+from hermes_email.config import (
+    ConfigError,
+    EmailPluginConfig,
+    ImapSettings,
+    StorageSettings,
+    load_config,
+)
 
 
 def test_defaults_are_safe() -> None:
@@ -18,6 +24,9 @@ def test_defaults_are_safe() -> None:
     assert config.imap.port == 993
     assert config.imap.security == "tls"
     assert config.imap.mailbox == "INBOX"
+    assert config.storage == StorageSettings()
+    assert config.storage.mode == "disabled"
+    assert config.storage.account_namespace is None
     assert config.safety.allow_send is False
     assert config.safety.allow_delete is False
     assert config.safety.allow_move is False
@@ -27,6 +36,12 @@ def test_example_configuration_loads() -> None:
     path = Path(__file__).parents[1] / "examples" / "config.example.yaml"
 
     assert load_config(path) == EmailPluginConfig()
+
+
+@pytest.mark.parametrize("value", [False, 0, [], ""])
+def test_falsey_non_mapping_root_is_rejected(value) -> None:
+    with pytest.raises(ConfigError, match="configuration root"):
+        EmailPluginConfig.from_mapping(value)
 
 
 def test_unknown_configuration_key_is_rejected(tmp_path: Path) -> None:
@@ -180,3 +195,65 @@ def test_mock_provider_rejects_readonly_mode() -> None:
 def test_imap_resource_bounds_are_enforced(field_name: str, value: int) -> None:
     with pytest.raises(ConfigError, match=field_name):
         ImapSettings(**{field_name: value})
+
+
+def test_explicit_sqlite_storage_configuration_is_valid() -> None:
+    config = EmailPluginConfig.from_mapping(
+        {
+            "email": {"provider": "mock", "read_mode": "mock"},
+            "storage": {
+                "mode": "sqlite",
+                "account_namespace": "primary-inbox",
+                "retention_days": 30,
+                "max_observations": 500,
+                "max_database_bytes": 4_194_304,
+            },
+        }
+    )
+
+    assert config.storage == StorageSettings(
+        mode="sqlite",
+        account_namespace="primary-inbox",
+        retention_days=30,
+        max_observations=500,
+        max_database_bytes=4_194_304,
+    )
+
+
+@pytest.mark.parametrize(
+    "namespace",
+    ["", " space", "contains space", "../escape", "a" * 65, 123],
+)
+def test_storage_account_namespace_is_a_bounded_portable_slug(namespace) -> None:
+    with pytest.raises(ConfigError, match="account_namespace"):
+        StorageSettings(mode="sqlite", account_namespace=namespace)
+
+
+def test_sqlite_storage_requires_namespace_and_readable_provider() -> None:
+    with pytest.raises(ConfigError, match="account_namespace"):
+        StorageSettings(mode="sqlite")
+    with pytest.raises(ConfigError, match="readable email provider"):
+        EmailPluginConfig.from_mapping(
+            {
+                "storage": {
+                    "mode": "sqlite",
+                    "account_namespace": "primary-inbox",
+                }
+            }
+        )
+
+
+@pytest.mark.parametrize(
+    ("field_name", "value"),
+    [
+        ("retention_days", 0),
+        ("retention_days", 3_651),
+        ("max_observations", 0),
+        ("max_observations", 100_001),
+        ("max_database_bytes", 1_048_575),
+        ("max_database_bytes", 1_073_741_825),
+    ],
+)
+def test_storage_resource_bounds_are_enforced(field_name: str, value: int) -> None:
+    with pytest.raises(ConfigError, match=field_name):
+        StorageSettings(**{field_name: value})
