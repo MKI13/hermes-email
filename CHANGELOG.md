@@ -4,6 +4,31 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-09-05
+
+### Added
+
+- Durable profile-scoped `SqliteSendIntentStore` using fixed `email-send-intents.sqlite3` storage for send operation identity, exact draft revision, confirmation identity, request digest, fixed state, and timestamps.
+- `IdempotentSendOrchestrator` that commits a `dispatching` intent before the first SMTP call and never redispatches a persisted operation.
+- Opaque 16-to-128-character `send_operation_id` validation plus exact SHA-256 candidate binding.
+- Durable states for `dispatching`, `accepted`, `definite-failure`, and `delivery-unknown`.
+- Restart, crash, replay, delivery-unknown, changed-operation, duplicate-draft, and private-permission test coverage.
+
+### Changed
+
+- The same `send_operation_id` with the same exact candidate now replays durable state without another SMTP attempt.
+- The same `send_operation_id` with changed candidate content fails closed.
+- A unique `(draft_id, revision)` constraint prevents the same reviewed draft revision from being dispatched under a second operation ID or second confirmation token.
+- Unexpected process failure after intent persistence intentionally leaves `dispatching`; restart replays that unresolved state without transport activity.
+- Project version advanced to `0.20.0` across package metadata, plugin manifest, skill, CI assertions, tests, README, architecture, configuration, compatibility, security documentation, distribution checks, and changelog.
+
+### Security
+
+- Send intent is durable before SMTP dispatch, closing the restart/retry window that could otherwise duplicate a customer email.
+- `delivery-unknown` and unresolved `dispatching` records are never automatically retried.
+- The send-intent ledger stores no subject, message body, recipient address, SMTP credential, or raw MIME.
+- SMTP dispatch remains unreachable from `EmailPlugin`, all nine Hermes tools, `/email-status`, the skill, hooks, callbacks, timers, and pollers. No model-facing send tool is exposed.
+
 ## [0.19.0] - 2026-09-05
 
 ### Added
@@ -136,8 +161,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - IMAP permits only verified implicit TLS 1.2 or newer and ignores process-level TLS key-log configuration.
 - Authentication uses SASL PLAIN over verified TLS rather than the CPython IMAP LOGIN command path.
-- Every mailbox operation requires read-only selection and uses bounded UID `BODY.PEEK` partial fetches; no mutating IMAP commands are implemented.
-- UID cursors bind to `UIDVALIDITY`, descend within the current `UIDNEXT` snapshot, and are never followed automatically.
+- Every mailbox operation requires read-only `EXAMINE` and uses bounded UID `BODY.PEEK` partial fetches; no mutating IMAP commands are implemented.
+- UID cursors bind to `UIDVALIDITY`, descend from a fixed `UIDNEXT` snapshot, and are never followed automatically.
 - MIME normalization skips attachments and remote HTML resources, suppresses active or hidden elements, strips control characters, caps content, and marks partial messages.
 - Registration, disabled mode, mock mode, `/email-status`, and provider resolution perform no secret or network access.
 - SMTP, sends, deletes, moves, polling, retries, tools, and persistence remain unavailable.
@@ -339,7 +364,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - Initial project metadata and safe-by-default foundation.
 
-[Unreleased]: https://github.com/MKI13/hermes-email/compare/v0.19.0...HEAD
+[Unreleased]: https://github.com/MKI13/hermes-email/compare/v0.20.0...HEAD
+[0.20.0]: https://github.com/MKI13/hermes-email/compare/v0.19.0...v0.20.0
 [0.19.0]: https://github.com/MKI13/hermes-email/compare/v0.18.0...v0.19.0
 [0.18.0]: https://github.com/MKI13/hermes-email/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/MKI13/hermes-email/compare/v0.16.0...v0.17.0
