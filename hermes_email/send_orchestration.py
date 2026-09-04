@@ -158,10 +158,10 @@ class SqliteSendIntentStore:
     def _connect(self) -> sqlite3.Connection:
         parent = self._path.parent
         parent.mkdir(parents=True, exist_ok=True)
-        if os.name == "posix":
-            parent.chmod(0o700)
         if self._path.is_symlink():
             raise SendOrchestrationError("send-intent database path must not be a symlink")
+        if os.name == "posix":
+            parent.chmod(0o700)
         connection = sqlite3.connect(self._path, timeout=5.0)
         if os.name == "posix":
             self._path.chmod(0o600)
@@ -211,7 +211,7 @@ class IdempotentSendOrchestrator:
             envelope_sender=candidate.envelope_sender,
             envelope_recipients=candidate.envelope_recipients,
             message_bytes=candidate.message_bytes,
-            max_message_bytes=len(candidate.message_bytes),
+            max_message_bytes=max(1_024, len(candidate.message_bytes)),
         )
         try:
             self._transport.submit_once(submission)
