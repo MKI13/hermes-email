@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hermes-email"
-version = "0.19.0"
-description = "Safe Hermes email access, local drafts, and disconnected gated SMTP transport."
+version = "0.20.0"
+description = "Safe Hermes email access, local drafts, and durable idempotent SMTP orchestration."
 readme = "README.md"
 requires-python = ">=3.11,<3.14"
 license = "MIT"

@@ -2,11 +2,11 @@
 
 ## Principles
 
-Operators define settings per Hermes profile and deployment. Project sources include no personal addresses, provider credentials, company rules, or fixed writing style. `hermes.profile: auto` means integrations use the active Hermes profile. Version 0.19.0 binds only public plugin properties and never inspects private profile files.
+Operators define settings per Hermes profile and deployment. Project sources include no personal addresses, provider credentials, company rules, or fixed writing style. `hermes.profile: auto` means integrations use the active Hermes profile. Version 0.20.0 binds only public plugin properties and never inspects private profile files.
 
 ## Hermes runtime settings
 
-Place settings and secret references under `plugins.entries.hermes-email.settings`. The plugin reads only its `email`, `hermes`, `credentials`, `imap`, `storage`, `drafts`, `smtp`, `recipient_policy`, `behavior`, and `safety` sections through `ctx.get_config()`:
+Place settings and secret references under `plugins.entries.hermes-email.settings`. The plugin reads only its `email`, `hermes`, `credentials`, `imap`, `storage`, `drafts`, `smtp`, `recipient_policy`, `behavior`, and `safety` sections through `ctx.get_config()`.
 
 ```yaml
 plugins:
@@ -40,9 +40,9 @@ plugins:
           allow_move: false
 ```
 
-Absent settings load with read, draft, SMTP, and technical-send access disabled. Valid mock settings produce `mock-ready`; valid IMAP settings produce `provider-configured` without connecting. Local drafts are independent of these read states and require no provider. Invalid self-contained settings fail closed; unsupported provider resolution produces `configuration-error` without secret or network access.
+Absent settings load with read, draft, SMTP, and technical-send access disabled. Valid mock settings produce `mock-ready`; valid IMAP settings produce `provider-configured` without connecting. Local drafts are independent of these read states and require no provider. Invalid self-contained settings fail closed.
 
-`/email-status` displays only the fixed runtime snapshot, including non-secret `SMTP` configuration and `Technical send gates` state. Nine tools are registered statically, while offline availability checks expose only read and draft tools when their independent gates permit them. No SMTP or send tool or command is registered.
+`/email-status` displays only the fixed runtime snapshot. Nine tools are registered statically. No SMTP or send tool or command is registered in version 0.20.0.
 
 ## Read-only IMAP with independent storage
 
@@ -68,9 +68,6 @@ plugins:
         storage:
           mode: sqlite
           account_namespace: primary-inbox
-          retention_days: 90
-          max_observations: 10000
-          max_database_bytes: 16777216
         drafts:
           mode: sqlite
           account_namespace: primary-account
@@ -78,96 +75,96 @@ plugins:
 
 Observation and draft namespaces serve different identities and may differ. The observation namespace identifies one provider mailbox. The draft namespace binds drafts to one operator-intended account independently of provider access.
 
-## Fields
+## Core fields
 
 ### `email`
 
-- `provider`: `null`, `mock`, or `imap`; no fallback provider is selected.
-- `read_mode`: `disabled`, `mock`, or `readonly`. Mock requires `mock`; IMAP accepts `readonly` or `disabled`.
-
-Provider draft modes do not exist. Local drafts are configured only in `drafts`.
+- `provider`: `null`, `mock`, or `imap`.
+- `read_mode`: `disabled`, `mock`, or `readonly`.
 
 ### `hermes`
 
-- `profile`: `auto` or a future explicit profile identifier. This release stores and validates the value but does not switch profiles.
-
-### `credentials`
-
-- `username_ref`: reserved optional provider-neutral username reference.
-- `password_ref`: reserved optional provider-neutral password reference.
-
-Both fields contain references, never credential values. This release does not resolve the provider-neutral placeholders. IMAP uses its own references so future transports can use separately authorized accounts.
+- `profile`: `auto` or a future explicit profile identifier. This release does not switch profiles.
 
 ### `imap`
 
-- `host`: required ASCII DNS name or IP address for IMAP; URLs, user information, paths, whitespace, and controls are rejected.
-- `port`: implicit-TLS endpoint, default `993`, bounded to `1..65535`.
-- `security`: exactly `tls`; plaintext, STARTTLS, and certificate bypasses are unavailable.
-- `username_ref` and `password_ref`: required together and resolved only during an explicit health or read operation.
-- `mailbox`: printable ASCII name, default `INBOX`; every operation uses read-only `EXAMINE`.
-- `timeout_seconds`: finite socket-operation timeout from 1 through 120 seconds.
-- `max_mailbox_messages`: default 10000, maximum 50000.
-- `max_message_bytes`: default 2000000, maximum 10000000.
-- `max_page_bytes`: default 5000000, maximum 20000000.
-
-References are at most 128 characters, start with `HERMES_EMAIL_`, and contain uppercase letters, digits, and single underscores between segments. Registration, local drafting, disabled mode, mock mode, and status never resolve them.
+- `host`: required ASCII DNS name or IP address.
+- `port`: default `993`.
+- `security`: exactly `tls`.
+- `username_ref` and `password_ref`: strict `HERMES_EMAIL_...` references, resolved only during explicit IMAP operations.
+- `mailbox`: default `INBOX`; all access is read-only.
+- finite bounds apply to timeout, mailbox size, message bytes, and page bytes.
 
 ### `storage`
 
-- `mode`: `disabled` or explicit `sqlite`.
-- `account_namespace`: required with SQLite; 1 to 64 ASCII letters, digits, dots, underscores, or hyphens, beginning with a letter or digit. Use a different stable value for each account and mailbox; do not use an address, hostname, credential, or personal label.
-- `retention_days`: default 90, bounded from 1 through 3650.
-- `max_observations`: default 10000, maximum 100000.
-- `max_database_bytes`: default 16777216, bounded from 1048576 through 1073741824.
+- `mode`: `disabled` or `sqlite`.
+- `account_namespace`: stable non-secret mailbox identity.
+- retention, row count, and database size are bounded.
 
-Observation SQLite requires a readable provider. Its path is fixed to `email-observations.sqlite3` under public profile-scoped plugin data. The first explicit successful read opens it. The ledger contains identity and timing metadata, never content.
+The fixed file is `email-observations.sqlite3` under profile-scoped plugin data and contains identity/timing metadata only.
 
 ### `drafts`
 
-- `mode`: `disabled` by default or explicit `sqlite`.
-- `account_namespace`: required with SQLite and validated with the same portable syntax as observation storage. It identifies the intended future sending account, not a provider mailbox. Keep it stable and distinct across accounts.
-- `max_drafts`: default 1000, bounded from 1 through 10000.
-- `max_operations`: default 10000, bounded from 1 through 100000. Completed mutation receipts are not automatically pruned; reaching the cap fails closed.
-- `max_database_bytes`: default 33554432, bounded from 1048576 through 268435456.
+- `mode`: `disabled` or `sqlite`.
+- `account_namespace`: stable intended sending-account identity.
+- `max_drafts`, `max_operations`, and `max_database_bytes` are bounded.
 
-Draft SQLite is provider-independent. Its path is fixed to `email-drafts.sqlite3` under public profile-scoped plugin data and cannot be redirected. Registration computes the path without creating a directory or file; the first explicit draft operation opens it. No draft content is stored in `email-observations.sqlite3`.
-
-Use a local filesystem with SQLite locking semantics; network filesystems are unsupported. POSIX paths require exact owner-only permissions. On Windows, configure the profile ACL for account-only access. Draft SQLite is plaintext and contains sensitive content; use encrypted storage and protected backups where required.
+The fixed file is `email-drafts.sqlite3`. It contains sensitive plaintext draft content and must live on protected storage.
 
 ### `smtp`
 
-- `mode`: `disabled` by default or explicit `submission`.
-- `account_namespace`: required for submission and must exactly equal the enabled draft namespace.
-- `host`: required ASCII DNS name or IP address; URLs, paths, whitespace, and controls are rejected.
-- `port`: default `465`, bounded to `1..65535`; choose the operator's verified implicit-TLS or STARTTLS submission endpoint.
-- `security`: `implicit_tls` or mandatory `starttls`; plaintext and opportunistic downgrade are unavailable.
-- `username_ref` and `password_ref`: separate SMTP references required together for submission and resolved only after verified TLS and AUTH PLAIN capability checks.
-- `sender_address`: required fixed ASCII envelope/header sender. A draft or model cannot replace it.
-- `sender_display_name`: optional bounded Unicode display name; CR, LF, NUL, and other controls are rejected.
-- `timeout_seconds`: finite operation timeout from 1 through 120 seconds, default 15.
-- `max_message_bytes`: final serialized-message cap from 1024 through 10000000 bytes, default 1000000.
+- `mode`: `disabled` or `submission`.
+- `account_namespace`: must exactly match the enabled draft namespace.
+- `host`, `port`, and `security`: verified implicit TLS or mandatory STARTTLS only.
+- `username_ref` and `password_ref`: separate SMTP credential references.
+- `sender_address`: fixed configured ASCII sender.
+- `sender_display_name`: optional bounded display name.
+- finite timeout and serialized-message byte limits apply.
 
-SMTP configuration requires enabled local draft storage even when `safety.allow_send` remains false. Configuration alone creates no connection, resolves no secret, and exposes no dispatch surface.
+SMTP configuration alone creates no connection, resolves no secret, and exposes no Hermes dispatch surface.
 
 ### `recipient_policy`
 
-- `mode`: `deny` by default, `allowlist`, or explicit `all`.
-- `allowed_addresses`: at most 100 exact ASCII addr-spec values. Domain comparison is case-insensitive; local-part comparison remains case-sensitive.
-- `allowed_domains`: at most 100 exact lowercase ASCII domains. A domain entry does not include subdomains.
+- `mode`: `deny`, `allowlist`, or `all`.
+- `allowed_addresses`: exact ASCII addresses.
+- `allowed_domains`: exact lowercase ASCII domains; subdomains are not implicit.
 
-Lists are allowed only with `allowlist`, which requires at least one entry. To, Cc, and Bcc recipients must all pass the policy before a candidate is prepared. Policy is deployment authorization, not current-user confirmation.
+All To/Cc/Bcc recipients must pass the policy before candidate preparation. Policy is deployment authorization, not current-user confirmation.
 
 ### `behavior`
 
-All inheritance flags default to `true`. They express intended behavior for context adapters and do not authorize private runtime access.
+All inheritance flags default to `true`. They describe intended Hermes-context inheritance and do not authorize private runtime access.
 
 ### `safety`
 
-`allow_delete` and `allow_move` must remain `false`. `allow_send: true` is valid only with complete SMTP submission settings, matching enabled draft storage, and a non-deny recipient policy. In v0.19.0 this flag arms only technical candidate eligibility. It does not indicate user confirmation, set runtime `send_enabled`, instantiate a transport, or authorize a Hermes send.
+`allow_delete` and `allow_move` must remain `false`. `allow_send: true` only arms technical candidate eligibility when SMTP, drafts, account identity, fixed sender, credentials, and recipient policy are complete.
 
-Version 0.19.0 additionally requires an internal trusted `UserSendConfirmation` before `prepare_send_candidate()` can succeed. That confirmation must match the exact `draft_id` and exact `revision` requested for preparation. A missing confirmation, another draft ID, or another revision fails closed. Any draft update changes the revision and invalidates previous confirmation automatically. Current model output, email or draft content, configuration, recipient policy, SMTP state, and `allow_send` are never valid substitutes for the current user's explicit approval.
+Version 0.20.0 additionally requires:
 
-The bundled Hermes skill and registered tools still cannot create this trusted confirmation or dispatch SMTP. Local draft permission does not authorize sending or mailbox changes. Durable audit and idempotent orchestration remain prerequisites before a model-facing send surface is allowed.
+1. a trusted `UserSendConfirmation` for the exact draft ID and exact revision before candidate preparation;
+2. a unique opaque `send_operation_id` before transport dispatch;
+3. a durable send intent committed before SMTP is called;
+4. no redispatch when that intent already exists;
+5. rejection of a second operation ID for the same `(draft_id, revision)`.
+
+The internal send-intent file is fixed as `email-send-intents.sqlite3` under the caller-provided profile data directory. It stores only operation/draft/revision/confirmation identity, request digest, state, and timestamps. It stores no mail body, subject, recipient addresses, credentials, or raw MIME.
+
+The registered Hermes runtime still does not instantiate the send orchestrator or SMTP transport for model use. `send_enabled` remains false and no model-facing send tool exists.
+
+## Idempotency semantics
+
+A `send_operation_id` must be 16 to 128 ASCII characters with no whitespace. Reusing the same ID with the same exact candidate returns the stored state without SMTP. Reusing it with changed candidate content fails closed.
+
+A unique database constraint on `(draft_id, revision)` blocks a second send intent for the same reviewed draft revision even when a new operation ID or new confirmation token is supplied.
+
+Persisted states are:
+
+- `dispatching`
+- `accepted`
+- `definite-failure`
+- `delivery-unknown`
+
+A persisted state is replayed without another SMTP attempt. An unresolved `dispatching` record after a crash is treated conservatively as potentially sent and is not automatically retried.
 
 ## Standalone example and loading
 
@@ -179,4 +176,4 @@ from hermes_email import load_config
 config = load_config("path/to/config.yaml")
 ```
 
-The loader uses YAML safe loading, validates every section and value type, and rejects unknown keys. Pass the validated configuration to the provider resolver only when constructing a read provider. Local draft storage is created by the plugin runtime from public profile state.
+The loader uses YAML safe loading, validates every section and value type, and rejects unknown keys.

@@ -12,7 +12,7 @@ Registration creates no network client or database file, resolves no secret, inv
 
 ## Plugin facade
 
-`hermes_email.plugin.EmailPlugin` owns validated configuration, an optional read provider, an optional content-free observation store, an optional local draft store, an optional Hermes context source, and separate redacted read and draft diagnostics. It does not own or instantiate an SMTP transport. `EmailPlugin.from_config()` is the provider factory. Draft operations never call it or require a provider.
+`hermes_email.plugin.EmailPlugin` owns validated configuration, an optional read provider, an optional content-free observation store, an optional local draft store, an optional Hermes context source, and separate redacted read and draft diagnostics. It does not own or instantiate an SMTP transport or send orchestrator. `EmailPlugin.from_config()` is the provider factory. Draft operations never call it or require a provider.
 
 Read methods enforce explicit read mode and provider capabilities before one bounded provider call. Search filters one fetched page locally. Provider order and opaque cursors are preserved. Explicit reads may atomically record observations before results return.
 
@@ -34,17 +34,27 @@ Unload marks the facade closed, detaches provider and stores, clears context, cl
 
 A submission uses one connection and no retry. MAIL must succeed, then every RCPT must succeed before DATA. Any RCPT rejection triggers RSET and no DATA. A non-250 final DATA reply is a definite rejection. A transport exception, timeout, or interruption after DATA begins becomes `SmtpDeliveryUnknownError`; a final 250 becomes accepted by the server and remains accepted if QUIT fails.
 
-`prepare_send_candidate()` is a non-network technical gate. In version 0.19.0 it requires a trusted `UserSendConfirmation` bound to the exact draft ID and exact revision in addition to explicit deployment enablement, matching SMTP/draft namespaces, one exact active draft revision, at least one bounded recipient, authorization of every To/Cc/Bcc address, the fixed sender, a caller-supplied validated Message-ID and aware date, and the final serialized-byte cap. Missing confirmation or a confirmation for another draft or revision fails closed before draft access. Any draft mutation increments the revision and therefore invalidates a prior confirmation automatically.
+`prepare_send_candidate()` is a non-network technical gate. In version 0.20.0 it requires a trusted `UserSendConfirmation` bound to the exact draft ID and exact revision in addition to explicit deployment enablement, matching SMTP/draft namespaces, one exact active draft revision, at least one bounded recipient, authorization of every To/Cc/Bcc address, the fixed sender, a caller-supplied validated Message-ID and aware date, and the final serialized-byte cap. Missing confirmation or a confirmation for another draft or revision fails closed before draft access. Any draft mutation increments the revision and therefore invalidates a prior confirmation automatically.
 
 The confirmation object is a trusted-runtime proof only. Model output, email content, draft content, configuration, recipient policy, SMTP readiness, or `safety.allow_send` cannot create or substitute current-user confirmation. Candidate preparation emits deterministic plain-text MIME with quoted-printable body encoding, no Bcc header, no HTML, no attachments, no custom headers, and no `In-Reply-To` derived from the provider-local draft locator.
 
-Version 0.19.0 still leaves SMTP dispatch disconnected from `EmailPlugin`, Hermes tools, commands, callbacks, hooks, and timers. Deployment `allow_send` arms only technical eligibility. Runtime `send_enabled` remains false. Durable send audit, immutable send-intent persistence, idempotent dispatch, and delivery-unknown recovery remain prerequisites before a Hermes send surface can be exposed.
+## Durable send orchestration
+
+Version 0.20.0 adds `SqliteSendIntentStore` and `IdempotentSendOrchestrator` as disconnected internal APIs. The store uses fixed `email-send-intents.sqlite3` under a caller-provided profile data directory. It stores no body, subject, recipient address, credential, or raw MIME; it stores only opaque operation identity, draft ID, revision, confirmation ID, SHA-256 request digest, state, and timestamps.
+
+Every send attempt requires a 16-to-128-character opaque ASCII `send_operation_id`. `begin()` obtains `BEGIN IMMEDIATE`, checks whether that operation ID already exists, verifies exact request digest on replay, and commits a `dispatching` record before any SMTP call. Reusing an operation ID with changed candidate content fails closed.
+
+The table additionally enforces `UNIQUE(draft_id, revision)`. This means the same reviewed draft revision cannot be dispatched again by minting a second operation ID or a second confirmation token. Once a durable intent exists for that revision, duplicate intent creation is denied.
+
+`IdempotentSendOrchestrator.send_once()` calls SMTP only when `begin()` created a brand-new intent. A replayed record is returned directly without transport activity. Normal server acceptance becomes `accepted`; known `SmtpError` failures before uncertain delivery become `definite-failure`; `SmtpDeliveryUnknownError` becomes `delivery-unknown`. Any unexpected process-level failure leaves the already committed state as `dispatching`. After restart or caller retry, that unresolved record is replayed without redispatch. This deliberately favors duplicate prevention over automatic retry.
+
+The send-intent database uses rollback journaling, `synchronous=FULL`, `trusted_schema=OFF`, private POSIX permissions (`0700` directory and `0600` file), and a fixed schema version. The current orchestration remains disconnected from `EmailPlugin`, Hermes tools, commands, callbacks, hooks, and timers. Runtime `send_enabled` remains false.
 
 ## Observation storage
 
 `SqliteObservationStore` is an optional content-free ledger. One identity contains an operator account namespace, provider, SHA-256 mailbox namespace, and provider message ID. IMAP IDs include `UIDVALIDITY` and UID. RFC Message-ID, subject, addresses, body, host, credentials, raw MIME, and arbitrary metadata are never stored. Observation never means processed, trusted, drafted, acted upon, or sent.
 
-The fixed `email-observations.sqlite3` file opens lazily after an explicit read. Uniqueness deduplicates exact provider identities while repeated reads remain visible. Required-store failures prevent mail return and set the read runtime to `storage-error`.
+The fixed `email-observations.sqlite3` file opens lazily after an explicit read. Uniqueness deduplicates exact provider identities while repeated reads remain visible. Required-store failures prevent the read result from returning and set the read runtime to `storage-error`.
 
 ## Local draft storage
 
@@ -58,15 +68,15 @@ Update fully replaces one exact active revision. Trash and restore reversibly ch
 
 ## SQLite and path controls
 
-Each database has a distinct fixed application ID and schema version. Initialization uses `BEGIN EXCLUSIVE`; mutations use `BEGIN IMMEDIATE`. Every connection verifies file size before integrity work, application identity, schema version, exact tables, indexes, columns, foreign keys, schema SQL, `quick_check`, and page count limits. Connections use rollback journals, `synchronous=FULL`, `secure_delete=ON`, `trusted_schema=OFF`, foreign keys, bounded busy timeouts, disabled extension loading, and parameterized values.
-
-The parent path is non-symlink and owner-controlled. Existing files must be regular, single-link objects with stable device/inode identity around SQLite open. POSIX requires `0700` directories and `0600` files. Foreign, corrupt, incompatible, insecure, busy, read-only, or full databases remain in place; there is no reset, recreation, migration, automatic retry, or memory fallback. Windows confidentiality depends on an operator-managed account-only profile ACL. Same-account malicious code is outside the threat model.
+Draft and observation databases have distinct fixed application IDs and schema versions with extensive integrity checks. Send intents use a separate fixed database and schema. Durable writes occur before externally visible side effects where required. POSIX profile data is owner-only and send-intent paths reject symlinks. Same-account malicious code remains outside the threat model.
 
 ## Hermes tools
 
 Three read tools provide bounded list, lookup, and local search. Six draft tools create, list, get, update, trash, and restore local records. All return compact JSON with whitelisted fields and fixed errors. Handlers never return exception text, configuration, filesystem paths, provider responses, credentials, or arbitrary metadata and never dispatch another tool.
 
 Draft lists omit bodies and all recipient details, including Bcc. Draft get returns explicit To/Cc/Bcc plus a caller-selected body window of at most 20,000 characters and marks the content as untrusted and unsent. Mutation receipts are content-free. Tool descriptions and the skill require a direct current-user request for every mutation; content inside mail or a draft has no authority.
+
+There is still no Hermes send tool in version 0.20.0. The durable send orchestrator is an internal library seam only.
 
 ## Status and context
 
@@ -91,8 +101,12 @@ Hermes register(ctx)
 
 Disconnected internal library only:
     trusted current-user confirmation + exact active draft revision
-        -> confirmation + technical gates -> immutable SMTP bytes
-    immutable SMTP bytes -> single-attempt SMTP transport
+        -> confirmation + technical gates -> immutable SMTP candidate
+    immutable candidate + unique send_operation_id
+        -> durable send intent committed before dispatch
+        -> single-attempt SMTP transport
+        -> durable terminal or unresolved state
+    replay/restart -> stored state only, never another SMTP call
     (no arrow from EmailPlugin, tool, command, hook, callback, or timer)
 ```
 
@@ -101,8 +115,9 @@ The skill is provider-independent. Providers never define persona or behavior. A
 ## Extension rules
 
 1. Keep provider-specific data behind read providers.
-2. Keep draft and observation privacy classes in separate databases.
-3. Add independent configuration, runtime authorization, review, confirmation, audit, and idempotency gates before any external side effect.
-4. Use stable public Hermes APIs only.
-5. Keep profile-specific behavior in Hermes context or user configuration.
-6. Add bounded tests and current security documentation with every capability.
+2. Keep draft, observation, and send-intent privacy classes separated by purpose.
+3. Require independent configuration, runtime authorization, review, confirmation, durable intent, audit, and idempotency gates before external side effects.
+4. Never redispatch a persisted unresolved or terminal send intent automatically.
+5. Use stable public Hermes APIs only.
+6. Keep profile-specific behavior in Hermes context or user configuration.
+7. Add bounded tests and current security documentation with every capability.
