@@ -4,6 +4,30 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-09-05
+
+### Added
+
+- Strict `delivery-unknown` recovery semantics with explicit manual-review and automatic-retry-forbidden status on `SendAttemptRecord`.
+- Process-scoped dispatcher ownership for live `dispatching` rows so concurrent same-process callers do not misclassify an active SMTP attempt as crashed.
+- Safe v1-to-v2 send-intent schema migration adding nullable dispatcher ownership without recreating or discarding existing records.
+- Recovery tests for legacy v0.20 `dispatching`, same-process concurrency, unexpected exceptions, terminal unknown replay, and migration safety.
+
+### Changed
+
+- Unexpected exceptions during a live SMTP attempt are persisted as `delivery-unknown` before propagation whenever the process remains alive.
+- Any prior-process, legacy, or unowned unresolved `dispatching` record is atomically converted to `delivery-unknown` on recovery and is never redispatched.
+- Process-local locking now serializes orchestration against the same profile ledger while SQLite uniqueness remains the durable duplicate barrier.
+- `delivery-unknown` is documented as “message may already have been accepted”; callers must perform manual external verification instead of automatic retry.
+- Project version advanced to `0.21.0` across package metadata, plugin manifest, skill, CI assertions, tests, README, architecture, configuration, compatibility, security documentation, and changelog.
+
+### Security
+
+- Restart recovery can no longer leave an old `dispatching` record indefinitely ambiguous or accidentally create a resend path.
+- A live same-process dispatch is distinguished from a stale prior-process dispatch before recovery.
+- `delivery-unknown` and recovered interrupted dispatch are terminal for automatic behavior; no recovery path calls SMTP.
+- SMTP dispatch remains unreachable from `EmailPlugin`, all nine Hermes tools, `/email-status`, the skill, hooks, callbacks, timers, and pollers. No model-facing send tool is exposed.
+
 ## [0.20.0] - 2026-09-05
 
 ### Added
@@ -364,7 +388,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - Initial project metadata and safe-by-default foundation.
 
-[Unreleased]: https://github.com/MKI13/hermes-email/compare/v0.20.0...HEAD
+[Unreleased]: https://github.com/MKI13/hermes-email/compare/v0.21.0...HEAD
+[0.21.0]: https://github.com/MKI13/hermes-email/compare/v0.20.0...v0.21.0
 [0.20.0]: https://github.com/MKI13/hermes-email/compare/v0.19.0...v0.20.0
 [0.19.0]: https://github.com/MKI13/hermes-email/compare/v0.18.0...v0.19.0
 [0.18.0]: https://github.com/MKI13/hermes-email/compare/v0.17.0...v0.18.0
