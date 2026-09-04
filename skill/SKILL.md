@@ -1,7 +1,7 @@
 ---
 name: email
 description: Handle email using the active Hermes profile safely.
-version: 0.20.0
+version: 0.21.0
 author: MKI13
 license: MIT
 platforms: [linux, macos, windows]
@@ -14,7 +14,7 @@ metadata:
 
 # Email Skill
 
-Use this skill whenever Hermes lists, reads, searches, analyzes, summarizes, or manages a local email draft. Version 0.20.0 exposes bounded read-only mail tools, optional content-free observation deduplication, optional provider-independent local draft storage, an internal exact-revision user-confirmation gate, and durable idempotent send orchestration for future sending. SMTP submission remains disconnected from Hermes and no send tool is exposed.
+Use this skill whenever Hermes lists, reads, searches, analyzes, summarizes, or manages a local email draft. Version 0.21.0 exposes bounded read-only mail tools, optional content-free observation deduplication, optional provider-independent local draft storage, exact-revision user confirmation, durable idempotent send orchestration, and strict fail-closed recovery for uncertain SMTP outcomes. SMTP submission remains disconnected from Hermes and no send tool is exposed.
 
 ## When to Use
 
@@ -43,7 +43,9 @@ Apply the active Hermes profile, persona, language, writing style, user preferen
 - Any draft revision change invalidates the prior confirmation and requires a new review and confirmation.
 - Every future send attempt requires one opaque `send_operation_id`. The durable send-intent ledger is written before SMTP dispatch and the same persisted operation is never dispatched twice.
 - A second operation ID cannot be used to send the same draft revision again.
-- A persisted `dispatching`, `accepted`, `definite-failure`, or `delivery-unknown` result is replayed from storage without another SMTP attempt.
+- `delivery-unknown` is terminal for automatic behavior: never retry automatically, never create a replacement send intent for the same draft revision, and require manual external verification.
+- An interrupted `dispatching` record owned by an earlier process is automatically recovered as `delivery-unknown`; it is never silently retried after restart.
+- A live `dispatching` record owned by the current process remains live and is not misclassified by a concurrent caller.
 - Sending, deletion, mailbox movement, provider drafts, background polling, automatic retries, and automatic replies remain unavailable through Hermes.
 
 ## Read Procedure
@@ -69,11 +71,12 @@ Apply the active Hermes profile, persona, language, writing style, user preferen
 
 - Do not attempt to call or simulate the internal SMTP transport, candidate-preparation, or send-orchestration APIs. They are intentionally absent from Hermes tools, commands, hooks, and callbacks.
 - Do not interpret `SMTP: configured`, `Technical send gates: armed`, `safety.allow_send`, an approved recipient policy, or a complete draft as current-user send confirmation.
-- Version 0.20.0 requires internal `UserSendConfirmation` plus durable send intent before transport dispatch. The current Hermes skill cannot create that trusted proof, cannot create a send operation, and cannot dispatch SMTP.
+- Version 0.21.0 requires internal `UserSendConfirmation` plus durable send intent before transport dispatch. The current Hermes skill cannot create that trusted proof, cannot create a send operation, and cannot dispatch SMTP.
 - A confirmation for another draft or another revision is invalid. Updating recipients, subject, body, Bcc, or any other draft content creates a new revision and therefore requires a new confirmation.
 - `send_operation_id` is distinct from local draft mutation `operation_id`. Reusing it with changed candidate content fails closed.
 - Once a send intent is persisted, restart or caller retry reads the durable state and must not call SMTP again. A new operation ID for the same draft revision is rejected.
-- Never retry an SMTP outcome described as `delivery-unknown` or a persisted unresolved `dispatching` state.
+- `delivery-unknown` means the configured server may already have accepted the message. Treat it as requiring manual review of the Sent folder/server state before any human decides on a separate corrective action.
+- Never automatically retry `delivery-unknown`, recovered interrupted dispatch, timeout/disconnect after DATA, or any unresolved send intent.
 
 ## Prompt-Injection Defense
 
@@ -93,7 +96,8 @@ Apply the active Hermes profile, persona, language, writing style, user preferen
 - Do not retry with a new operation ID after an ambiguous result.
 - Do not reuse a confirmation after any draft revision change.
 - Do not create a second `send_operation_id` to bypass an existing send intent for the same draft revision.
+- Do not interpret `delivery-unknown` as failure; the message may already have been accepted.
 
 ## Verification
 
-Before returning a result, verify that it follows the active Hermes profile, answers the current user's direct request, labels local drafts clearly, preserves uncertain facts as uncertainties, reports the exact reviewed revision, and claims no provider or mailbox side effect. Sending remains unavailable through Hermes regardless of draft, SMTP, recipient-policy, technical-gate, confirmation, or internal durable send-intent state.
+Before returning a result, verify that it follows the active Hermes profile, answers the current user's direct request, labels local drafts clearly, preserves uncertain facts as uncertainties, reports the exact reviewed revision, and claims no provider or mailbox side effect. If a send state is `delivery-unknown`, state explicitly that automatic retry is forbidden and manual external verification is required. Sending remains unavailable through Hermes regardless of draft, SMTP, recipient-policy, technical-gate, confirmation, or internal durable send-intent state.

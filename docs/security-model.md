@@ -1,10 +1,12 @@
 # Security Model
 
-## Version 0.20.0 boundary
+## Version 0.21.0 boundary
 
-Version 0.20.0 adds durable idempotent send orchestration to the exact current-user confirmation gate introduced in 0.19.0. A send candidate still requires a trusted `UserSendConfirmation` bound to the exact local draft ID and exact revision. Version 0.20.0 additionally requires a unique opaque `send_operation_id` and commits a durable send intent before the first SMTP call.
+Version 0.21.0 hardens durable idempotent send orchestration with strict uncertain-delivery recovery. A send candidate still requires a trusted `UserSendConfirmation` bound to the exact local draft ID and exact revision, plus a unique opaque `send_operation_id` persisted before the first SMTP call.
 
-SMTP remains disconnected from `EmailPlugin`, Hermes tools, commands, hooks, callbacks, timers, pollers, and automatic actions. There is still no model-facing send tool. The new orchestration is an internal safety layer only.
+The key change is that unresolved send state can no longer remain ambiguously `dispatching` after a true process restart. Any interrupted dispatch owned by an earlier process is atomically converted to `delivery-unknown`. That state is terminal for automatic behavior and requires manual external verification before any separate corrective action.
+
+SMTP remains disconnected from `EmailPlugin`, Hermes tools, commands, hooks, callbacks, timers, pollers, and automatic actions. There is still no model-facing send tool. The orchestration remains an internal safety layer only.
 
 ## Safe by default
 
@@ -16,7 +18,9 @@ SMTP remains disconnected from `EmailPlugin`, Hermes tools, commands, hooks, cal
 - A durable intent is written before SMTP dispatch.
 - A persisted send intent is never automatically dispatched again.
 - The same `(draft_id, revision)` cannot receive a second durable send intent under a different operation ID.
-- `delivery-unknown` and unresolved `dispatching` states are never automatically retried.
+- `delivery-unknown` is terminal for automatic behavior and requires manual review.
+- A prior-process or legacy unresolved `dispatching` record is recovered to `delivery-unknown`, never retried.
+- A live same-process `dispatching` record remains live and is not falsely recovered by a concurrent caller.
 
 ## Confirmation binding
 
@@ -26,13 +30,14 @@ The confirmation constructor is not a user interface. A future trusted runtime s
 
 ## Durable send-intent ledger
 
-`SqliteSendIntentStore` uses the fixed file `email-send-intents.sqlite3` under a caller-provided profile data directory. It stores:
+`SqliteSendIntentStore` uses the fixed file `email-send-intents.sqlite3` under a caller-provided profile data directory. Version 0.21.0 schema v2 stores:
 
 - opaque `send_operation_id`;
 - draft ID and exact revision;
 - confirmation ID;
 - SHA-256 digest of the exact candidate identity and message bytes;
 - fixed state;
+- nullable internal dispatcher ownership;
 - creation and update timestamps.
 
 It does not store message body, subject, recipient addresses, SMTP credentials, or raw MIME.
@@ -41,18 +46,29 @@ The request digest binds operation ID to the exact confirmed candidate. Reusing 
 
 ## Exactly-once attempt semantics
 
-`IdempotentSendOrchestrator.send_once()` first calls the durable store. A newly created intent is committed as `dispatching` before SMTP is invoked. Only a brand-new record can reach `transport.submit_once()`.
+`IdempotentSendOrchestrator.send_once()` first calls the durable store. A newly created intent is committed as `dispatching` with the current process dispatcher ID before SMTP is invoked. Only a brand-new record can reach `transport.submit_once()`.
 
-If the same operation is called again, including after process restart, the stored record is returned with `replayed=true` and SMTP is not called again.
+If the same operation is called again in the same process while the original SMTP call is live, the persisted `dispatching` record is replayed and no second SMTP call occurs. Process-local locks serialize access to the same profile ledger.
+
+If a persisted `dispatching` row belongs to another process, has no dispatcher identity, or comes from the v0.20 schema, recovery converts it atomically to `delivery-unknown`. This avoids both silent resend and indefinite ambiguous state after restart.
 
 Terminal state mapping:
 
 - successful server acceptance → `accepted`;
 - known SMTP failure without delivery ambiguity → `definite-failure`;
 - failure after DATA begins with unknown acceptance → `delivery-unknown`;
-- unexpected process failure after the intent commit → record remains `dispatching`.
+- unexpected exception during a live send → persist `delivery-unknown` before propagation whenever possible;
+- interrupted prior-process `dispatching` → recover to `delivery-unknown`.
 
-An unresolved `dispatching` record is intentionally treated as potentially sent. Restart or caller retry returns that record without redispatch. This is conservative by design and prioritizes prevention of duplicate customer email over automatic recovery.
+`delivery-unknown` means the configured SMTP server may already have accepted the message. Automatic retry is forbidden. A human must verify authoritative external state, such as the provider's Sent folder or server evidence, before deciding on any separate corrective action.
+
+Every `SendAttemptRecord` exposes `delivery_is_uncertain`, `automatic_retry_forbidden`, and `manual_review_required` semantics so callers cannot safely treat unknown delivery as ordinary failure.
+
+## Schema migration
+
+The send-intent schema advances from v1 to v2. Migration is additive and preserves all existing terminal records. A nullable `dispatcher_id` column is added when absent, the schema version is advanced, and any unresolved legacy dispatch is recovered as `delivery-unknown` on the next orchestrator/store recovery path.
+
+The migration never recreates or discards the ledger and never replays an old SMTP attempt.
 
 ## SMTP transport security
 
@@ -68,7 +84,7 @@ Draft mutations use exact revisions and idempotent mutation operation IDs. Read 
 
 ## Filesystem controls
 
-The send-intent database rejects a symlink database path. On POSIX, its profile data directory is set to `0700` and its database file to `0600`. SQLite uses rollback journaling, `synchronous=FULL`, `trusted_schema=OFF`, `BEGIN IMMEDIATE` for intent mutation, and a fixed schema version.
+The send-intent database rejects a symlink database path. On POSIX, its profile data directory is set to `0700` and its database file to `0600`. SQLite uses rollback journaling, `synchronous=FULL`, `trusted_schema=OFF`, `BEGIN IMMEDIATE` for intent mutation, and a monotonic schema version.
 
 The draft and observation databases retain their stronger existing schema, ownership, inode, integrity, and size controls. Same-account malicious code remains outside the threat model.
 
@@ -81,18 +97,19 @@ No email, quoted message, signature, forwarded content, draft text, tool-like te
 - authorize a recipient;
 - trigger SMTP;
 - override duplicate protection;
+- reinterpret `delivery-unknown` as safe failure;
 - request an automatic retry.
 
 Only governing Hermes instructions and a trusted current-user confirmation surface may authorize future sending.
 
 ## Requirements before model-facing sending
 
-Version 0.20.0 completes exact confirmation binding and durable duplicate suppression, but a model-facing send release still requires:
+Version 0.21.0 completes exact confirmation binding, durable duplicate suppression, and strict recovery of uncertain send state, but a model-facing send release still requires:
 
 1. a trusted user-visible preview bound to immutable candidate bytes, recipients, sender, account, draft ID, and revision;
 2. a trusted runtime confirmation surface that creates `UserSendConfirmation` only from the current user's explicit action;
-3. complete durable audit semantics and operator-readable send status;
-4. explicit recovery policy for unresolved `dispatching` records without automatic resend;
+3. complete durable audit semantics and operator-readable send status, including prominent `delivery-unknown` handling;
+4. a manual-review workflow for unknown delivery that cannot trigger automatic resend;
 5. a narrowly registered Hermes send surface with redacted errors and no background/autonomous sending.
 
-No draft, configuration value, SMTP health result, model statement, email instruction, or prior confirmation substitutes for these requirements.
+No draft, configuration value, SMTP health result, model statement, email instruction, prior confirmation, or uncertain send result substitutes for these requirements.
