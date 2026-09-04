@@ -1,5 +1,7 @@
 from datetime import UTC, datetime
 from pathlib import Path
+import sqlite3
+import threading
 
 import pytest
 
@@ -63,6 +65,19 @@ class FakeTransport:
         return None
 
 
+class BlockingTransport(FakeTransport):
+    def __init__(self) -> None:
+        super().__init__()
+        self.entered = threading.Event()
+        self.release = threading.Event()
+
+    def submit_once(self, submission):
+        self.calls += 1
+        self.entered.set()
+        assert self.release.wait(timeout=5)
+        return SmtpSubmissionResult()
+
+
 def store(tmp_path: Path) -> SqliteSendIntentStore:
     return SqliteSendIntentStore(tmp_path / "profile-data")
 
@@ -99,40 +114,91 @@ def test_restart_replay_never_redispatches(tmp_path: Path) -> None:
     assert restarted_transport.calls == 0
 
 
-def test_delivery_unknown_is_terminal_and_never_retried_after_restart(tmp_path: Path) -> None:
+def test_delivery_unknown_is_terminal_and_requires_manual_review(tmp_path: Path) -> None:
     first_transport = FakeTransport("unknown")
     first = IdempotentSendOrchestrator(store(tmp_path), first_transport).send_once(
         OPERATION_ID, candidate()
     )
 
-    restarted_transport = FakeTransport()
-    replay = IdempotentSendOrchestrator(store(tmp_path), restarted_transport).send_once(
+    replay = IdempotentSendOrchestrator(store(tmp_path), FakeTransport()).send_once(
         OPERATION_ID, candidate()
     )
 
     assert first.state == "delivery-unknown"
+    assert first.delivery_is_uncertain is True
+    assert first.manual_review_required is True
+    assert first.automatic_retry_forbidden is True
     assert replay.state == "delivery-unknown"
     assert replay.replayed is True
-    assert first_transport.calls == 1
-    assert restarted_transport.calls == 0
 
 
-def test_crash_after_persisting_intent_leaves_dispatching_and_blocks_retry(tmp_path: Path) -> None:
-    first_transport = FakeTransport("crash")
+def test_unexpected_exception_is_marked_delivery_unknown_before_propagation(tmp_path: Path) -> None:
+    ledger = store(tmp_path)
+    transport = FakeTransport("crash")
+    orchestrator = IdempotentSendOrchestrator(ledger, transport)
+
     with pytest.raises(RuntimeError, match="synthetic crash"):
-        IdempotentSendOrchestrator(store(tmp_path), first_transport).send_once(
-            OPERATION_ID, candidate()
-        )
+        orchestrator.send_once(OPERATION_ID, candidate())
 
-    restarted_transport = FakeTransport()
-    replay = IdempotentSendOrchestrator(store(tmp_path), restarted_transport).send_once(
-        OPERATION_ID, candidate()
+    record = ledger.get(OPERATION_ID)
+    assert record is not None
+    assert record.state == "delivery-unknown"
+    assert record.manual_review_required is True
+    assert transport.calls == 1
+
+
+def test_legacy_v1_dispatching_record_migrates_to_delivery_unknown(tmp_path: Path) -> None:
+    ledger = store(tmp_path)
+    ledger.path.parent.mkdir(parents=True, exist_ok=True)
+    connection = sqlite3.connect(ledger.path)
+    connection.execute("CREATE TABLE meta (schema_version INTEGER NOT NULL CHECK(schema_version > 0))")
+    connection.execute("INSERT INTO meta(schema_version) VALUES (1)")
+    connection.execute(
+        "CREATE TABLE send_intents ("
+        "operation_id TEXT PRIMARY KEY, draft_id TEXT NOT NULL, revision INTEGER NOT NULL CHECK(revision > 0), "
+        "confirmation_id TEXT NOT NULL, request_digest TEXT NOT NULL, "
+        "state TEXT NOT NULL CHECK(state IN ('dispatching','accepted','definite-failure','delivery-unknown')), "
+        "created_at TEXT NOT NULL, updated_at TEXT NOT NULL, UNIQUE(draft_id, revision))"
     )
+    connection.execute(
+        "INSERT INTO send_intents VALUES (?, ?, ?, ?, ?, 'dispatching', ?, ?)",
+        (OPERATION_ID, candidate().draft_id, 1, candidate().confirmation_id, "legacy-digest", "2026-09-05T00:00:00+00:00", "2026-09-05T00:00:00+00:00"),
+    )
+    connection.commit()
+    connection.close()
 
-    assert replay.state == "dispatching"
-    assert replay.replayed is True
-    assert first_transport.calls == 1
-    assert restarted_transport.calls == 0
+    recovered = ledger.recover_interrupted_dispatches()
+    record = ledger.get(OPERATION_ID)
+
+    assert recovered == 1
+    assert record is not None
+    assert record.state == "delivery-unknown"
+    with sqlite3.connect(ledger.path) as verify:
+        assert verify.execute("SELECT schema_version FROM meta").fetchone()[0] == 2
+        assert "dispatcher_id" in {row[1] for row in verify.execute("PRAGMA table_info(send_intents)")}
+
+
+def test_same_process_concurrent_replay_does_not_mark_live_dispatch_unknown(tmp_path: Path) -> None:
+    ledger = store(tmp_path)
+    transport = BlockingTransport()
+    first = IdempotentSendOrchestrator(ledger, transport)
+    second = IdempotentSendOrchestrator(ledger, FakeTransport())
+    result: list = []
+
+    worker = threading.Thread(target=lambda: result.append(first.send_once(OPERATION_ID, candidate())))
+    worker.start()
+    assert transport.entered.wait(timeout=5)
+
+    live = second.send_once(OPERATION_ID, candidate())
+    assert live.state == "dispatching"
+    assert live.replayed is True
+    assert live.delivery_is_uncertain is True
+    assert second._transport.calls == 0
+
+    transport.release.set()
+    worker.join(timeout=5)
+    assert result[0].state == "accepted"
+    assert transport.calls == 1
 
 
 def test_same_draft_revision_cannot_send_again_under_new_operation_id(tmp_path: Path) -> None:
