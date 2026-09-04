@@ -8,18 +8,21 @@ Hermes Email is a universal, provider-neutral email plugin and email skill for [
 
 Hermes remains the intelligence, personality, language, style, and decision-maker. The plugin owns validated provider access, credential references, normalization, local draft persistence, technical gates, and deduplication. The skill owns email operating guidance, prompt-injection defense, and inheritance of the active Hermes profile. Neither defines a fixed personality, company voice, language, provider, or user-specific rule.
 
-## Version 0.18.0
+## Version 0.19.0
 
-This release adds a disconnected production SMTP primitive and pure technical send gates:
+This release adds an explicit current-user confirmation gate on top of the disconnected production SMTP foundation:
 
-- submission supports verified implicit TLS or mandatory STARTTLS, TLS 1.2 or newer, system trust, hostname verification, and SASL PLAIN only after TLS;
-- SMTP uses separate lazy `HERMES_EMAIL_...` credential references, a fixed operator sender, a stable account namespace, bounded timeouts, and a final message-byte cap;
-- deployment-owned recipient policy defaults to deny and supports exact ASCII addresses, exact lowercase ASCII domains, or explicit allow-all;
-- candidate preparation binds one active local draft to its exact revision and account, checks every To/Cc/Bcc envelope recipient, and emits deterministic bounded plain-text MIME;
-- Bcc is included in the envelope but omitted from headers; HTML, attachments, custom headers, SMTPUTF8, IDNA, and provider-local reply locators are excluded;
+- candidate preparation requires a trusted `UserSendConfirmation` bound to one exact local draft ID and exact revision;
+- no confirmation, a mismatched draft ID, or a mismatched revision fails closed before draft access;
+- any draft update creates a new revision and invalidates the prior confirmation automatically;
+- model output, email content, draft content, configuration, recipient policy, or `safety.allow_send` can never substitute for current-user confirmation;
+- confirmation identifiers are bounded opaque ASCII tokens and are carried into the immutable candidate for future durable audit binding;
+- submission still supports verified implicit TLS or mandatory STARTTLS, TLS 1.2 or newer, system trust, hostname verification, and SASL PLAIN only after TLS;
+- deployment-owned recipient policy defaults to deny and checks every To/Cc/Bcc envelope recipient;
+- Bcc is included in the envelope but omitted from headers; HTML, attachments, custom headers, SMTPUTF8, IDNA, and provider-local reply locators remain excluded;
 - every recipient must accept RCPT before the single DATA command; any recipient rejection issues RSET and causes a definite non-send;
 - a final SMTP 250 response means accepted by the configured server, not delivered; timeout or disconnect after DATA starts is `delivery-unknown` and is never retried automatically;
-- the transport is deliberately disconnected from `EmailPlugin`, Hermes tools, commands, hooks, timers, and callbacks because durable confirmation, audit, and idempotency arrive in v0.19.0;
+- SMTP dispatch remains disconnected from `EmailPlugin`, Hermes tools, commands, hooks, timers, and callbacks until durable audit and idempotent send orchestration are implemented;
 - `/email-status` may report SMTP configuration and armed technical gates, but `send_enabled` remains false and sending remains unavailable through Hermes.
 
 ### Runtime health
@@ -39,12 +42,13 @@ Type `/email-status` to display only fixed runtime fields. Read and observation 
 
 ## Safety defaults
 
-| Operation | Version 0.18.0 |
+| Operation | Version 0.19.0 |
 |---|---|
 | Read mail | Disabled, deterministic mock, or explicit read-only IMAP |
 | Persist observations | Disabled or explicit content-free SQLite ledger |
 | Store local drafts | Disabled or explicit plaintext SQLite database |
-| Prepare an SMTP candidate | Pure internal API with exact draft, account, recipient, and size gates |
+| Confirm a send candidate | Internal trusted-runtime proof bound to exact draft ID and revision |
+| Prepare an SMTP candidate | Internal API requiring exact confirmation plus account, recipient, revision, and size gates |
 | Submit through SMTP | Internal disconnected primitive only; no Hermes/runtime caller |
 | Send through Hermes | Unavailable; `send_enabled` is always false |
 | Delete, move, purge, poll, or auto-reply | Unavailable |
@@ -101,9 +105,9 @@ safety:
   allow_send: true
 ```
 
-`drafts.mode: sqlite` must also be enabled with exactly the same account namespace. `recipient_policy.mode` is `deny`, `allowlist`, or `all`; domain entries match that exact domain rather than subdomains. `safety.allow_send` only arms pure technical eligibility checks in v0.18.0. It is not current-user confirmation and cannot dispatch SMTP DATA. The runtime never instantiates `SmtplibTransport` and exposes no send tool or command.
+`drafts.mode: sqlite` must also be enabled with exactly the same account namespace. `recipient_policy.mode` is `deny`, `allowlist`, or `all`; domain entries match that exact domain rather than subdomains. `safety.allow_send` only arms technical eligibility checks. Version 0.19.0 additionally requires a trusted current-user confirmation bound to the exact draft ID and revision before a candidate can be prepared. The runtime still never instantiates `SmtplibTransport` and exposes no send tool or command.
 
-The transport accepts one already prepared immutable envelope/message object. It performs no retry. Before DATA, failure is a definite non-send. Once DATA begins, connection loss, timeout, or cancellation is delivery-unknown. A caller must not retry an unknown result; v0.19.0 will add durable orchestration for that rule.
+The transport accepts one already prepared immutable envelope/message object. It performs no retry. Before DATA, failure is a definite non-send. Once DATA begins, connection loss, timeout, or cancellation is delivery-unknown. A caller must not retry an unknown result. Durable audit and idempotent send orchestration remain mandatory before a Hermes send surface can exist.
 
 ## Observation persistence
 
@@ -137,7 +141,7 @@ imap:
   mailbox: INBOX
 ```
 
-IMAP values resolve only during an explicit IMAP health or read operation. SMTP values resolve only after its TLS session and AUTH PLAIN capability have been verified by a direct transport caller. Registration, disabled operation, mock operation, local drafting, candidate preparation, and `/email-status` resolve no secrets. The resolver does not enumerate the environment, expand shell syntax, read files, log values, or cache them.
+IMAP values resolve only during an explicit IMAP health or read operation. SMTP values resolve only after its TLS session and AUTH PLAIN capability have been verified by a direct transport caller. Registration, disabled operation, mock operation, local drafting, confirmation checking, candidate preparation, and `/email-status` resolve no secrets. The resolver does not enumerate the environment, expand shell syntax, read files, log values, or cache them.
 
 ## Installation and development
 
@@ -160,7 +164,7 @@ python -m build
 python scripts/check_dist.py
 ```
 
-CI pins Hermes Agent v0.21.0 at an immutable commit, runs Plugin Doctor with an empty home, verifies required distribution modules, and imports the built wheel from a clean virtual environment. SMTP tests use dependency-injected protocol fakes and synthetic secrets; they exercise command ordering, TLS modes, authentication timing, failure certainty, lifecycle, and no-retry behavior without opening a network socket or using a real account. Hermes v0.21.0 has no separate non-interactive security-scan command; the official installation scanner remains a pre-release gate.
+CI pins Hermes Agent v0.21.0 at an immutable commit, runs Plugin Doctor with an empty home, verifies required distribution modules, and imports the built wheel from a clean virtual environment. SMTP tests use dependency-injected protocol fakes and synthetic secrets; confirmation tests verify fail-closed behavior for missing or stale authorization without opening a network socket or using a real account. Hermes v0.21.0 has no separate non-interactive security-scan command; the official installation scanner remains a pre-release gate.
 
 The complete example is at [`examples/config.example.yaml`](examples/config.example.yaml).
 
