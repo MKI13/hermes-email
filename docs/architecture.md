@@ -34,9 +34,11 @@ Unload marks the facade closed, detaches provider and stores, clears context, cl
 
 A submission uses one connection and no retry. MAIL must succeed, then every RCPT must succeed before DATA. Any RCPT rejection triggers RSET and no DATA. A non-250 final DATA reply is a definite rejection. A transport exception, timeout, or interruption after DATA begins becomes `SmtpDeliveryUnknownError`; a final 250 becomes accepted by the server and remains accepted if QUIT fails.
 
-`prepare_send_candidate()` is a non-network technical gate. It requires explicit deployment enablement, matching SMTP/draft namespaces, one exact active draft revision, at least one bounded recipient, authorization of every To/Cc/Bcc address, the fixed sender, a caller-supplied validated Message-ID and aware date, and the final serialized-byte cap. It emits deterministic plain-text MIME with quoted-printable body encoding, no Bcc header, no HTML, no attachments, no custom headers, and no `In-Reply-To` derived from the provider-local draft locator.
+`prepare_send_candidate()` is a non-network technical gate. In version 0.19.0 it requires a trusted `UserSendConfirmation` bound to the exact draft ID and exact revision in addition to explicit deployment enablement, matching SMTP/draft namespaces, one exact active draft revision, at least one bounded recipient, authorization of every To/Cc/Bcc address, the fixed sender, a caller-supplied validated Message-ID and aware date, and the final serialized-byte cap. Missing confirmation or a confirmation for another draft or revision fails closed before draft access. Any draft mutation increments the revision and therefore invalidates a prior confirmation automatically.
 
-Version 0.18.0 deliberately leaves both APIs disconnected from `EmailPlugin`, Hermes tools, commands, callbacks, hooks, and timers. Deployment `allow_send` arms only candidate eligibility. Runtime `send_enabled` is always false. Confirmation, durable audit, immutable send-intent binding, idempotent dispatch, and delivery-unknown recovery are prerequisites for the v0.19.0 bridge.
+The confirmation object is a trusted-runtime proof only. Model output, email content, draft content, configuration, recipient policy, SMTP readiness, or `safety.allow_send` cannot create or substitute current-user confirmation. Candidate preparation emits deterministic plain-text MIME with quoted-printable body encoding, no Bcc header, no HTML, no attachments, no custom headers, and no `In-Reply-To` derived from the provider-local draft locator.
+
+Version 0.19.0 still leaves SMTP dispatch disconnected from `EmailPlugin`, Hermes tools, commands, callbacks, hooks, and timers. Deployment `allow_send` arms only technical eligibility. Runtime `send_enabled` remains false. Durable send audit, immutable send-intent persistence, idempotent dispatch, and delivery-unknown recovery remain prerequisites before a Hermes send surface can be exposed.
 
 ## Observation storage
 
@@ -88,12 +90,13 @@ Hermes register(ctx)
     -> email skill
 
 Disconnected internal library only:
-    exact active draft revision -> pure technical gates -> immutable SMTP bytes
+    trusted current-user confirmation + exact active draft revision
+        -> confirmation + technical gates -> immutable SMTP bytes
     immutable SMTP bytes -> single-attempt SMTP transport
     (no arrow from EmailPlugin, tool, command, hook, callback, or timer)
 ```
 
-The skill is provider-independent. Providers never define persona or behavior. A stored draft grants no external authorization.
+The skill is provider-independent. Providers never define persona or behavior. A stored draft grants no external authorization, and a confirmation grants authorization only for its exact draft revision.
 
 ## Extension rules
 

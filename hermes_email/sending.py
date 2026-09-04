@@ -31,6 +31,10 @@ class SendGateDisabledError(SendGateError):
     """Raised when deployment configuration does not arm technical sending."""
 
 
+class SendGateConfirmationError(SendGateError):
+    """Raised when no exact current-user confirmation authorizes this draft revision."""
+
+
 class SendGateAccountError(SendGateError):
     """Raised when SMTP and draft account identity do not match."""
 
@@ -44,8 +48,37 @@ class SendGateMessageError(SendGateError):
 
 
 @dataclass(frozen=True, slots=True)
+class UserSendConfirmation:
+    """Trusted-runtime proof that the current user approved one exact draft revision.
+
+    This value must only be created by a trusted confirmation surface after the
+    current user has reviewed the draft. Model output, email content, draft
+    content, configuration, and technical eligibility must never create or
+    substitute this confirmation.
+    """
+
+    draft_id: str
+    revision: int
+    confirmation_id: str
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.draft_id, str) or not self.draft_id:
+            raise ValueError("confirmation draft_id is required")
+        if isinstance(self.revision, bool) or not isinstance(self.revision, int) or self.revision < 1:
+            raise ValueError("confirmation revision must be a positive integer")
+        if (
+            not isinstance(self.confirmation_id, str)
+            or len(self.confirmation_id) < 16
+            or len(self.confirmation_id) > 128
+            or not self.confirmation_id.isascii()
+            or any(character.isspace() for character in self.confirmation_id)
+        ):
+            raise ValueError("confirmation_id must be an opaque 16-to-128 character ASCII token")
+
+
+@dataclass(frozen=True, slots=True)
 class DraftSendCandidate:
-    """Owned immutable bytes that passed non-user technical eligibility gates."""
+    """Owned immutable bytes that passed confirmation and technical eligibility gates."""
 
     draft_id: str
     revision: int
@@ -55,6 +88,7 @@ class DraftSendCandidate:
     message_id: str
     message_date: datetime
     message_bytes: bytes
+    confirmation_id: str
 
 
 def prepare_send_candidate(
@@ -65,8 +99,15 @@ def prepare_send_candidate(
     expected_revision: int,
     message_id: str,
     message_date: datetime,
+    confirmation: UserSendConfirmation | None = None,
 ) -> DraftSendCandidate:
-    """Prepare exact message bytes without secrets, network access, or submission."""
+    """Prepare exact message bytes after exact current-user confirmation.
+
+    This function performs no secret resolution, network access, or SMTP
+    submission. A confirmation is valid only for the exact draft ID and exact
+    revision being prepared. Any draft revision change requires a new user
+    confirmation.
+    """
     if not config.safety.allow_send:
         raise SendGateDisabledError("technical sending is not enabled")
     smtp = config.smtp
@@ -74,6 +115,7 @@ def prepare_send_candidate(
         raise SendGateDisabledError("SMTP submission is not configured")
     if config.recipient_policy.mode == "deny":
         raise SendGateDisabledError("recipient authorization is denied")
+    _require_confirmation(confirmation, draft_id, expected_revision)
     account_namespace = smtp.account_namespace
     if account_namespace is None or account_namespace != draft_store.settings.account_namespace:
         raise SendGateAccountError("draft and SMTP account identities do not match")
@@ -109,6 +151,7 @@ def prepare_send_candidate(
         raise SendGateMessageError("prepared SMTP message contains a Bcc header")
     if not message_bytes.endswith(b"\r\n"):
         raise SendGateMessageError("prepared SMTP message framing is invalid")
+    assert confirmation is not None
     return DraftSendCandidate(
         draft_id=draft_id,
         revision=expected_revision,
@@ -118,7 +161,19 @@ def prepare_send_candidate(
         message_id=identifier,
         message_date=date,
         message_bytes=message_bytes,
+        confirmation_id=confirmation.confirmation_id,
     )
+
+
+def _require_confirmation(
+    confirmation: UserSendConfirmation | None,
+    draft_id: str,
+    expected_revision: int,
+) -> None:
+    if confirmation is None:
+        raise SendGateConfirmationError("explicit current-user send confirmation is required")
+    if confirmation.draft_id != draft_id or confirmation.revision != expected_revision:
+        raise SendGateConfirmationError("send confirmation does not match the exact draft revision")
 
 
 def _header_address(value: EmailAddress) -> Address:

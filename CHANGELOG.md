@@ -4,6 +4,26 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-09-05
+
+### Added
+
+- Trusted-runtime `UserSendConfirmation` proof bound to one exact local draft ID, exact revision, and bounded opaque confirmation ID.
+- Dedicated `SendGateConfirmationError` for missing or mismatched current-user confirmation.
+- Confirmation tests covering absent authorization, wrong draft identity, wrong revision, stale revisions, and successful exact binding.
+
+### Changed
+
+- `prepare_send_candidate()` now requires explicit current-user confirmation before draft access when technical sending is otherwise armed.
+- Immutable send candidates carry the confirmation ID for future durable audit and send-intent binding.
+- Project version advanced to `0.19.0` across package metadata, plugin manifest, skill, CI assertions, tests, README, architecture, configuration, compatibility, security documentation, and changelog.
+
+### Security
+
+- Model output, email content, draft content, configuration, recipient policy, SMTP readiness, and `safety.allow_send` cannot substitute for explicit current-user confirmation.
+- Confirmation must match the exact draft ID and revision; any draft revision change invalidates prior confirmation automatically.
+- SMTP dispatch remains unreachable from `EmailPlugin`, all nine Hermes tools, `/email-status`, the skill, hooks, callbacks, timers, and pollers. Durable audit, idempotent send intent, and delivery-unknown recovery remain required before a Hermes send surface is exposed.
+
 ## [0.18.0] - 2026-09-08
 
 ### Added
@@ -238,7 +258,7 @@ All notable changes to this project are documented here. The format follows [Kee
 ### Added
 
 - Bounded local `EmailPlugin.search_messages()` facade using deterministic plain substring matching over existing message fields.
-- Tests for subject, sender, and body matches; case and whitespace handling; ordering; query rejection; and read-only denial paths.
+- Tests for subject, sender, and body matches; case and whitespace handling, ordering, query rejection, and read-only denial paths.
 
 ### Changed
 
@@ -319,7 +339,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - Initial project metadata and safe-by-default foundation.
 
-[Unreleased]: https://github.com/MKI13/hermes-email/compare/v0.18.0...HEAD
+[Unreleased]: https://github.com/MKI13/hermes-email/compare/v0.19.0...HEAD
+[0.19.0]: https://github.com/MKI13/hermes-email/compare/v0.18.0...v0.19.0
 [0.18.0]: https://github.com/MKI13/hermes-email/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/MKI13/hermes-email/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/MKI13/hermes-email/compare/v0.15.0...v0.16.0

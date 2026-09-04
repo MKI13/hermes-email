@@ -2,7 +2,7 @@
 
 ## Principles
 
-Operators define settings per Hermes profile and deployment. Project sources include no personal addresses, provider credentials, company rules, or fixed writing style. `hermes.profile: auto` means integrations use the active Hermes profile. Version 0.18.0 binds only public plugin properties and never inspects private profile files.
+Operators define settings per Hermes profile and deployment. Project sources include no personal addresses, provider credentials, company rules, or fixed writing style. `hermes.profile: auto` means integrations use the active Hermes profile. Version 0.19.0 binds only public plugin properties and never inspects private profile files.
 
 ## Hermes runtime settings
 
@@ -163,7 +163,11 @@ All inheritance flags default to `true`. They express intended behavior for cont
 
 ### `safety`
 
-`allow_delete` and `allow_move` must remain `false`. `allow_send: true` is valid only with complete SMTP submission settings, matching enabled draft storage, and a non-deny recipient policy. In v0.18.0 this flag arms only pure candidate eligibility gates; it does not indicate user confirmation, set runtime `send_enabled`, instantiate a transport, or authorize a Hermes send. Local draft permission does not authorize sending or mailbox changes.
+`allow_delete` and `allow_move` must remain `false`. `allow_send: true` is valid only with complete SMTP submission settings, matching enabled draft storage, and a non-deny recipient policy. In v0.19.0 this flag arms only technical candidate eligibility. It does not indicate user confirmation, set runtime `send_enabled`, instantiate a transport, or authorize a Hermes send.
+
+Version 0.19.0 additionally requires an internal trusted `UserSendConfirmation` before `prepare_send_candidate()` can succeed. That confirmation must match the exact `draft_id` and exact `revision` requested for preparation. A missing confirmation, another draft ID, or another revision fails closed. Any draft update changes the revision and invalidates previous confirmation automatically. Current model output, email or draft content, configuration, recipient policy, SMTP state, and `allow_send` are never valid substitutes for the current user's explicit approval.
+
+The bundled Hermes skill and registered tools still cannot create this trusted confirmation or dispatch SMTP. Local draft permission does not authorize sending or mailbox changes. Durable audit and idempotent orchestration remain prerequisites before a model-facing send surface is allowed.
 
 ## Standalone example and loading
 
