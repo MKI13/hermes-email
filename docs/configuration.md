@@ -2,7 +2,7 @@
 
 ## Principles
 
-Operators define settings per Hermes profile and deployment. Project sources include no personal addresses, provider credentials, company rules, or fixed writing style. `hermes.profile: auto` means integrations use the active Hermes profile. Version 0.20.0 binds only public plugin properties and never inspects private profile files.
+Operators define settings per Hermes profile and deployment. Project sources include no personal addresses, provider credentials, company rules, or fixed writing style. `hermes.profile: auto` means integrations use the active Hermes profile. Version 0.21.0 binds only public plugin properties and never inspects private profile files.
 
 ## Hermes runtime settings
 
@@ -42,7 +42,7 @@ plugins:
 
 Absent settings load with read, draft, SMTP, and technical-send access disabled. Valid mock settings produce `mock-ready`; valid IMAP settings produce `provider-configured` without connecting. Local drafts are independent of these read states and require no provider. Invalid self-contained settings fail closed.
 
-`/email-status` displays only the fixed runtime snapshot. Nine tools are registered statically. No SMTP or send tool or command is registered in version 0.20.0.
+`/email-status` displays only the fixed runtime snapshot. Nine tools are registered statically. No SMTP or send tool or command is registered in version 0.21.0.
 
 ## Read-only IMAP with independent storage
 
@@ -139,19 +139,21 @@ All inheritance flags default to `true`. They describe intended Hermes-context i
 
 `allow_delete` and `allow_move` must remain `false`. `allow_send: true` only arms technical candidate eligibility when SMTP, drafts, account identity, fixed sender, credentials, and recipient policy are complete.
 
-Version 0.20.0 additionally requires:
+Version 0.21.0 additionally requires:
 
 1. a trusted `UserSendConfirmation` for the exact draft ID and exact revision before candidate preparation;
 2. a unique opaque `send_operation_id` before transport dispatch;
 3. a durable send intent committed before SMTP is called;
 4. no redispatch when that intent already exists;
-5. rejection of a second operation ID for the same `(draft_id, revision)`.
+5. rejection of a second operation ID for the same `(draft_id, revision)`;
+6. recovery of prior-process or legacy unresolved `dispatching` as terminal `delivery-unknown`;
+7. manual external verification before any human chooses a separate corrective action after unknown delivery.
 
-The internal send-intent file is fixed as `email-send-intents.sqlite3` under the caller-provided profile data directory. It stores only operation/draft/revision/confirmation identity, request digest, state, and timestamps. It stores no mail body, subject, recipient addresses, credentials, or raw MIME.
+The internal send-intent file is fixed as `email-send-intents.sqlite3` under the caller-provided profile data directory. Schema v2 stores only operation/draft/revision/confirmation identity, request digest, fixed state, internal dispatcher ownership, and timestamps. It stores no mail body, subject, recipient addresses, credentials, or raw MIME.
 
 The registered Hermes runtime still does not instantiate the send orchestrator or SMTP transport for model use. `send_enabled` remains false and no model-facing send tool exists.
 
-## Idempotency semantics
+## Idempotency and uncertainty semantics
 
 A `send_operation_id` must be 16 to 128 ASCII characters with no whitespace. Reusing the same ID with the same exact candidate returns the stored state without SMTP. Reusing it with changed candidate content fails closed.
 
@@ -159,12 +161,14 @@ A unique database constraint on `(draft_id, revision)` blocks a second send inte
 
 Persisted states are:
 
-- `dispatching`
-- `accepted`
-- `definite-failure`
-- `delivery-unknown`
+- `dispatching` — live current-process attempt only;
+- `accepted` — SMTP server returned final acceptance;
+- `definite-failure` — failure known not to be an uncertain post-DATA result;
+- `delivery-unknown` — acceptance cannot be safely determined.
 
-A persisted state is replayed without another SMTP attempt. An unresolved `dispatching` record after a crash is treated conservatively as potentially sent and is not automatically retried.
+A current-process `dispatching` record is replayed without a second SMTP call. If its dispatcher belongs to an earlier process or is absent after v0.20 migration, it is atomically converted to `delivery-unknown`.
+
+`delivery-unknown` is not equivalent to failure. The message may already have been accepted. Automatic retry is forbidden and callers must surface manual-review semantics.
 
 ## Standalone example and loading
 
