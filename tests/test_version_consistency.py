@@ -8,7 +8,7 @@ import hermes_email
 
 
 ROOT = Path(__file__).resolve().parents[1]
-EXPECTED = "0.24.0"
+EXPECTED = "0.25.0"
 
 
 def test_current_version_is_consistent_across_live_surfaces() -> None:

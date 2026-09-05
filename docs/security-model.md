@@ -1,6 +1,6 @@
 # Security Model
 
-## Version 0.24.0 boundary
+## Version 0.25.0 boundary
 
 Version 0.24.0 hardens the **untrusted external-content boundary** on top of production profile isolation, read-only access, revisioned drafts, exact user confirmation, durable send idempotency, and strict `delivery-unknown` recovery.
 
@@ -114,3 +114,7 @@ Profile isolation and prompt-injection defenses do not make sending available. A
 ## Thread-context safety
 
 Thread reconstruction uses only bounded RFC `Message-ID`, `In-Reply-To`, and `References` relationships. Subject-line matching, sender similarity, body similarity, and semantic heuristics are deliberately excluded because they can merge unrelated business conversations. A malicious message may reference another Message-ID and appear in the contextual graph, but it remains untrusted external data with zero action authority. Incomplete scans, result truncation, and unresolved references are surfaced rather than hidden.
+
+## Reply-To trust boundary
+
+`Reply-To` is attacker-controlled external metadata. It can influence only a reviewable routing recommendation. It cannot authorize a draft, external lookup, recipient change, confirmation, SMTP dispatch, or retry. Multiple, invalid, or oversized Reply-To values result in no automatic target; the system does not silently fall back to From when a present Reply-To is malformed.

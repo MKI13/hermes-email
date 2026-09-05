@@ -9,6 +9,7 @@ from collections.abc import Callable
 import pytest
 
 from hermes_email.config import ImapSettings
+from hermes_email.models import EmailAddress
 from hermes_email.providers import (
     ImapCursorError,
     ImapLimitError,
@@ -30,6 +31,7 @@ Cc: Copy <copy@example.invalid>\r
 Subject: Example message\r
 Date: Tue, 02 Sep 2026 10:00:00 +0200\r
 Message-ID: <remote-1@example.invalid>\r
+Reply-To: Replies <reply@example.invalid>\r
 Content-Type: text/plain; charset=utf-8\r
 \r
 Hello from IMAP.\r
@@ -305,6 +307,9 @@ def test_get_message_validates_uidvalidity_and_fetches_one_uid() -> None:
     assert message.received_at is not None
     assert message.received_at.isoformat() == "2026-09-02T08:00:00+00:00"
     assert message.metadata["rfc_message_id"] == "<remote-1@example.invalid>"
+    assert message.reply_to == (
+        EmailAddress("reply@example.invalid", "Replies"),
+    )
     assert client.uid_calls[0][1] == "9:9"
 
 

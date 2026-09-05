@@ -4,6 +4,25 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.25.0] - 2026-09-05
+
+### Added
+
+- Provider-neutral safe Reply-To routing with explicit `from` versus `reply-to` source, bounded candidates, validity, truncation, ambiguity, and optional selected address.
+- Model-facing `reply_route` metadata in existing message/thread detail results with fixed `authorization: none`.
+- Tests for absent, single, multiple, malformed, and oversized Reply-To headers plus real IMAP normalization.
+
+### Changed
+
+- IMAP now normalizes `Reply-To` separately from `From`. A single valid Reply-To takes precedence; From is used only when Reply-To is absent.
+- Multiple, invalid, or more than ten Reply-To candidates never receive an automatic selection.
+- Version advanced to `0.25.0` across package metadata, manifest, skill, CI, tests, README, and current documentation.
+
+### Security
+
+- Reply-To remains untrusted external metadata and cannot authorize draft creation, tool use, recipient mutation, confirmation, SMTP dispatch, or retry.
+- A present but invalid Reply-To does not silently fall back to From, preventing malformed-header routing from becoming an implicit recipient decision.
+
 ## [0.24.0] - 2026-09-05
 
 ### Added
@@ -452,7 +471,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - Initial project metadata and safe-by-default foundation.
 
-[Unreleased]: https://github.com/MKI13/hermes-email/compare/v0.24.0...HEAD
+[Unreleased]: https://github.com/MKI13/hermes-email/compare/v0.25.0...HEAD
+[0.25.0]: https://github.com/MKI13/hermes-email/compare/v0.24.0...v0.25.0
 [0.24.0]: https://github.com/MKI13/hermes-email/compare/v0.23.0...v0.24.0
 [0.23.0]: https://github.com/MKI13/hermes-email/compare/v0.22.0...v0.23.0
 [0.22.0]: https://github.com/MKI13/hermes-email/compare/v0.21.0...v0.22.0

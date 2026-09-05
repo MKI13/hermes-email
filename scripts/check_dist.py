@@ -31,6 +31,7 @@ REQUIRED_RUNTIME_PATHS = {
     "hermes_email/sending.py",
     "hermes_email/smtp.py",
     "hermes_email/threading.py",
+    "hermes_email/replying.py",
 }
 
 

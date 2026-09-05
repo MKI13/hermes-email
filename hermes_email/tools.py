@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import Any, Final
 
 from .models import EmailAddress, EmailMessage, EmailMessagePage
+from .replying import derive_reply_route
 from .plugin import (
     EmailFetchCursorError,
     EmailFetchLimitError,
@@ -479,11 +480,25 @@ def _message_detail(
     content_format = message.metadata.get("content")
     if content_format not in {"text/plain", "text/html"}:
         content_format = None
+    reply_route = derive_reply_route(message)
     return {
         "message_id": _bounded_opaque_value(message.message_id),
         "subject": subject,
         "subject_truncated": len(message.subject) > len(subject),
         "sender": _address_result(message.sender),
+        "reply_route": {
+            "source": reply_route.source,
+            "ambiguous": reply_route.ambiguous,
+            "valid": reply_route.valid,
+            "truncated": reply_route.truncated,
+            "candidates": [_address_result(address) for address in reply_route.candidates],
+            "selected": (
+                _address_result(reply_route.selected)
+                if reply_route.selected is not None
+                else None
+            ),
+            "authorization": "none",
+        },
         "recipients": [_address_result(address) for address in recipients],
         "recipients_truncated": len(message.recipients) > len(recipients),
         "received_at": _datetime_result(message.received_at),
