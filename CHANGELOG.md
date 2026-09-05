@@ -2,6 +2,18 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.38.0 — Send-ledger storage hardening
+
+- Private exclusive creation and durable database identity anchor; reject unsafe
+  permissions, links, sidecars, replacement and missing initialized databases.
+- Validate exact known schemas, uniqueness, rows and integrity; transactionally
+  migrate v1/v2 without deleting prior attempts.
+- Enforce SQLite page and row limits before writing; no retention or pruning of
+  send evidence. Use synchronous=EXTRA for DELETE-journal commit durability.
+- Revalidate the committed intent immediately before the SMTP transport boundary.
+- Document upgrades, backup/identity boundaries and stable numbered roadmap.
+- Model-facing sending remains disabled; process ownership is the next step.
+
 ## [Unreleased]
 
 ## [0.37.0] - 2026-09-06

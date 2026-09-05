@@ -1,6 +1,7 @@
 from datetime import UTC, datetime
 from pathlib import Path
 import sqlite3
+import os
 import threading
 
 import pytest
@@ -149,7 +150,7 @@ def test_unexpected_exception_is_marked_delivery_unknown_before_propagation(tmp_
 
 def test_legacy_v1_dispatching_record_migrates_to_delivery_unknown(tmp_path: Path) -> None:
     ledger = store(tmp_path)
-    ledger.path.parent.mkdir(parents=True, exist_ok=True)
+    ledger.path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     connection = sqlite3.connect(ledger.path)
     connection.execute("CREATE TABLE meta (schema_version INTEGER NOT NULL CHECK(schema_version > 0))")
     connection.execute("INSERT INTO meta(schema_version) VALUES (1)")
@@ -162,11 +163,12 @@ def test_legacy_v1_dispatching_record_migrates_to_delivery_unknown(tmp_path: Pat
     )
     connection.execute(
         "INSERT INTO send_intents VALUES (?, ?, ?, ?, ?, 'dispatching', ?, ?)",
-        (OPERATION_ID, candidate().draft_id, 1, candidate().confirmation_id, "legacy-digest", "2026-09-05T00:00:00+00:00", "2026-09-05T00:00:00+00:00"),
+        (OPERATION_ID, candidate().draft_id, 1, candidate().confirmation_id, "a" * 64, "2026-09-05T00:00:00+00:00", "2026-09-05T00:00:00+00:00"),
     )
     connection.commit()
     connection.close()
 
+    os.chmod(ledger.path, 0o600)
     recovered = ledger.recover_interrupted_dispatches()
     record = ledger.get(OPERATION_ID)
 
@@ -174,7 +176,7 @@ def test_legacy_v1_dispatching_record_migrates_to_delivery_unknown(tmp_path: Pat
     assert record is not None
     assert record.state == "delivery-unknown"
     with sqlite3.connect(ledger.path) as verify:
-        assert verify.execute("SELECT schema_version FROM meta").fetchone()[0] == 2
+        assert verify.execute("SELECT schema_version FROM meta").fetchone()[0] == 3
         assert "dispatcher_id" in {row[1] for row in verify.execute("PRAGMA table_info(send_intents)")}
 
 

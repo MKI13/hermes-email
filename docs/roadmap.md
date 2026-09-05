@@ -1,0 +1,36 @@
+# Stable ten-step production-readiness roadmap
+
+Current package version: 0.38.0. These numbers remain stable when tasks are
+requested by number; version numbers are not roadmap step numbers.
+
+1. **Send-ledger storage hardening** — implemented in 0.38.0; private creation,
+   strict schema/identity checks, transactional migration, limits without pruning.
+2. **Cross-process dispatch ownership and recovery** — next; preserve live owners,
+   recover only after OS-lock acquisition, retain exact send date and Message-ID.
+3. **Authenticated Hermes user confirmation** — pending; trusted host-owned
+   approval, exact immutable draft/account/profile/user binding and expiry.
+4. **End-to-end reply headers and recipient model** — pending; preserve To/Cc,
+   invalid-vs-absent Reply-To, In-Reply-To and References into outgoing bytes.
+5. **Connect the complete user-approved send workflow** — pending; initially a
+   local test SMTP server, no implicit user consent, no retries after uncertainty.
+6. **Complete provider/account integration** — pending; authorized test account,
+   Proton Bridge and independent server; transport-negative tests are not login PASS.
+7. **Multi-folder search and conversation context** — pending; bound account and
+   mailbox identities, Inbox/Sent/Archive with explicit incompleteness reporting.
+8. **Isolated attachment analysis** — pending; explicit request, bounded extraction,
+   no network, macros or executable content; output remains untrusted.
+9. **Local mail work queue** — pending; reviewed classifications, actionable states,
+   reversible corrections, no automatic mailbox mutations.
+10. **Universal setup, upgrades and recovery** — pending; existing or dedicated
+    profile, safe credential setup, backups without losing send evidence.
+
+## Development gates
+
+Each step uses a branch, synchronized live version metadata, regression tests,
+review, green PR CI, merge, green main CI and a versioned release. Run deterministic
+integration tests in the isolated test profile. Use a full model-driven Hermes
+turn only where it adds necessary evidence; database/process safety is tested
+with real OS processes and mock SMTP, not judged from model prose. Never consume
+cloud/Codex quota for these tests. Never access a real account or send external
+mail without explicit authorization. Independent work may proceed during a slow
+agent retest, but open results must remain visible and never be reported as PASS.
