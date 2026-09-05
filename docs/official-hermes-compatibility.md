@@ -1,6 +1,6 @@
 # Hermes Compatibility
 
-Hermes Email version 0.25.0 targets the manifest v1 schema accepted by the pinned Hermes Agent v0.21.0 compatibility target.
+Hermes Email version 0.26.0 targets the manifest v1 schema accepted by the pinned Hermes Agent v0.21.0 compatibility target.
 
 The plugin uses only public Hermes extension surfaces:
 
@@ -87,6 +87,6 @@ Authoritative upstream references remain:
 
 The fourth read-only tool, `email_get_thread`, uses the same public `ctx.register_tool()` surface as existing read tools. It adds no new Hermes private API, background worker, write capability, or send path. Thread reconstruction is provider-neutral and bounded; IMAP contributes normalized RFC relationship metadata while the model-facing result remains explicitly untrusted.
 
-## v0.25.0 Reply-To handling
+## v0.26.0 Reply-To handling
 
 Reply routing uses no new private Hermes API and no new tool. Existing `email_get_message` and `email_get_thread` results expose a bounded `reply_route` with source, candidates, ambiguity, validity, truncation, selected address, and `authorization: none`.

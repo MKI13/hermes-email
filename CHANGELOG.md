@@ -4,6 +4,23 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.26.0] - 2026-09-05
+
+### Fixed
+
+- Community-source installation no longer trips Hermes plugin-guard on the repository's own prompt-injection regression fixture.
+- The malicious-mail regression payload is still identical at runtime but is assembled from inert string fragments so static install scanning does not mistake test data for executable agent instructions.
+
+### Changed
+
+- Version advanced to `0.26.0` across package metadata, manifest, skill, CI assertions, imports, README, and current documentation.
+- Hermes Plugin Doctor CI now also executes an install-guard regression against the complete repository tree.
+
+### Security
+
+- A release is blocked when the pinned Hermes `plugin_guard` reports any high/critical finding or a non-safe verdict, closing the gap between unit/Doctor success and real `hermes plugins install` behavior.
+- Existing prompt-injection protections remain unchanged: malicious email text is untrusted data with zero action authority.
+
 ## [0.25.0] - 2026-09-05
 
 ### Added
