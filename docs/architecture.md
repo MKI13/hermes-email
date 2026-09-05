@@ -1,6 +1,6 @@
 # Architecture
 
-## Version 0.31.0
+## Version 0.32.0
 
 Hermes Email separates agent behavior from technical mail infrastructure. Hermes owns reasoning, persona, language, style, user preferences, and decisions. The plugin owns validated provider access, profile isolation, local persistence, technical send gates, confirmation binding, durable send intents, uncertainty recovery, and duplicate prevention.
 
@@ -131,20 +131,23 @@ Version 0.24.0 adds a bounded provider-neutral thread resolver and `email_get_th
 
 ## Reply routing
 
-Version 0.31.0 adds provider-neutral `ReplyRoute` derivation. IMAP normalizes `Reply-To` separately from `From`. One valid `Reply-To` may be recommended; absent `Reply-To` falls back to a valid sender. Multiple, malformed, or oversized Reply-To candidates fail closed to no automatic selection. Routing data is included only in existing read/thread results and carries no draft or send authority.
+Version 0.32.0 adds provider-neutral `ReplyRoute` derivation. IMAP normalizes `Reply-To` separately from `From`. One valid `Reply-To` may be recommended; absent `Reply-To` falls back to a valid sender. Multiple, malformed, or oversized Reply-To candidates fail closed to no automatic selection. Routing data is included only in existing read/thread results and carries no draft or send authority.
 
-## v0.31.0 sender classification
+## v0.32.0 sender classification
 
 Sender classification is derived at tool-render time from validated operator configuration. Provider messages remain unchanged. Exact address rules precede domain rules; no semantic/model inference is permitted. Results are informational and carry no action authority.
 
-## v0.31.0 attachment metadata
+## v0.32.0 attachment metadata
 
 Attachment handling remains metadata-only. Provider normalization may attach bounded `EmailAttachment` records to `EmailMessage`; model-facing list/search summaries omit them, while message/thread detail renders at most 25 records. No file content, storage path, downloader, opener, renderer, scanner, or execution surface exists in this release.
 
-Version 0.31.0 adds a provider-neutral metadata-only attachment handling assessment. It never opens content and never grants action authority.
+Version 0.32.0 adds a provider-neutral metadata-only attachment handling assessment. It never opens content and never grants action authority.
 
-Version 0.31.0 adds a separate profile-scoped `email-audit.sqlite3` ledger containing only timestamp, fixed operation, fixed outcome code, and item count.
+Version 0.32.0 adds a separate profile-scoped `email-audit.sqlite3` ledger containing only timestamp, fixed operation, fixed outcome code, and item count.
 
 ## Provider error taxonomy
 
 Runtime and tool surfaces use one fixed provider error taxonomy. Authentication, TLS, timeout, connection, mailbox, protocol, message, and generic provider failures map to distinct non-sensitive states/codes. Raw provider exception text is never copied into runtime status or model-facing JSON.
+## v0.32.0 provider health tool
+
+`email_provider_health` performs one explicit provider health probe without fetching message content. It returns only fixed redacted runtime fields and grants no action authority.

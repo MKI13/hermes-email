@@ -180,7 +180,7 @@ def test_skill_failure_rolls_back_all_ten_tools_and_closes_runtime(
     with pytest.raises(RuntimeError, match="skill collision"):
         register(context)
 
-    assert len(context.handles) == 10
+    assert len(context.handles) == 11
     assert all(handle.disposed for handle in context.handles)
     assert context.command_handles[0].disposed is True
     assert context.unload_handles[0].disposed is True
