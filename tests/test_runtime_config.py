@@ -113,6 +113,7 @@ def test_register_reads_only_official_plugin_setting_sections() -> None:
         "smtp",
         "recipient_policy",
         "classification",
+        "audit",
         "behavior",
         "safety",
     ]
@@ -248,6 +249,7 @@ def test_status_contains_no_secrets_or_message_content() -> None:
         "read_enabled",
         "storage_enabled",
         "draft_enabled",
+        "audit_enabled",
         "smtp_configured",
         "technical_send_armed",
         "send_enabled",

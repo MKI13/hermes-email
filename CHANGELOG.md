@@ -4,6 +4,18 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.30.0] - 2026-09-05
+
+### Added
+- Opt-in profile-scoped `email-audit.sqlite3` with bounded retention, event count, and database size.
+- Content-minimized audit records containing only timestamp, operation, fixed outcome code, and item count.
+- Safe `Audit: enabled/disabled` runtime status.
+
+### Security
+- Audit schema excludes message/draft IDs, subjects, addresses, recipients, queries, filenames, bodies, attachment content, and secrets.
+- Persistent audit requires an explicit Hermes profile owner; development `profile: auto` fails closed when audit SQLite is enabled.
+
+
 ## [0.29.0] - 2026-09-05
 
 ### Added

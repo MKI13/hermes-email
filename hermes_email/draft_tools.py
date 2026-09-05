@@ -220,9 +220,9 @@ def _create_handler(plugin: EmailPlugin):
             receipt = await plugin.create_draft(
                 _draft_content(args), _required_string(args, "operation_id")
             )
-            return _success("draft-create", {"mutation": _mutation(receipt)})
+            return _success(plugin, "draft-create", {"mutation": _mutation(receipt)})
         except Exception as error:
-            return _error("draft-create", error)
+            return _error(plugin, "draft-create", error)
 
     return handle
 
@@ -238,9 +238,9 @@ def _list_handler(plugin: EmailPlugin):
             limit = _integer(args, "limit", default=10, minimum=1, maximum=25)
             cursor = _optional_string(args, "cursor")
             page = await plugin.list_drafts(state=state, limit=limit, cursor=cursor)
-            return _success("draft-list", _page(page))
+            return _success(plugin, "draft-list", _page(page))
         except Exception as error:
-            return _error("draft-list", error)
+            return _error(plugin, "draft-list", error)
 
     return handle
 
@@ -262,12 +262,12 @@ def _get_handler(plugin: EmailPlugin):
             )
             draft = await plugin.get_draft(_required_string(args, "draft_id"))
             if draft is None:
-                return _success("draft-get", {"found": False})
+                return _success(plugin, "draft-get", {"found": False})
             return _success(
-                "draft-get", {"found": True, "draft": _draft_result(draft, offset, limit)}
+                plugin, "draft-get", {"found": True, "draft": _draft_result(draft, offset, limit)}
             )
         except Exception as error:
-            return _error("draft-get", error)
+            return _error(plugin, "draft-get", error)
 
     return handle
 
@@ -298,9 +298,9 @@ def _update_handler(plugin: EmailPlugin):
                 _draft_content(args),
                 _required_string(args, "operation_id"),
             )
-            return _success("draft-update", {"mutation": _mutation(receipt)})
+            return _success(plugin, "draft-update", {"mutation": _mutation(receipt)})
         except Exception as error:
-            return _error("draft-update", error)
+            return _error(plugin, "draft-update", error)
 
     return handle
 
@@ -332,9 +332,9 @@ def _state_handler(plugin: EmailPlugin, operation: str, method: Any):
                 ),
                 _required_string(args, "operation_id"),
             )
-            return _success(operation, {"mutation": _mutation(receipt)})
+            return _success(plugin, operation, {"mutation": _mutation(receipt)})
         except Exception as error:
-            return _error(operation, error)
+            return _error(plugin, operation, error)
 
     return handle
 
@@ -476,7 +476,9 @@ def _timestamp(value: datetime | None) -> str | None:
     return value.isoformat().replace("+00:00", "Z") if value is not None else None
 
 
-def _success(operation: str, payload: dict[str, Any]) -> str:
+def _success(plugin: EmailPlugin, operation: str, payload: dict[str, Any]) -> str:
+    count = payload.get("count", 1)
+    plugin.record_audit(operation, "ok", count if isinstance(count, int) and not isinstance(count, bool) else 1)
     return json.dumps(
         {
             "ok": True,
@@ -490,7 +492,7 @@ def _success(operation: str, payload: dict[str, Any]) -> str:
     )
 
 
-def _error(operation: str, error: Exception) -> str:
+def _error(plugin: EmailPlugin, operation: str, error: Exception) -> str:
     code = "internal-error"
     safe: dict[str, Any] = {}
     if isinstance(error, DraftingDisabledError):
@@ -521,6 +523,7 @@ def _error(operation: str, error: Exception) -> str:
         code = "draft-storage-unavailable"
     elif isinstance(error, DraftError):
         code = "draft-error"
+    plugin.record_audit(operation, code, 0)
     return json.dumps(
         {
             "ok": False,
