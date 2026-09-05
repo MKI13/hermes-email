@@ -1,6 +1,6 @@
 # Hermes Compatibility
 
-Hermes Email version 0.22.0 targets the manifest v1 schema accepted by the pinned Hermes Agent v0.21.0 compatibility target.
+Hermes Email version 0.23.0 targets the manifest v1 schema accepted by the pinned Hermes Agent v0.21.0 compatibility target.
 
 The plugin uses only public Hermes extension surfaces:
 
@@ -14,19 +14,38 @@ The plugin uses only public Hermes extension surfaces:
 - `ctx.register_skill()` for the email skill;
 - `hermes plugins doctor` for plugin validation.
 
-## v0.22.0 profile isolation
+## Universal profile setup
 
-The official root entrypoint now routes registration through `hermes_email.profile_guard.register(ctx)`.
+Hermes Email does not require users to create a dedicated email profile. A dedicated profile is recommended for stronger separation, but a normal existing Hermes profile can be the productive mail owner when `hermes.profile` is set to that exact active profile name.
+
+This profile policy uses only public `ctx.profile_name`; the plugin does not create, copy, inspect, or switch Hermes profiles.
+
+For productive mail capabilities an explicit `hermes.profile` value must exactly match `ctx.profile_name`. Development/mock-only configurations may retain `profile: auto`.
+
+## Profile isolation
+
+The official root entrypoint routes registration through `hermes_email.profile_guard.register(ctx)`.
 
 The guard reads only public `ctx.profile_name` and plugin-scoped configuration before authorization. On a profile denial it does **not** access `ctx.state.data_dir`, resolve a provider, resolve mail secrets, instantiate the core email runtime, register email tools, or register the email skill. Only `/email-status` and unload cleanup are registered.
 
 This uses no private Hermes file, database, profile loader, or undocumented runtime field.
 
-For production mail capabilities an explicit `hermes.profile` value must exactly match `ctx.profile_name`. Development-only mock configurations may retain `profile: auto`.
+## v0.23.0 content trust contract
+
+The existing model-facing read tools already label returned mail as untrusted external content. Version 0.23.0 makes that behavior a tested compatibility contract and strengthens the bundled skill so mailbox/draft content cannot become action authorization.
+
+No new Hermes runtime API is required. The boundary is expressed through:
+
+- tool descriptions that identify returned mail as untrusted;
+- JSON result fields retaining `content_is_untrusted` marking;
+- skill rules separating current-user authority from external mail text;
+- CI regression tests that fail if the core trust contract disappears.
+
+The plugin does not ask Hermes Agent for a private prompt filter or undocumented security hook, and it does not rewrite legitimate mail content merely because it resembles instructions.
 
 ## Existing capabilities
 
-After profile authorization succeeds, v0.22.0 retains:
+After profile authorization succeeds, v0.23.0 retains:
 
 - bounded read-only IMAP/mock access;
 - profile-scoped observation and draft storage;
@@ -41,7 +60,7 @@ There is still no model-facing send tool, provider-draft tool, mailbox delete/mo
 
 Hermes Agent v0.21.0 remains pinned in CI at the existing immutable upstream commit. This reference is the **Hermes Agent version**, not the Hermes Email plugin version.
 
-Hermes Agent v0.21.0 exposes public profile identity and profile-scoped plugin data, which are sufficient for the v0.22.0 profile guard. No private profile files are inspected or copied.
+Hermes Agent v0.21.0 exposes public profile identity and profile-scoped plugin data, which are sufficient for the profile guard. No private profile files are inspected or copied.
 
 The fallback environment secret resolver remains targeted and validated because the pinned `PluginContext` does not expose a public one-secret provider lookup API. Profile denial occurs before that resolver can be reached.
 
@@ -52,6 +71,7 @@ CI runs:
 - Python 3.11, 3.12, and 3.13;
 - full pytest suite;
 - profile-isolation tests;
+- prompt-injection/content-trust contract tests;
 - build and distribution-content checks;
 - clean built-wheel import including `hermes_email.profile_guard`;
 - Hermes Plugin Doctor against the pinned Hermes Agent v0.21.0 environment.
