@@ -6,9 +6,9 @@ Hermes Email is a universal, provider-neutral email plugin and skill for [Hermes
 
 Hermes remains responsible for reasoning, persona, language, style, user preferences, and decisions. The plugin owns validated mail access, credential references, local persistence, profile isolation, confirmation gates, durable send intents, uncertainty recovery, and duplicate prevention.
 
-## Version 0.33.0
+## Version 0.34.0
 
-Version 0.33.0 adds **pinned loopback STARTTLS support for local mail bridges such as Proton Mail Bridge**. The self-signed Bridge certificate is accepted only after an explicit SHA-256 fingerprint match, and the match is verified before credential lookup or authentication.
+Version 0.34.0 adds a **safe local reply-draft tool**. `email_create_reply_draft` derives the recipient from validated Reply-To/From routing and the RFC reply reference from the selected source message, while the reply body must be supplied explicitly and source-mail content is never copied automatically.
 
 ### You do not need a dedicated email profile
 
@@ -43,7 +43,7 @@ See [Installation and profile setup](docs/installation.md) for both supported la
 
 Message and thread detail may expose a bounded `attachments` list. Each item contains only an opaque message-local attachment ID, bounded filename, MIME type, optional decoded size, and disposition. Every item carries `metadata_is_untrusted: true`, `content_available: false`, and `authorization: none`.
 
-Hermes Email v0.33.0 does **not** download, save, open, render, scan, execute, forward, or upload attachment content. List/search summaries intentionally omit attachment metadata. Attachment filenames and MIME declarations are external input and must never be treated as trusted paths, commands, or proof of file type.
+Hermes Email v0.34.0 does **not** download, save, open, render, scan, execute, forward, or upload attachment content. List/search summaries intentionally omit attachment metadata. Attachment filenames and MIME declarations are external input and must never be treated as trusted paths, commands, or proof of file type.
 
 ## Deterministic sender classification
 
@@ -94,7 +94,7 @@ If the active profile does not exactly match the configured owner:
 
 ## Safety model
 
-| Operation | Version 0.33.0 |
+| Operation | Version 0.34.0 |
 |---|---|
 | Productive profile ownership | Exact explicit profile required |
 | Dedicated mail profile | Recommended, not required |
@@ -188,6 +188,7 @@ List/search results omit bodies. Reads are bounded, use read-only provider behav
 When the authorized profile enables local draft SQLite, Hermes can expose:
 
 - `email_create_draft`
+- `email_create_reply_draft` — local reply draft from one user-selected source message; never sends
 - `email_list_drafts`
 - `email_get_draft`
 - `email_update_draft`

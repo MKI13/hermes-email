@@ -7,7 +7,7 @@ from typing import Any
 
 import pytest
 
-from hermes_email.draft_tools import CREATE_DRAFT_TOOL, GET_DRAFT_TOOL
+from hermes_email.draft_tools import CREATE_DRAFT_TOOL, CREATE_REPLY_DRAFT_TOOL, GET_DRAFT_TOOL
 from hermes_email.plugin import register
 from hermes_email.tools import LIST_TOOL
 
@@ -107,7 +107,8 @@ def test_enabled_registration_uses_public_state_path_but_remains_lazy(
     assert runtime.draft_store.path == database
     assert runtime.get_runtime_status().draft_enabled is True
     assert database.exists() is False
-    assert all(tool["check_fn"]() is True for tool in context.tools[:6])
+    assert all(tool["check_fn"]() is True for tool in context.tools[:7] if tool["name"] != CREATE_REPLY_DRAFT_TOOL)
+    assert next(tool for tool in context.tools[:7] if tool["name"] == CREATE_REPLY_DRAFT_TOOL)["check_fn"]() is False
     assert database.exists() is False
     status = context.commands[0][1]("")
     assert "Draft: enabled" in status
@@ -168,7 +169,7 @@ def test_read_tool_collision_rolls_back_all_prior_draft_tools(tmp_path: Path) ->
     with pytest.raises(Exception):
         register(context)
 
-    assert len(context.handles) == 6
+    assert len(context.handles) == 7
     assert all(handle.disposed for handle in context.handles)
 
 
@@ -180,7 +181,7 @@ def test_skill_failure_rolls_back_all_ten_tools_and_closes_runtime(
     with pytest.raises(RuntimeError, match="skill collision"):
         register(context)
 
-    assert len(context.handles) == 11
+    assert len(context.handles) == 12
     assert all(handle.disposed for handle in context.handles)
     assert context.command_handles[0].disposed is True
     assert context.unload_handles[0].disposed is True

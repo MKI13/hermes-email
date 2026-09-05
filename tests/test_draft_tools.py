@@ -11,6 +11,7 @@ from hermes_email.config import EmailPluginConfig
 from hermes_email.draft_storage import DraftStorageUnavailableError, SqliteDraftStore
 from hermes_email.draft_tools import (
     CREATE_DRAFT_TOOL,
+    CREATE_REPLY_DRAFT_TOOL,
     GET_DRAFT_TOOL,
     LIST_DRAFTS_TOOL,
     RESTORE_DRAFT_TOOL,
@@ -20,6 +21,8 @@ from hermes_email.draft_tools import (
     register_draft_tools,
 )
 from hermes_email.plugin import EmailPlugin
+from hermes_email.models import EmailAddress, EmailMessage
+from hermes_email.providers import MockEmailProvider
 
 
 class Handle:
@@ -88,16 +91,17 @@ def content(**overrides) -> dict[str, Any]:
     return value
 
 
-def test_registers_six_static_local_tools_without_opening_database(tmp_path: Path) -> None:
+def test_registers_seven_tools_without_opening_database(tmp_path: Path) -> None:
     runtime = plugin(tmp_path)
     context = Context()
     database = tmp_path / "plugin-data" / "email-drafts.sqlite3"
 
     handles = register_draft_tools(context, runtime)
 
-    assert len(handles) == 6
+    assert len(handles) == 7
     assert {tool["name"] for tool in context.tools} == {
         CREATE_DRAFT_TOOL,
+    CREATE_REPLY_DRAFT_TOOL,
         LIST_DRAFTS_TOOL,
         GET_DRAFT_TOOL,
         UPDATE_DRAFT_TOOL,
@@ -106,7 +110,8 @@ def test_registers_six_static_local_tools_without_opening_database(tmp_path: Pat
     }
     assert all(tool["toolset"] == "hermes_email" for tool in context.tools)
     assert all(tool["is_async"] is True for tool in context.tools)
-    assert all(tool["check_fn"]() is True for tool in context.tools)
+    assert all(tool["check_fn"]() is True for tool in context.tools if tool["name"] != CREATE_REPLY_DRAFT_TOOL)
+    assert next(tool for tool in context.tools if tool["name"] == CREATE_REPLY_DRAFT_TOOL)["check_fn"]() is False
     assert database.exists() is False
 
 
@@ -127,7 +132,7 @@ def test_registration_collision_rolls_back_every_acquired_draft_tool(
     with pytest.raises(DraftToolRegistrationError):
         register_draft_tools(context, plugin(tmp_path))
 
-    assert len(context.handles) == 3
+    assert len(context.handles) == 4
     assert all(handle.disposed for handle in context.handles)
 
 
@@ -424,3 +429,42 @@ def test_cancellation_waits_for_definite_mutation_outcome() -> None:
 
     asyncio.run(scenario())
     assert completed.is_set()
+
+
+def test_reply_draft_uses_reply_to_without_copying_source_body(tmp_path: Path) -> None:
+    cfg = EmailPluginConfig.from_mapping({
+        "email":{"provider":"mock","read_mode":"mock"},
+        "drafts":{"mode":"sqlite","account_namespace":"tool-account"},
+    })
+    source = EmailMessage(
+        message_id="source-1", subject="Project",
+        sender=EmailAddress("sender@example.invalid"),
+        recipients=(EmailAddress("office@example.invalid"),),
+        body_text="UNTRUSTED SOURCE BODY MUST NOT BE COPIED",
+        reply_to=(EmailAddress("reply@example.invalid", "Reply Desk"),),
+        metadata={"rfc_message_id":"<source@example.invalid>"},
+    )
+    runtime=EmailPlugin(cfg, provider=MockEmailProvider((source,)), draft_store=SqliteDraftStore(tmp_path/"d.sqlite3",cfg.drafts))
+    context=Context(); register_draft_tools(context,runtime); tools={x["name"]:x for x in context.tools}
+    result=invoke(tools[CREATE_REPLY_DRAFT_TOOL], {
+        "message_id":"source-1","body_text":"My reviewed reply",
+        "operation_id":"reply-operation-0001"})
+    assert result["ok"] is True
+    assert result["reply_route_source"] == "reply-to"
+    assert result["source_body_copied"] is False
+    draft=asyncio.run(runtime.get_draft(result["mutation"]["draft_id"]))
+    assert draft is not None
+    assert draft.recipients == (EmailAddress("reply@example.invalid", "Reply Desk"),)
+    assert draft.subject == "Re: Project"
+    assert draft.body_text == "My reviewed reply"
+    assert draft.in_reply_to == "<source@example.invalid>"
+
+def test_reply_draft_rejects_ambiguous_reply_to(tmp_path: Path) -> None:
+    cfg=EmailPluginConfig.from_mapping({"email":{"provider":"mock","read_mode":"mock"},"drafts":{"mode":"sqlite","account_namespace":"tool-account"}})
+    source=EmailMessage(message_id="s",subject="x",sender=EmailAddress("sender@example.invalid"),recipients=(),reply_to=(EmailAddress("a@example.invalid"),EmailAddress("b@example.invalid")))
+    runtime=EmailPlugin(cfg,provider=MockEmailProvider((source,)),draft_store=SqliteDraftStore(tmp_path/"d.sqlite3",cfg.drafts))
+    c=Context(); register_draft_tools(c,runtime); tool=next(x for x in c.tools if x["name"]==CREATE_REPLY_DRAFT_TOOL)
+    result=invoke(tool,{"message_id":"s","body_text":"reply","operation_id":"reply-operation-0002"})
+    assert result["ok"] is False
+    assert result["error"]["code"] == "reply-route-unavailable"
+    assert runtime.draft_store.list_drafts(limit=10).drafts == ()
