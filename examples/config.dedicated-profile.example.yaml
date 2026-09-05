@@ -1,0 +1,37 @@
+# Recommended layout for multi-profile Hermes deployments.
+# Create/use a dedicated mail profile and replace `email` below with its exact name.
+# Other profiles should delegate user-requested mail work instead of receiving mail secrets.
+
+hermes:
+  profile: email
+
+email:
+  provider: imap
+  read_mode: readonly
+
+imap:
+  host: mail.example.com
+  port: 993
+  security: tls
+  username_ref: HERMES_EMAIL_IMAP_USERNAME
+  password_ref: HERMES_EMAIL_IMAP_PASSWORD
+  mailbox: INBOX
+
+storage:
+  mode: sqlite
+  account_namespace: primary-inbox
+
+drafts:
+  mode: sqlite
+  account_namespace: primary-account
+
+smtp:
+  mode: disabled
+
+recipient_policy:
+  mode: deny
+
+safety:
+  allow_send: false
+  allow_delete: false
+  allow_move: false

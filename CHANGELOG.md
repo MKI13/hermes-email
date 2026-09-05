@@ -4,6 +4,28 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.23.0] - 2026-09-05
+
+### Added
+
+- Prompt-injection/content-trust contract tests that require model-facing mail output to remain explicitly untrusted and require the bundled skill to retain core no-authority rules.
+- Universal installation/profile guide covering both a recommended dedicated email profile and a fully supported existing single-profile setup.
+- Separate productive configuration examples for users with a dedicated mail profile and users who bind Hermes Email to an existing profile.
+
+### Changed
+
+- The email skill now explicitly assigns zero action authority to sender names, subjects, bodies, signatures, quoted/forwarded text, HTML-derived text, headers, attachment metadata, fake system/developer text, tool-like syntax, and claimed authority.
+- README/configuration/architecture/security/compatibility documentation now makes clear that a dedicated mail profile is recommended but not required; the invariant is one explicit productive mail-owning profile.
+- CI now runs the prompt-injection contract alongside profile isolation and existing read/draft/SMTP/idempotency/recovery tests.
+- Project version advanced to `0.23.0` across package metadata, plugin manifest, skill, CI assertions, imports, README, architecture, configuration, compatibility, security documentation, and changelog.
+
+### Security
+
+- Reading external mail authorizes only the current user's requested read operation; mail content cannot independently authorize another tool call or external side effect.
+- Mail/draft content cannot authorize secret access, profile changes, recipient changes, draft mutation, confirmation, SMTP dispatch, policy changes, or retry of `delivery-unknown`.
+- Prompt-injection hardening preserves original customer content as evidence/data rather than destructively rewriting suspicious phrases; the security control is zero action authority.
+- Existing profile isolation, exact current-user confirmation, durable duplicate suppression, and strict `delivery-unknown` behavior remain unchanged.
+
 ## [0.22.0] - 2026-09-05
 
 ### Added
@@ -410,7 +432,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - Initial project metadata and safe-by-default foundation.
 
-[Unreleased]: https://github.com/MKI13/hermes-email/compare/v0.22.0...HEAD
+[Unreleased]: https://github.com/MKI13/hermes-email/compare/v0.23.0...HEAD
+[0.23.0]: https://github.com/MKI13/hermes-email/compare/v0.22.0...v0.23.0
 [0.22.0]: https://github.com/MKI13/hermes-email/compare/v0.21.0...v0.22.0
 [0.21.0]: https://github.com/MKI13/hermes-email/compare/v0.20.0...v0.21.0
 [0.20.0]: https://github.com/MKI13/hermes-email/compare/v0.19.0...v0.20.0

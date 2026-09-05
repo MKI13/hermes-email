@@ -111,7 +111,7 @@ def test_enabled_registration_uses_public_state_path_but_remains_lazy(
     assert database.exists() is False
     status = context.commands[0][1]("")
     assert "Draft: enabled" in status
-    assert "Send: unavailable in v0.18" in status
+    assert "Send: unavailable" in status
     assert database.exists() is False
 
     create = next(tool for tool in context.tools if tool["name"] == CREATE_DRAFT_TOOL)

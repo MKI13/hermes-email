@@ -539,7 +539,7 @@ def format_runtime_status(status: EmailRuntimeStatus) -> str:
             f"SMTP: {'configured' if status.smtp_configured else 'disabled'}",
             "Technical send gates: "
             + ("armed" if status.technical_send_armed else "disabled"),
-            "Send: unavailable in v0.18",
+            "Send: unavailable",
         )
     )
     return "\n".join(lines)
@@ -630,7 +630,7 @@ def _create_runtime_plugin(ctx: Any) -> EmailPlugin:
 def register(ctx: Any) -> EmailPlugin:
     """Load safe settings and register read tools, status, skill, and cleanup.
 
-    Version 0.18.0 registers no model hooks, pollers, background tasks, or
+    This core runtime registers no model hooks, pollers, background tasks, or
     account connections during registration.
     """
     runtime = _create_runtime_plugin(ctx)

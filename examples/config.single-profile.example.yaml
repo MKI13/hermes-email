@@ -1,0 +1,37 @@
+# Example for a Hermes user who does NOT have a dedicated email profile.
+# Replace `default` with the exact name of the Hermes profile that will own mail.
+# Secret values belong in the referenced environment/secret source, never here.
+
+hermes:
+  profile: default
+
+email:
+  provider: imap
+  read_mode: readonly
+
+imap:
+  host: mail.example.com
+  port: 993
+  security: tls
+  username_ref: HERMES_EMAIL_IMAP_USERNAME
+  password_ref: HERMES_EMAIL_IMAP_PASSWORD
+  mailbox: INBOX
+
+storage:
+  mode: sqlite
+  account_namespace: primary-inbox
+
+drafts:
+  mode: sqlite
+  account_namespace: primary-account
+
+smtp:
+  mode: disabled
+
+recipient_policy:
+  mode: deny
+
+safety:
+  allow_send: false
+  allow_delete: false
+  allow_move: false
