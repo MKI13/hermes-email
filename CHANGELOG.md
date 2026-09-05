@@ -4,6 +4,17 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.34.0] - 2026-09-05
+
+### Added
+- `email_create_reply_draft` for one local reply draft from a user-selected source message.
+- Deterministic validated Reply-To/From recipient selection, bounded `Re:` subject derivation, and RFC Message-ID `in_reply_to` linkage.
+
+### Security
+- Source message bodies are never copied or quoted automatically.
+- Ambiguous/invalid reply routing fails closed with `reply-route-unavailable`; no send or mailbox mutation is introduced.
+
+
 ## [0.33.0] - 2026-09-05
 
 ### Added

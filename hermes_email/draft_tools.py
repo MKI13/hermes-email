@@ -21,10 +21,13 @@ from .draft_storage import (
     DraftValidationError,
 )
 from .models import EmailAddress, EmailDraft, EmailDraftPage, EmailDraftSummary
+from .replying import derive_reply_route
+from .threading import message_rfc_id
 from .plugin import DraftingDisabledError, EmailPlugin
 
 TOOLSET: Final = "hermes_email"
 CREATE_DRAFT_TOOL: Final = "email_create_draft"
+CREATE_REPLY_DRAFT_TOOL: Final = "email_create_reply_draft"
 LIST_DRAFTS_TOOL: Final = "email_list_drafts"
 GET_DRAFT_TOOL: Final = "email_get_draft"
 UPDATE_DRAFT_TOOL: Final = "email_update_draft"
@@ -33,6 +36,13 @@ RESTORE_DRAFT_TOOL: Final = "email_restore_draft"
 _MAX_BODY_WINDOW: Final = 20_000
 _DEFAULT_BODY_WINDOW: Final = 12_000
 _MAX_BODY_OFFSET: Final = 20_000
+
+
+class ReplyDraftSourceError(DraftError):
+    """Raised when the selected source message cannot form a reply draft."""
+
+class ReplyDraftRouteError(DraftError):
+    """Raised when Reply-To/From routing is unavailable or ambiguous."""
 
 
 class DraftToolRegistrationError(RuntimeError):
@@ -86,6 +96,23 @@ CREATE_DRAFT_SCHEMA: Final = {
         "type": "object",
         "properties": {**_DRAFT_CONTENT_PROPERTIES, "operation_id": _OPERATION_PROPERTY},
         "required": ["to", "cc", "bcc", "subject", "body_text", "operation_id"],
+        "additionalProperties": False,
+    },
+}
+CREATE_REPLY_DRAFT_SCHEMA: Final = {
+    "name": CREATE_REPLY_DRAFT_TOOL,
+    "description": (
+        "Create one local reply draft from a user-selected message. The recipient is derived "
+        "only from the validated Reply-To/From route; source mail body is never copied. " + _DRAFT_NOTICE
+    ),
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "message_id": {"type": "string", "minLength": 1, "maxLength": 512},
+            "body_text": {"type": "string", "maxLength": 20_000},
+            "operation_id": _OPERATION_PROPERTY,
+        },
+        "required": ["message_id", "body_text", "operation_id"],
         "additionalProperties": False,
     },
 }
@@ -171,24 +198,25 @@ RESTORE_DRAFT_SCHEMA: Final = {
 
 
 def register_draft_tools(ctx: Any, plugin: EmailPlugin) -> tuple[Any, ...]:
-    """Register six local-only tools and roll back every partial registration."""
+    """Register seven local/reply tools and roll back every partial registration."""
     registrations = (
-        (CREATE_DRAFT_TOOL, CREATE_DRAFT_SCHEMA, _create_handler(plugin), "📝"),
-        (LIST_DRAFTS_TOOL, LIST_DRAFTS_SCHEMA, _list_handler(plugin), "📄"),
-        (GET_DRAFT_TOOL, GET_DRAFT_SCHEMA, _get_handler(plugin), "🔍"),
-        (UPDATE_DRAFT_TOOL, UPDATE_DRAFT_SCHEMA, _update_handler(plugin), "✏️"),
-        (TRASH_DRAFT_TOOL, TRASH_DRAFT_SCHEMA, _trash_handler(plugin), "🗑️"),
-        (RESTORE_DRAFT_TOOL, RESTORE_DRAFT_SCHEMA, _restore_handler(plugin), "♻️"),
+        (CREATE_DRAFT_TOOL, CREATE_DRAFT_SCHEMA, _create_handler(plugin), _drafts_available, "📝"),
+        (CREATE_REPLY_DRAFT_TOOL, CREATE_REPLY_DRAFT_SCHEMA, _create_reply_handler(plugin), _reply_draft_available, "↩️"),
+        (LIST_DRAFTS_TOOL, LIST_DRAFTS_SCHEMA, _list_handler(plugin), _drafts_available, "📄"),
+        (GET_DRAFT_TOOL, GET_DRAFT_SCHEMA, _get_handler(plugin), _drafts_available, "🔍"),
+        (UPDATE_DRAFT_TOOL, UPDATE_DRAFT_SCHEMA, _update_handler(plugin), _drafts_available, "✏️"),
+        (TRASH_DRAFT_TOOL, TRASH_DRAFT_SCHEMA, _trash_handler(plugin), _drafts_available, "🗑️"),
+        (RESTORE_DRAFT_TOOL, RESTORE_DRAFT_SCHEMA, _restore_handler(plugin), _drafts_available, "♻️"),
     )
     handles = []
     try:
-        for name, schema, handler, emoji in registrations:
+        for name, schema, handler, availability, emoji in registrations:
             handle = ctx.register_tool(
                 name=name,
                 toolset=TOOLSET,
                 schema=schema,
                 handler=handler,
-                check_fn=lambda: _drafts_available(plugin),
+                check_fn=lambda availability=availability: availability(plugin),
                 is_async=True,
                 emoji=emoji,
             )
@@ -208,6 +236,15 @@ def _drafts_available(plugin: EmailPlugin) -> bool:
     return plugin.get_runtime_status().draft_enabled
 
 
+def _reply_draft_available(plugin: EmailPlugin) -> bool:
+    provider = plugin.provider
+    return (
+        _drafts_available(plugin) and provider is not None
+        and plugin.config.email.read_mode in {"mock", "readonly"}
+        and provider.capabilities.get
+    )
+
+
 def _create_handler(plugin: EmailPlugin):
     async def handle(args: dict[str, Any], **kwargs: Any) -> str:
         del kwargs
@@ -225,6 +262,43 @@ def _create_handler(plugin: EmailPlugin):
             return _error(plugin, "draft-create", error)
 
     return handle
+
+
+def _create_reply_handler(plugin: EmailPlugin):
+    async def handle(args: dict[str, Any], **kwargs: Any) -> str:
+        del kwargs
+        try:
+            _arguments(args, {"message_id", "body_text", "operation_id"}, {"message_id", "body_text", "operation_id"})
+            source = await plugin.get_message(_required_string(args, "message_id"))
+            if source is None:
+                raise ReplyDraftSourceError("source message is unavailable")
+            route = derive_reply_route(source)
+            if route.selected is None or route.ambiguous or not route.valid:
+                raise ReplyDraftRouteError("reply route is unavailable")
+            draft = EmailDraft(
+                recipients=(route.selected,), cc=(), bcc=(),
+                subject=_reply_subject(source.subject),
+                body_text=_required_text(args, "body_text"),
+                in_reply_to=message_rfc_id(source),
+            )
+            receipt = await plugin.create_draft(draft, _required_string(args, "operation_id"))
+            return _success(plugin, "draft-reply-create", {
+                "mutation": _mutation(receipt), "reply_route_source": route.source,
+                "source_body_copied": False, "sent": False,
+            })
+        except Exception as error:
+            return _error(plugin, "draft-reply-create", error)
+    return handle
+
+
+def _reply_subject(value: object) -> str:
+    import unicodedata
+    if not isinstance(value, str):
+        raise ReplyDraftSourceError("source subject is invalid")
+    cleaned = "".join(" " if unicodedata.category(ch) in {"Cc","Cf","Cs"} else ch for ch in value)
+    cleaned = " ".join(cleaned.split())
+    candidate = cleaned if cleaned.casefold().startswith("re:") else f"Re: {cleaned}"
+    return (candidate or "Re:")[:500]
 
 
 def _list_handler(plugin: EmailPlugin):
@@ -495,7 +569,11 @@ def _success(plugin: EmailPlugin, operation: str, payload: dict[str, Any]) -> st
 def _error(plugin: EmailPlugin, operation: str, error: Exception) -> str:
     code = "internal-error"
     safe: dict[str, Any] = {}
-    if isinstance(error, DraftingDisabledError):
+    if isinstance(error, ReplyDraftSourceError):
+        code = "reply-source-unavailable"
+    elif isinstance(error, ReplyDraftRouteError):
+        code = "reply-route-unavailable"
+    elif isinstance(error, DraftingDisabledError):
         code = "drafting-disabled"
     elif isinstance(error, DraftValidationError):
         code = "invalid-arguments"
