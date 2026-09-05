@@ -6,9 +6,9 @@ Hermes Email is a universal, provider-neutral email plugin and skill for [Hermes
 
 Hermes remains responsible for reasoning, persona, language, style, user preferences, and decisions. The plugin owns validated mail access, credential references, local persistence, profile isolation, confirmation gates, durable send intents, uncertainty recovery, and duplicate prevention.
 
-## Version 0.25.0
+## Version 0.26.0
 
-Version 0.25.0 adds **safe Reply-To routing** on top of bounded RFC thread context. Hermes can distinguish the sender from the intended reply address without granting external headers any action authority.
+Version 0.26.0 adds **safe Reply-To routing** on top of bounded RFC thread context. Hermes can distinguish the sender from the intended reply address without granting external headers any action authority.
 
 ### You do not need a dedicated email profile
 
@@ -82,7 +82,7 @@ If the active profile does not exactly match the configured owner:
 
 ## Safety model
 
-| Operation | Version 0.25.0 |
+| Operation | Version 0.26.0 |
 |---|---|
 | Productive profile ownership | Exact explicit profile required |
 | Dedicated mail profile | Recommended, not required |

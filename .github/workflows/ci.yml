@@ -45,7 +45,7 @@ jobs:
         run: python -m pytest
 
       - name: Verify installed import
-        run: python -c "import hermes_email; assert hermes_email.__version__ == '0.25.0'; print(hermes_email.__version__)"
+        run: python -c "import hermes_email; assert hermes_email.__version__ == '0.26.0'; print(hermes_email.__version__)"
 
       - name: Build distributions
         run: python -m build
@@ -57,7 +57,7 @@ jobs:
         run: |
           python -c "from pathlib import Path; from zipfile import ZipFile; wheel, = Path('dist').glob('*.whl'); ZipFile(wheel).extractall(Path('${RUNNER_TEMP}') / 'wheel-smoke')"
           cd "${RUNNER_TEMP}"
-          PYTHONPATH="${RUNNER_TEMP}/wheel-smoke" python -c "import hermes_email, hermes_email.addressing, hermes_email.profile_guard, hermes_email.sending, hermes_email.smtp, hermes_email.send_orchestration, hermes_email.threading, hermes_email.replying; assert hermes_email.__version__ == '0.25.0'"
+          PYTHONPATH="${RUNNER_TEMP}/wheel-smoke" python -c "import hermes_email, hermes_email.addressing, hermes_email.profile_guard, hermes_email.sending, hermes_email.smtp, hermes_email.send_orchestration, hermes_email.threading, hermes_email.replying; assert hermes_email.__version__ == '0.26.0'"
 
   plugin-doctor:
     name: Hermes Plugin Doctor
@@ -90,4 +90,4 @@ jobs:
           HOME="${RUNNER_TEMP}/hermes-home" hermes plugins doctor . --ci
 
       - name: Verify tools, storage, profile isolation, content trust, onboarding, and version consistency
-        run: python -m pytest tests/test_tools.py tests/test_persistence_integration.py tests/test_draft_integration.py tests/test_draft_tools.py tests/test_smtp_runtime.py tests/test_sending.py tests/test_send_orchestration.py tests/test_profile_guard.py tests/test_prompt_injection_contract.py tests/test_installation_contract.py tests/test_version_consistency.py tests/test_threading.py tests/test_thread_tool.py
+        run: python -m pytest tests/test_tools.py tests/test_persistence_integration.py tests/test_draft_integration.py tests/test_draft_tools.py tests/test_smtp_runtime.py tests/test_sending.py tests/test_send_orchestration.py tests/test_profile_guard.py tests/test_prompt_injection_contract.py tests/test_installation_contract.py tests/test_version_consistency.py tests/test_threading.py tests/test_thread_tool.py tests/test_install_security_scan.py
