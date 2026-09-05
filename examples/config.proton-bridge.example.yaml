@@ -1,0 +1,21 @@
+# Local Proton Mail Bridge example. Replace the fingerprint with the exact
+# SHA-256 fingerprint of the Bridge certificate on this machine.
+hermes:
+  profile: email
+email:
+  provider: imap
+  read_mode: readonly
+imap:
+  host: 127.0.0.1
+  port: 1143
+  security: starttls-pinned
+  tls_sha256_fingerprint: 0000000000000000000000000000000000000000000000000000000000000000
+  username_ref: HERMES_EMAIL_IMAP_USERNAME
+  password_ref: HERMES_EMAIL_IMAP_PASSWORD
+  mailbox: INBOX
+smtp:
+  mode: disabled
+safety:
+  allow_send: false
+  allow_delete: false
+  allow_move: false

@@ -77,6 +77,7 @@ class ImapSettings:
     host: str | None = None
     port: int = 993
     security: str = "tls"
+    tls_sha256_fingerprint: str | None = None
     username_ref: str | None = None
     password_ref: str | None = None
     mailbox: str = "INBOX"
@@ -92,7 +93,15 @@ class ImapSettings:
             raise ConfigError("imap.port must be an integer")
         if not 1 <= self.port <= 65_535:
             raise ConfigError("imap.port must be between 1 and 65535")
-        _choice("imap.security", self.security, {"tls"})
+        _choice("imap.security", self.security, {"tls", "starttls-pinned"})
+        fingerprint = self.tls_sha256_fingerprint
+        if self.security == "starttls-pinned":
+            if self.host not in {"127.0.0.1", "::1", "localhost"}:
+                raise ConfigError("imap starttls-pinned requires a loopback host")
+            if not isinstance(fingerprint, str) or re.fullmatch(r"[0-9a-f]{64}", fingerprint) is None:
+                raise ConfigError("imap.tls_sha256_fingerprint must be 64 lowercase hex characters")
+        elif fingerprint is not None:
+            raise ConfigError("imap.tls_sha256_fingerprint requires starttls-pinned security")
         for field_name in ("username_ref", "password_ref"):
             reference = getattr(self, field_name)
             if reference is None:
