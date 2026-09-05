@@ -1,23 +1,37 @@
 # Configuration
 
-## Version 0.22.0 principles
+## Version 0.23.0 principles
 
-Operators configure Hermes Email per deployment. The project contains no personal mailbox, company voice, provider secret, or fixed profile name.
+Hermes Email is universal. Operators configure it per deployment; the project contains no personal mailbox, company voice, provider secret, or fixed profile name.
 
-The important v0.22.0 rule is:
+Two profile layouts are supported:
 
-> Production mail capabilities require one explicit `hermes.profile` owner.
+1. **Dedicated mail profile — recommended** for stronger separation.
+2. **Existing Hermes profile — fully supported** when explicitly bound as the single productive mail owner.
 
-`hermes.profile: auto` remains available only for development-only configurations that do not enable real IMAP, persistent observation storage, persistent drafts, SMTP submission, or send authorization.
+The productive security rule is:
 
-For a dedicated production profile:
+> Real/persistent mail capabilities require exactly one explicit `hermes.profile` owner.
+
+`hermes.profile: auto` remains available only for development/mock configurations that do not enable real IMAP, persistent observation storage, persistent drafts, SMTP submission, or send authorization.
+
+Examples:
 
 ```yaml
 hermes:
-  profile: ef-sinn-email
+  profile: email
 ```
 
-`ef-sinn-email` is an example. Matching uses the exact public Hermes `ctx.profile_name` value.
+or for a user who has only one existing profile:
+
+```yaml
+hermes:
+  profile: default
+```
+
+The plugin never requires the literal profile name `email`, `default`, or `ef-sinn-email`. Matching uses the exact public Hermes `ctx.profile_name` value.
+
+See [Installation and profile setup](installation.md) for the decision guide.
 
 ## Profile-isolated production example
 
@@ -27,7 +41,7 @@ plugins:
     hermes-email:
       settings:
         hermes:
-          profile: ef-sinn-email
+          profile: email
 
         email:
           provider: imap
@@ -74,16 +88,16 @@ plugins:
           allow_move: false
 ```
 
-If this configuration is loaded in a profile other than `ef-sinn-email`, the official plugin entrypoint fails closed before provider, database, or secret access.
+Replace `email` with the exact Hermes profile that should own this productive mailbox. If the configuration is loaded in another profile, the official plugin entrypoint fails closed before provider, database, or secret access.
 
 ## `hermes`
 
-- `profile: auto` — permitted for development-only configurations.
-- `profile: <name>` — explicit production owner; required when real/persistent mail capabilities are configured.
+- `profile: auto` — permitted for development/mock-only configurations.
+- `profile: <name>` — explicit productive owner; required when real/persistent mail capabilities are configured.
 
 Explicit profile identifiers must be 1 to 128 characters and use letters, digits, `.`, `_`, or `-`. Matching is exact and case-sensitive.
 
-The plugin does not switch profiles. It verifies ownership of the profile in which Hermes loaded it.
+The plugin does not switch profiles and does not create profiles. It verifies ownership of the profile in which Hermes loaded it.
 
 ## What makes a configuration production-sensitive
 
@@ -95,7 +109,7 @@ An explicit profile is required when any of these are present:
 - `smtp.mode` other than `disabled`;
 - `safety.allow_send: true`.
 
-Malformed relevant sections also fail closed instead of weakening the profile gate.
+Malformed relevant sections and configuration lookup failures fail closed instead of weakening the profile gate.
 
 ## Development mock example
 
@@ -117,7 +131,19 @@ safety:
   allow_move: false
 ```
 
-This preserves simple local testing without creating production account ownership ambiguity.
+This preserves simple local testing without creating productive account ownership ambiguity.
+
+## Untrusted content rule
+
+Configuration never changes the trust class of mailbox or draft content. Sender, subject, body, signatures, forwarded/quoted text, headers, HTML-derived text, attachment metadata, and tool-like strings remain untrusted external data.
+
+No configuration flag may turn external content into authorization. In particular:
+
+- read access does not authorize drafting or sending;
+- recipient policy does not authorize a user action;
+- `safety.allow_send` does not mean user confirmation;
+- a claimed sender role does not grant authority;
+- text inside mail cannot request tool execution, secret access, profile changes, or a resend.
 
 ## Other core fields
 
@@ -154,7 +180,7 @@ This preserves simple local testing without creating production account ownershi
 - separate SMTP credential references;
 - fixed sender and bounded timeout/message size.
 
-SMTP configuration does not expose a Hermes send tool in v0.22.0.
+SMTP configuration does not expose a Hermes send tool in v0.23.0.
 
 ### `recipient_policy`
 
