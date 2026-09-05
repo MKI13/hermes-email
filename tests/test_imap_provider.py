@@ -308,6 +308,28 @@ def test_get_message_validates_uidvalidity_and_fetches_one_uid() -> None:
     assert client.uid_calls[0][1] == "9:9"
 
 
+
+def test_get_message_normalizes_thread_relationship_headers() -> None:
+    client = FakeImapClient()
+    raw = PLAIN_MESSAGE.replace(
+        b"Message-ID: <remote-1@example.invalid>\r\n",
+        b"Message-ID: <remote-2@example.invalid>\r\n"
+        b"In-Reply-To: <remote-1@example.invalid>\r\n"
+        b"References: <root@example.invalid> <remote-1@example.invalid>\r\n",
+    )
+    client.fetch_responses["9:9"] = [fetch_record(9, raw)]
+    provider, _, _ = provider_with_client(client)
+
+    message = asyncio.run(provider.get_message("imap-v1:77:9"))
+
+    assert message is not None
+    assert message.metadata["rfc_message_id"] == "<remote-2@example.invalid>"
+    assert message.metadata["in_reply_to"] == "<remote-1@example.invalid>"
+    assert message.metadata["references"] == (
+        "<root@example.invalid> <remote-1@example.invalid>"
+    )
+
+
 def test_missing_message_returns_none() -> None:
     client = FakeImapClient()
     provider, _, _ = provider_with_client(client)

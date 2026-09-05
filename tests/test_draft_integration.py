@@ -172,7 +172,7 @@ def test_read_tool_collision_rolls_back_all_prior_draft_tools(tmp_path: Path) ->
     assert all(handle.disposed for handle in context.handles)
 
 
-def test_skill_failure_rolls_back_all_nine_tools_and_closes_runtime(
+def test_skill_failure_rolls_back_all_ten_tools_and_closes_runtime(
     tmp_path: Path,
 ) -> None:
     context = RuntimeContext(tmp_path, enabled_config(), reject_skill=True)
@@ -180,7 +180,7 @@ def test_skill_failure_rolls_back_all_nine_tools_and_closes_runtime(
     with pytest.raises(RuntimeError, match="skill collision"):
         register(context)
 
-    assert len(context.handles) == 9
+    assert len(context.handles) == 10
     assert all(handle.disposed for handle in context.handles)
     assert context.command_handles[0].disposed is True
     assert context.unload_handles[0].disposed is True

@@ -1,6 +1,6 @@
 # Configuration
 
-## Version 0.23.0 principles
+## Version 0.24.0 principles
 
 Hermes Email is universal. Operators configure it per deployment; the project contains no personal mailbox, company voice, provider secret, or fixed profile name.
 
@@ -180,7 +180,7 @@ No configuration flag may turn external content into authorization. In particula
 - separate SMTP credential references;
 - fixed sender and bounded timeout/message size.
 
-SMTP configuration does not expose a Hermes send tool in v0.23.0.
+SMTP configuration does not expose a Hermes send tool in v0.24.0.
 
 ### `recipient_policy`
 
@@ -203,3 +203,7 @@ A future internal send attempt requires exact current-user confirmation and one 
 Authorized profile status reports current package version, runtime provider state, active profile, authorized profile, profile-isolation state, read/draft/storage state, SMTP configuration, and technical send gates.
 
 Blocked status reports fixed non-secret diagnostics only and does not open provider or storage resources.
+
+## Thread context
+
+No extra provider credential or write permission is required. `email_get_thread` uses the existing read-only provider and scans at most 100 recent messages per request, returning at most 25 linked messages with bounded body windows. It never automatically follows provider cursors. A result can therefore be explicitly incomplete.

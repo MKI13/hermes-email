@@ -31,6 +31,7 @@ from .providers import (
     resolve_email_provider,
 )
 from .secrets import SecretResolver
+from .threading import EmailThreadContext, build_thread_context
 from .storage import (
     EmailStorageError,
     SqliteObservationStore,
@@ -41,6 +42,8 @@ from .storage import (
 MAX_FETCH_LIMIT: Final = 100
 SEARCH_FETCH_LIMIT: Final = 50
 SEARCH_QUERY_MAX_LENGTH: Final = 256
+THREAD_SCAN_MAX: Final = 100
+THREAD_MESSAGES_MAX: Final = 25
 _RUNTIME_CONFIG_SECTIONS: Final = (
     "email",
     "hermes",
@@ -428,6 +431,46 @@ class EmailPlugin:
                 )
             ),
             next_cursor=page.next_cursor,
+        )
+
+    async def get_thread_context(
+        self,
+        message_id: str,
+        *,
+        scan_limit: int = THREAD_SCAN_MAX,
+        max_messages: int = 10,
+    ) -> EmailThreadContext | None:
+        """Return one bounded RFC-header-derived conversation context.
+
+        Thread membership uses Message-ID, In-Reply-To, and References only.
+        Subject, sender, and body text never establish membership. The scan is
+        one caller-bounded provider page and is never automatically continued.
+        """
+        if (
+            isinstance(scan_limit, bool)
+            or not isinstance(scan_limit, int)
+            or not 1 <= scan_limit <= THREAD_SCAN_MAX
+        ):
+            raise EmailFetchLimitError(
+                f"thread scan_limit must be between 1 and {THREAD_SCAN_MAX}"
+            )
+        if (
+            isinstance(max_messages, bool)
+            or not isinstance(max_messages, int)
+            or not 1 <= max_messages <= THREAD_MESSAGES_MAX
+        ):
+            raise EmailFetchLimitError(
+                f"thread max_messages must be between 1 and {THREAD_MESSAGES_MAX}"
+            )
+        seed = await self.get_message(message_id)
+        if seed is None:
+            return None
+        page = await self.fetch_messages(limit=scan_limit, cursor=None)
+        return build_thread_context(
+            seed,
+            page.messages,
+            scan_complete=page.next_cursor is None,
+            max_messages=max_messages,
         )
 
     def _local_draft_store(self) -> SqliteDraftStore:
