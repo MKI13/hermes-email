@@ -4,6 +4,18 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.33.0] - 2026-09-05
+
+### Added
+- Loopback-only IMAP `starttls-pinned` mode for local mail bridges such as Proton Mail Bridge.
+- Required `imap.tls_sha256_fingerprint` pin with constant-time SHA-256 comparison before credential lookup.
+- Tests proving pin mismatch fails before any secret resolver call.
+
+### Security
+- Self-signed local Bridge TLS is never accepted on trust alone: STARTTLS is restricted to loopback and requires an exact configured certificate fingerprint.
+- No SMTP/send capability or automatic mailbox activity is introduced.
+
+
 ## [0.32.0] - 2026-09-05
 
 ### Added

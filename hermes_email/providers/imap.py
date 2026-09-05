@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import imaplib
+import hashlib
+import hmac
 import re
 import socket
 import ssl
@@ -47,7 +49,7 @@ _MAX_HEADER_CHARACTERS: Final = 2_000
 _MAX_ATTACHMENTS: Final = 25
 _MAX_ATTACHMENT_FILENAME_CHARACTERS: Final = 255
 
-ImapClientFactory = Callable[..., imaplib.IMAP4_SSL]
+ImapClientFactory = Callable[..., Any]
 
 
 class ImapCursorError(ValueError):
@@ -83,6 +85,7 @@ class ImapReadOnlyProvider(EmailProvider):
         secret_resolver: SecretResolver,
         *,
         client_factory: ImapClientFactory = imaplib.IMAP4_SSL,
+        starttls_client_factory: ImapClientFactory = imaplib.IMAP4,
     ) -> None:
         if (
             settings.host is None
@@ -93,6 +96,7 @@ class ImapReadOnlyProvider(EmailProvider):
         self._settings = settings
         self._secret_resolver = secret_resolver
         self._client_factory = client_factory
+        self._starttls_client_factory = starttls_client_factory
         self._lifecycle_lock = threading.Lock()
         self._worker_condition = threading.Condition(self._lifecycle_lock)
         self._active_clients: set[imaplib.IMAP4_SSL] = set()
@@ -264,22 +268,25 @@ class ImapReadOnlyProvider(EmailProvider):
             self._discard(client)
             raise
 
-    def _connect(self) -> imaplib.IMAP4_SSL:
+    def _connect(self) -> Any:
         with self._lifecycle_lock:
             if self._closed:
                 raise ProviderConnectionError("IMAP provider is closed")
         try:
-            tls_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-            tls_context.minimum_version = ssl.TLSVersion.TLSv1_2
-            tls_context.check_hostname = True
-            tls_context.verify_mode = ssl.CERT_REQUIRED
-            tls_context.load_default_certs(ssl.Purpose.SERVER_AUTH)
-            client = self._client_factory(
-                self._settings.host,
-                self._settings.port,
-                ssl_context=tls_context,
-                timeout=self._settings.timeout_seconds,
-            )
+            if self._settings.security == "starttls-pinned":
+                client = self._connect_starttls_pinned()
+            else:
+                tls_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+                tls_context.minimum_version = ssl.TLSVersion.TLSv1_2
+                tls_context.check_hostname = True
+                tls_context.verify_mode = ssl.CERT_REQUIRED
+                tls_context.load_default_certs(ssl.Purpose.SERVER_AUTH)
+                client = self._client_factory(
+                    self._settings.host, self._settings.port,
+                    ssl_context=tls_context, timeout=self._settings.timeout_seconds,
+                )
+        except ProviderTlsError:
+            raise
         except ssl.SSLCertVerificationError:
             _raise_redacted(ProviderTlsError("IMAP certificate verification failed"))
         except ssl.SSLError:
@@ -294,6 +301,40 @@ class ImapReadOnlyProvider(EmailProvider):
                 self._shutdown(client)
                 raise ProviderConnectionError("IMAP provider is closed")
             self._active_clients.add(client)
+        return client
+
+    def _connect_starttls_pinned(self) -> Any:
+        fingerprint = self._settings.tls_sha256_fingerprint
+        if fingerprint is None:
+            raise ProviderTlsError("IMAP TLS fingerprint is unavailable")
+        tls_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+        tls_context.minimum_version = ssl.TLSVersion.TLSv1_2
+        tls_context.check_hostname = False
+        tls_context.verify_mode = ssl.CERT_NONE
+        client = self._starttls_client_factory(
+            self._settings.host, self._settings.port, timeout=self._settings.timeout_seconds
+        )
+        try:
+            client.starttls(ssl_context=tls_context)
+            sock = getattr(client, "sock", None)
+            certificate = sock.getpeercert(binary_form=True) if sock is not None else None
+            if not isinstance(certificate, bytes) or not certificate:
+                raise ProviderTlsError("IMAP TLS peer certificate is unavailable")
+            actual = hashlib.sha256(certificate).hexdigest()
+            if not hmac.compare_digest(actual, fingerprint):
+                raise ProviderTlsError("IMAP TLS certificate fingerprint mismatch")
+        except ProviderTlsError:
+            self._shutdown(client)
+            raise
+        except ssl.SSLError:
+            self._shutdown(client)
+            _raise_redacted(ProviderTlsError("IMAP STARTTLS negotiation failed"))
+        except (TimeoutError, socket.timeout):
+            self._shutdown(client)
+            _raise_redacted(ProviderTimeoutError("IMAP STARTTLS timed out"))
+        except (imaplib.IMAP4.abort, imaplib.IMAP4.error, OSError):
+            self._shutdown(client)
+            _raise_redacted(ProviderConnectionError("IMAP STARTTLS failed"))
         return client
 
     def _authenticate(self, client: imaplib.IMAP4_SSL) -> None:

@@ -823,3 +823,46 @@ def test_attachment_metadata_is_bounded_and_never_decodes_more_than_message_lite
     assert len(attachment.filename or "") == 255
     assert attachment.filename_truncated is True
     assert attachment.size_bytes == 3
+
+def test_starttls_pinned_verifies_certificate_before_credentials() -> None:
+    import hashlib
+    certificate = b"synthetic-bridge-certificate"
+    fingerprint = hashlib.sha256(certificate).hexdigest()
+    client = FakeImapClient()
+    class Sock:
+        def getpeercert(self, binary_form=False):
+            return certificate if binary_form else {}
+    client.sock = Sock()
+    client.starttls_calls = 0
+    def starttls(*, ssl_context):
+        client.starttls_calls += 1
+        assert ssl_context.verify_mode == ssl.CERT_NONE
+        return "OK", [b"tls"]
+    client.starttls = starttls
+    calls=[]
+    def factory(host, port, *, timeout):
+        calls.append((host,port,timeout)); return client
+    resolver=RecordingSecretResolver()
+    provider=ImapReadOnlyProvider(
+        imap_settings(host="127.0.0.1", port=1143, security="starttls-pinned", tls_sha256_fingerprint=fingerprint),
+        resolver, starttls_client_factory=factory,
+    )
+    asyncio.run(provider.check_health())
+    assert client.starttls_calls == 1
+    assert calls == [("127.0.0.1",1143,15)]
+    assert resolver.calls == ["HERMES_EMAIL_IMAP_USERNAME", "HERMES_EMAIL_IMAP_PASSWORD"]
+
+
+def test_starttls_pinned_mismatch_fails_before_secret_lookup() -> None:
+    client = FakeImapClient()
+    class Sock:
+        def getpeercert(self, binary_form=False): return b"wrong" if binary_form else {}
+    client.sock=Sock()
+    client.starttls=lambda *,ssl_context: ("OK",[b"tls"])
+    resolver=RecordingSecretResolver()
+    provider=ImapReadOnlyProvider(
+        imap_settings(host="127.0.0.1", port=1143, security="starttls-pinned", tls_sha256_fingerprint="a"*64),
+        resolver, starttls_client_factory=lambda host,port,timeout: client,
+    )
+    with pytest.raises(ProviderTlsError): asyncio.run(provider.check_health())
+    assert resolver.calls == []

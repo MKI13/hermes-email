@@ -445,3 +445,19 @@ def test_audit_configuration_is_bounded() -> None:
     assert config.audit == AuditSettings(mode="sqlite", retention_days=30, max_events=500, max_database_bytes=4194304)
     with pytest.raises(ConfigError, match="audit.max_events"):
         AuditSettings(max_events=0)
+
+def test_starttls_pinned_requires_loopback_and_fingerprint() -> None:
+    fingerprint = "a" * 64
+    settings = ImapSettings(
+        host="127.0.0.1", port=1143, security="starttls-pinned",
+        tls_sha256_fingerprint=fingerprint,
+        username_ref="HERMES_EMAIL_IMAP_USERNAME",
+        password_ref="HERMES_EMAIL_IMAP_PASSWORD",
+    )
+    assert settings.tls_sha256_fingerprint == fingerprint
+    with pytest.raises(ConfigError, match="loopback"):
+        ImapSettings(host="mail.example.invalid", security="starttls-pinned", tls_sha256_fingerprint=fingerprint)
+    with pytest.raises(ConfigError, match="64 lowercase hex"):
+        ImapSettings(host="127.0.0.1", security="starttls-pinned", tls_sha256_fingerprint="AA")
+    with pytest.raises(ConfigError, match="requires starttls-pinned"):
+        ImapSettings(host="mail.example.invalid", security="tls", tls_sha256_fingerprint=fingerprint)
