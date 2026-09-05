@@ -8,7 +8,7 @@ import hermes_email
 
 
 ROOT = Path(__file__).resolve().parents[1]
-EXPECTED = "0.23.0"
+EXPECTED = "0.24.0"
 
 
 def test_current_version_is_consistent_across_live_surfaces() -> None:
@@ -21,14 +21,14 @@ def test_current_version_is_consistent_across_live_surfaces() -> None:
     assert hermes_email.__version__ == EXPECTED
     assert project["project"]["version"] == EXPECTED
     assert manifest["version"] == EXPECTED
-    assert re.search(r"(?m)^version: 0\.23\.0$", skill)
-    assert "Hermes Email v0.23.0" in skill
-    assert "## Version 0.23.0" in readme
-    assert "Version 0.23.0" in (ROOT / "docs" / "architecture.md").read_text(encoding="utf-8")
-    assert "Version 0.23.0" in (ROOT / "docs" / "configuration.md").read_text(encoding="utf-8")
-    assert "Version 0.23.0" in (ROOT / "docs" / "security-model.md").read_text(encoding="utf-8")
-    assert "Hermes Email version 0.23.0" in (ROOT / "docs" / "official-hermes-compatibility.md").read_text(encoding="utf-8")
-    assert workflow.count("0.23.0") >= 2
+    assert re.search(rf"(?m)^version: {re.escape(EXPECTED)}$", skill)
+    assert f"Hermes Email v{EXPECTED}" in skill
+    assert f"## Version {EXPECTED}" in readme
+    assert f"Version {EXPECTED}" in (ROOT / "docs" / "architecture.md").read_text(encoding="utf-8")
+    assert f"Version {EXPECTED}" in (ROOT / "docs" / "configuration.md").read_text(encoding="utf-8")
+    assert f"Version {EXPECTED}" in (ROOT / "docs" / "security-model.md").read_text(encoding="utf-8")
+    assert f"Hermes Email version {EXPECTED}" in (ROOT / "docs" / "official-hermes-compatibility.md").read_text(encoding="utf-8")
+    assert workflow.count(EXPECTED) >= 2
 
 
 def test_stale_runtime_status_version_text_is_absent() -> None:

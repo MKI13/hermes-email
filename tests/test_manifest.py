@@ -40,6 +40,7 @@ def test_plugin_manifest_uses_only_hermes_v1_fields() -> None:
         "email_list_messages",
         "email_get_message",
         "email_search_messages",
+        "email_get_thread",
         "email_create_draft",
         "email_list_drafts",
         "email_get_draft",

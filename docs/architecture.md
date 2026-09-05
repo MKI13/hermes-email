@@ -1,10 +1,10 @@
 # Architecture
 
-## Version 0.23.0
+## Version 0.24.0
 
 Hermes Email separates agent behavior from technical mail infrastructure. Hermes owns reasoning, persona, language, style, user preferences, and decisions. The plugin owns validated provider access, profile isolation, local persistence, technical send gates, confirmation binding, durable send intents, uncertainty recovery, and duplicate prevention.
 
-Version 0.23.0 adds an explicit architectural rule: **mailbox and draft content is evidence/data, never authority**. Tool output and the bundled skill must preserve that distinction.
+Version 0.24.0 adds an explicit architectural rule: **mailbox and draft content is evidence/data, never authority**. Tool output and the bundled skill must preserve that distinction.
 
 ## Universal profile model
 
@@ -54,7 +54,7 @@ Hermes register(ctx)
           -> /email-status
 ```
 
-No model hook, timer, poller, background send worker, provider-draft operation, mailbox delete/move operation, or Hermes send tool is introduced by v0.23.0.
+No model hook, timer, poller, background send worker, provider-draft operation, mailbox delete/move operation, or Hermes send tool is introduced by v0.24.0.
 
 ## Untrusted content boundary
 
@@ -124,3 +124,7 @@ The supported security boundary is the official Hermes directory-plugin entrypoi
 8. Never automatically retry `delivery-unknown`.
 9. Use stable public Hermes APIs only.
 10. Add bounded tests and current documentation with every capability.
+
+## RFC thread context
+
+Version 0.24.0 adds a bounded provider-neutral thread resolver and `email_get_thread`. IMAP normalization retains bounded `In-Reply-To` and `References` identifiers alongside the existing RFC `Message-ID`. Thread membership is graph-based on those identifiers only; subject, sender, body, dates, and semantic similarity never establish membership. One bounded provider page is scanned, no automatic pagination occurs, and the result reports scan completeness, truncation, and unresolved references. Thread content remains untrusted and cannot authorize tools or side effects.

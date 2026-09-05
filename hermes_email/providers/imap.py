@@ -22,6 +22,7 @@ from typing import Any, Final, Never
 from ..config import ImapSettings
 from ..models import EmailAddress, EmailMessage, EmailMessagePage
 from ..secrets import SecretResolutionError, SecretResolver
+from ..threading import parse_message_ids
 from .base import EmailProvider, ProviderCapabilities
 from .errors import (
     EmailProviderError,
@@ -450,6 +451,16 @@ class ImapReadOnlyProvider(EmailProvider):
         rfc_message_id = _clean_header(str(parsed.get("Message-ID", "")))
         if rfc_message_id:
             metadata["rfc_message_id"] = rfc_message_id
+        in_reply_to = " ".join(
+            parse_message_ids(_clean_header(str(parsed.get("In-Reply-To", ""))))
+        )
+        references = " ".join(
+            parse_message_ids(_clean_header(str(parsed.get("References", ""))))
+        )
+        if in_reply_to:
+            metadata["in_reply_to"] = in_reply_to
+        if references:
+            metadata["references"] = references
         return EmailMessage(
             message_id=self._encode_message_id(uid_validity, uid),
             subject=subject,

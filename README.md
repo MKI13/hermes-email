@@ -6,9 +6,9 @@ Hermes Email is a universal, provider-neutral email plugin and skill for [Hermes
 
 Hermes remains responsible for reasoning, persona, language, style, user preferences, and decisions. The plugin owns validated mail access, credential references, local persistence, profile isolation, confirmation gates, durable send intents, uncertainty recovery, and duplicate prevention.
 
-## Version 0.23.0
+## Version 0.24.0
 
-Version 0.23.0 hardens the **untrusted mail-content boundary** and makes installation/profile choices explicit for every Hermes user.
+Version 0.24.0 adds **bounded RFC-based thread/conversation context** on top of the existing untrusted-content and universal-profile safety model.
 
 ### You do not need a dedicated email profile
 
@@ -76,7 +76,7 @@ If the active profile does not exactly match the configured owner:
 
 ## Safety model
 
-| Operation | Version 0.23.0 |
+| Operation | Version 0.24.0 |
 |---|---|
 | Productive profile ownership | Exact explicit profile required |
 | Dedicated mail profile | Recommended, not required |
@@ -150,8 +150,14 @@ When the authorized profile has a readable provider, Hermes can expose:
 - `email_list_messages`
 - `email_get_message`
 - `email_search_messages`
+- `email_get_thread` — bounded RFC-header-derived conversation context
 
 List/search results omit bodies. Reads are bounded, use read-only provider behavior, and mark returned mail fields as untrusted external content.
+
+
+### Thread context
+
+`email_get_thread` reconstructs a bounded chronological conversation from RFC `Message-ID`, `In-Reply-To`, and `References` relationships. It never groups messages merely because subject, sender, body text, or wording looks similar. The result explicitly reports whether the provider scan was complete, whether the returned thread was truncated, and how many referenced message IDs were not present in the scanned window. All thread messages remain untrusted external content and gain no action authority by being part of a thread.
 
 ## Local draft tools
 

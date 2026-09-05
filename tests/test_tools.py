@@ -24,6 +24,7 @@ from hermes_email.tools import (
     GET_TOOL,
     LIST_TOOL,
     SEARCH_TOOL,
+    THREAD_TOOL,
     ReadToolRegistrationError,
     register_read_tools,
 )
@@ -67,11 +68,11 @@ def invoke(entry: dict[str, Any], args: Any, **kwargs: Any) -> dict[str, Any]:
     return json.loads(result)
 
 
-def test_registers_three_async_read_only_tools_with_model_descriptions() -> None:
+def test_registers_four_async_read_only_tools_with_model_descriptions() -> None:
     tools = registered_tools()
 
-    assert set(tools) == {LIST_TOOL, GET_TOOL, SEARCH_TOOL}
-    expected_emojis = {LIST_TOOL: "📬", GET_TOOL: "✉️", SEARCH_TOOL: "🔎"}
+    assert set(tools) == {LIST_TOOL, GET_TOOL, SEARCH_TOOL, THREAD_TOOL}
+    expected_emojis = {LIST_TOOL: "📬", GET_TOOL: "✉️", SEARCH_TOOL: "🔎", THREAD_TOOL: "🧵"}
     for name, entry in tools.items():
         assert entry["toolset"] == "hermes_email"
         assert entry["emoji"] == expected_emojis[name]

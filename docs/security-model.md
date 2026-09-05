@@ -1,8 +1,8 @@
 # Security Model
 
-## Version 0.23.0 boundary
+## Version 0.24.0 boundary
 
-Version 0.23.0 hardens the **untrusted external-content boundary** on top of production profile isolation, read-only access, revisioned drafts, exact user confirmation, durable send idempotency, and strict `delivery-unknown` recovery.
+Version 0.24.0 hardens the **untrusted external-content boundary** on top of production profile isolation, read-only access, revisioned drafts, exact user confirmation, durable send idempotency, and strict `delivery-unknown` recovery.
 
 Productive mail capabilities still belong to one explicit Hermes profile. A dedicated mail profile is recommended but not required: a user may explicitly bind Hermes Email to an existing profile instead. The same productive mailbox/account configuration must not be active in multiple profiles.
 
@@ -110,3 +110,7 @@ The supported security boundary is Hermes' official directory-plugin entrypoint,
 ## Requirements before model-facing sending
 
 Profile isolation and prompt-injection defenses do not make sending available. A future model-facing send release still requires a trusted user-visible preview, trusted confirmation surface, durable operator-readable audit/status, manual-review workflow for uncertain delivery, and a narrowly scoped send tool with no background/autonomous sending.
+
+## Thread-context safety
+
+Thread reconstruction uses only bounded RFC `Message-ID`, `In-Reply-To`, and `References` relationships. Subject-line matching, sender similarity, body similarity, and semantic heuristics are deliberately excluded because they can merge unrelated business conversations. A malicious message may reference another Message-ID and appear in the contextual graph, but it remains untrusted external data with zero action authority. Incomplete scans, result truncation, and unresolved references are surfaced rather than hidden.

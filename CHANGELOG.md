@@ -4,6 +4,26 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.24.0] - 2026-09-05
+
+### Added
+
+- Bounded provider-neutral RFC thread reconstruction using `Message-ID`, `In-Reply-To`, and `References` only.
+- New read-only Hermes tool `email_get_thread` with explicit scan completeness, result truncation, unresolved-reference count, and bounded per-message body windows.
+- IMAP normalization of bounded reply/reference headers for real mailbox thread context.
+- Thread resolver and tool tests covering subject-collision resistance, sibling replies, missing RFC headers, truncation, and unresolved references.
+
+### Changed
+
+- The read toolset expands from three to four tools and the manifest now advertises ten total Hermes tools.
+- Current package, manifest, skill, CI, README, architecture, configuration, security, compatibility, imports, and version-consistency checks advance to `0.24.0`.
+
+### Security
+
+- Thread membership never uses subject, sender, body, semantic similarity, or UID proximity, preventing ordinary lookalike messages from being merged into one business conversation.
+- Thread results remain untrusted external content and cannot authorize drafting, sending, tools, secrets, profile changes, or any other side effect.
+- Thread scanning is bounded and never automatically paginates; incomplete context is surfaced rather than silently claimed complete.
+
 ## [0.23.0] - 2026-09-05
 
 ### Added
@@ -432,7 +452,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - Initial project metadata and safe-by-default foundation.
 
-[Unreleased]: https://github.com/MKI13/hermes-email/compare/v0.23.0...HEAD
+[Unreleased]: https://github.com/MKI13/hermes-email/compare/v0.24.0...HEAD
+[0.24.0]: https://github.com/MKI13/hermes-email/compare/v0.23.0...v0.24.0
 [0.23.0]: https://github.com/MKI13/hermes-email/compare/v0.22.0...v0.23.0
 [0.22.0]: https://github.com/MKI13/hermes-email/compare/v0.21.0...v0.22.0
 [0.21.0]: https://github.com/MKI13/hermes-email/compare/v0.20.0...v0.21.0

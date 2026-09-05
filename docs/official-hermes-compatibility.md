@@ -1,6 +1,6 @@
 # Hermes Compatibility
 
-Hermes Email version 0.23.0 targets the manifest v1 schema accepted by the pinned Hermes Agent v0.21.0 compatibility target.
+Hermes Email version 0.24.0 targets the manifest v1 schema accepted by the pinned Hermes Agent v0.21.0 compatibility target.
 
 The plugin uses only public Hermes extension surfaces:
 
@@ -30,9 +30,9 @@ The guard reads only public `ctx.profile_name` and plugin-scoped configuration b
 
 This uses no private Hermes file, database, profile loader, or undocumented runtime field.
 
-## v0.23.0 content trust contract
+## v0.24.0 content trust contract
 
-The existing model-facing read tools already label returned mail as untrusted external content. Version 0.23.0 makes that behavior a tested compatibility contract and strengthens the bundled skill so mailbox/draft content cannot become action authorization.
+The existing model-facing read tools already label returned mail as untrusted external content. Version 0.24.0 makes that behavior a tested compatibility contract and strengthens the bundled skill so mailbox/draft content cannot become action authorization.
 
 No new Hermes runtime API is required. The boundary is expressed through:
 
@@ -45,7 +45,7 @@ The plugin does not ask Hermes Agent for a private prompt filter or undocumented
 
 ## Existing capabilities
 
-After profile authorization succeeds, v0.23.0 retains:
+After profile authorization succeeds, v0.24.0 retains:
 
 - bounded read-only IMAP/mock access;
 - profile-scoped observation and draft storage;
@@ -82,3 +82,7 @@ Authoritative upstream references remain:
 - Plugins overview
 - Creating Skills
 - Hermes Agent repository
+
+## v0.24.0 thread context
+
+The fourth read-only tool, `email_get_thread`, uses the same public `ctx.register_tool()` surface as existing read tools. It adds no new Hermes private API, background worker, write capability, or send path. Thread reconstruction is provider-neutral and bounded; IMAP contributes normalized RFC relationship metadata while the model-facing result remains explicitly untrusted.
