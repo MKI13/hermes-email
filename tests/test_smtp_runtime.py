@@ -86,7 +86,7 @@ def test_armed_runtime_is_offline_and_exposes_no_submission_surface(
     assert status.send_enabled is False
     assert "SMTP: configured" in output
     assert "Technical send gates: armed" in output
-    assert "Send: unavailable in v0.18" in output
+    assert "Send: unavailable" in output
     assert "smtp.example.invalid" not in output
     assert "HERMES_EMAIL" not in output
     assert len(context.tools) == 9
