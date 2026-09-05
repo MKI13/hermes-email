@@ -2,7 +2,7 @@
 
 Production mail capabilities are bound to one explicit Hermes profile before
 provider resolution, durable-store construction, secret access, or tool
-registration.  Mock/development-only configurations may keep ``profile: auto``.
+registration. Mock/development-only configurations may keep ``profile: auto``.
 """
 
 from __future__ import annotations
@@ -14,6 +14,7 @@ from typing import Any, Final, Mapping
 from . import __version__
 
 _MISSING: Final = object()
+_INVALID: Final = object()
 _MAX_PROFILE_LENGTH: Final = 128
 
 
@@ -44,6 +45,8 @@ def evaluate_profile_policy(ctx: Any) -> ProfilePolicyDecision:
         return ProfilePolicyDecision(False, None, None, "invalid-active-profile")
 
     hermes = _config_section(ctx, "hermes")
+    if hermes is _INVALID:
+        return ProfilePolicyDecision(False, current, None, "invalid-profile-policy")
     if hermes is _MISSING:
         configured = "auto"
     elif not isinstance(hermes, Mapping):
@@ -53,23 +56,15 @@ def evaluate_profile_policy(ctx: Any) -> ProfilePolicyDecision:
 
     if configured == "auto":
         if _production_capability_configured(ctx):
-            return ProfilePolicyDecision(
-                False,
-                current,
-                None,
-                "explicit-profile-required",
-            )
+            return ProfilePolicyDecision(False, current, None, "explicit-profile-required")
         return ProfilePolicyDecision(True, current, None, None, development_auto=True)
 
     if not _valid_profile_identifier(configured):
         return ProfilePolicyDecision(False, current, None, "invalid-profile-policy")
+    if not _valid_profile_identifier(current):
+        return ProfilePolicyDecision(False, current, configured, "invalid-active-profile")
     if current != configured:
-        return ProfilePolicyDecision(
-            False,
-            current,
-            configured,
-            "profile-not-authorized",
-        )
+        return ProfilePolicyDecision(False, current, configured, "profile-not-authorized")
     return ProfilePolicyDecision(True, current, configured, None)
 
 
@@ -171,8 +166,7 @@ def _authorized_status(runtime: Any, decision: ProfilePolicyDecision, raw_args: 
             f"Storage: {'enabled' if status.storage_enabled else 'disabled'}",
             f"Draft: {'enabled' if status.draft_enabled else 'disabled'}",
             f"SMTP: {'configured' if status.smtp_configured else 'disabled'}",
-            "Technical send gates: "
-            + ("armed" if status.technical_send_armed else "disabled"),
+            "Technical send gates: " + ("armed" if status.technical_send_armed else "disabled"),
             "Send: unavailable",
         )
     )
@@ -205,6 +199,8 @@ def _blocked_status(runtime: ProfileBlockedRuntime, raw_args: str) -> str:
 
 def _production_capability_configured(ctx: Any) -> bool:
     email = _config_section(ctx, "email")
+    if email is _INVALID:
+        return True
     if email is not _MISSING:
         if not isinstance(email, Mapping):
             return True
@@ -215,6 +211,8 @@ def _production_capability_configured(ctx: Any) -> bool:
 
     for section_name in ("storage", "drafts"):
         section = _config_section(ctx, section_name)
+        if section is _INVALID:
+            return True
         if section is _MISSING:
             continue
         if not isinstance(section, Mapping):
@@ -223,6 +221,8 @@ def _production_capability_configured(ctx: Any) -> bool:
             return True
 
     smtp = _config_section(ctx, "smtp")
+    if smtp is _INVALID:
+        return True
     if smtp is not _MISSING:
         if not isinstance(smtp, Mapping):
             return True
@@ -230,6 +230,8 @@ def _production_capability_configured(ctx: Any) -> bool:
             return True
 
     safety = _config_section(ctx, "safety")
+    if safety is _INVALID:
+        return True
     if safety is not _MISSING:
         if not isinstance(safety, Mapping):
             return True
@@ -242,8 +244,7 @@ def _config_section(ctx: Any, name: str) -> object:
     try:
         return ctx.get_config(name, default=_MISSING)
     except Exception:
-        # Configuration lookup failure is never a reason to weaken isolation.
-        return {"__invalid__": True}
+        return _INVALID
 
 
 def _valid_profile_identifier(value: object) -> bool:
