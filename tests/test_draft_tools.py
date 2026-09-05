@@ -16,6 +16,7 @@ from hermes_email.draft_tools import (
     GET_DRAFT_TOOL,
     LIST_DRAFTS_TOOL,
     RESTORE_DRAFT_TOOL,
+    REVIEW_DRAFT_SEND_TOOL,
     TRASH_DRAFT_TOOL,
     UPDATE_DRAFT_TOOL,
     DraftToolRegistrationError,
@@ -99,7 +100,7 @@ def test_registers_seven_tools_without_opening_database(tmp_path: Path) -> None:
 
     handles = register_draft_tools(context, runtime)
 
-    assert len(handles) == 8
+    assert len(handles) == 9
     assert {tool["name"] for tool in context.tools} == {
         CREATE_DRAFT_TOOL,
     CREATE_REPLY_DRAFT_TOOL,
@@ -109,6 +110,7 @@ def test_registers_seven_tools_without_opening_database(tmp_path: Path) -> None:
         UPDATE_DRAFT_TOOL,
         TRASH_DRAFT_TOOL,
         RESTORE_DRAFT_TOOL,
+    REVIEW_DRAFT_SEND_TOOL,
     }
     assert all(tool["toolset"] == "hermes_email" for tool in context.tools)
     assert all(tool["is_async"] is True for tool in context.tools)
@@ -134,7 +136,7 @@ def test_registration_collision_rolls_back_every_acquired_draft_tool(
     with pytest.raises(DraftToolRegistrationError):
         register_draft_tools(context, plugin(tmp_path))
 
-    assert len(context.handles) == 5
+    assert len(context.handles) == 6
     assert all(handle.disposed for handle in context.handles)
 
 
@@ -524,3 +526,57 @@ def test_reply_all_excludes_self_deduplicates_and_never_bcc(tmp_path: Path) -> N
     assert draft.body_text == "My reviewed reply."
     assert "UNTRUSTED" not in draft.body_text
     assert draft.in_reply_to == "<reply-all@example.invalid>"
+
+def test_send_review_is_read_only_and_exposes_exact_recipients_without_body(tmp_path: Path) -> None:
+    runtime, tools = registered(tmp_path)
+    created = invoke(tools[CREATE_DRAFT_TOOL], {
+        **content(),
+        "operation_id": "review-create-operation-0001",
+    })
+    result = invoke(tools[REVIEW_DRAFT_SEND_TOOL], {
+        "draft_id": created["mutation"]["draft_id"],
+    })
+    assert result["ok"] is True
+    assert result["operation"] == "draft-send-review"
+    assert result["revision"] == 1
+    assert result["subject"] == "Local review"
+    assert result["body_character_count"] == len("Hello,\n\nThis draft is not sent.")
+    assert result["body_included"] is False
+    assert result["recipient_count"] == 3
+    assert [item["channel"] for item in result["recipients"]] == ["to", "cc", "bcc"]
+    assert [item["address"] for item in result["recipients"]] == [
+        "person@example.invalid", "copy@example.invalid", "private@example.invalid"
+    ]
+    assert result["blocked_recipient_count"] == 3
+    assert result["recipient_policy_mode"] == "deny"
+    assert result["smtp_configured"] is False
+    assert result["technical_send_armed"] is False
+    assert result["confirmation_required"] is True
+    assert result["confirmation_present"] is False
+    assert result["send_available"] is False
+    assert result["authorization"] == "none"
+    assert result["sent"] is False
+    serialized = json.dumps(result)
+    assert "Hello" not in serialized
+    assert "not sent" not in serialized
+
+
+def test_send_review_reports_allowlist_without_arming_send(tmp_path: Path) -> None:
+    cfg = EmailPluginConfig.from_mapping({
+        "drafts": {"mode": "sqlite", "account_namespace": "tool-account"},
+        "recipient_policy": {"mode": "allowlist", "allowed_domains": ["example.invalid"]},
+    })
+    store = SqliteDraftStore(tmp_path / "review.sqlite3", cfg.drafts)
+    runtime = EmailPlugin(cfg, draft_store=store)
+    context = Context(); register_draft_tools(context, runtime)
+    tools = {tool["name"]: tool for tool in context.tools}
+    created = invoke(tools[CREATE_DRAFT_TOOL], {
+        "to": [{"address": "person@example.invalid"}], "cc": [], "bcc": [],
+        "subject": "Review", "body_text": "Body", "operation_id": "review-create-operation-0002",
+    })
+    result = invoke(tools[REVIEW_DRAFT_SEND_TOOL], {"draft_id": created["mutation"]["draft_id"]})
+    assert result["blocked_recipient_count"] == 0
+    assert result["all_recipients_policy_permitted"] is True
+    assert result["technical_send_armed"] is False
+    assert result["send_available"] is False
+    assert result["confirmation_present"] is False

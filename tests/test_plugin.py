@@ -48,6 +48,7 @@ def test_register_adds_bundled_skill_and_all_local_draft_and_read_tools() -> Non
         "email_create_reply_all_draft",
         "email_list_drafts",
         "email_get_draft",
+        "email_review_draft_send",
         "email_update_draft",
         "email_trash_draft",
         "email_restore_draft",

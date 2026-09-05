@@ -47,6 +47,7 @@ def test_plugin_manifest_uses_only_hermes_v1_fields() -> None:
         "email_create_reply_all_draft",
         "email_list_drafts",
         "email_get_draft",
+        "email_review_draft_send",
         "email_update_draft",
         "email_trash_draft",
         "email_restore_draft",

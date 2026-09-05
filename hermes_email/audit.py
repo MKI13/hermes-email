@@ -4,7 +4,7 @@ import os, sqlite3, threading, time
 from pathlib import Path
 from .config import AuditSettings
 
-_ALLOWED_OPERATIONS={"list","get","search","thread","draft-create","draft-reply-create","draft-list","draft-get","draft-update","draft-trash","draft-restore","health"}
+_ALLOWED_OPERATIONS={"list","get","search","thread","draft-create","draft-reply-create","draft-list","draft-get","draft-update","draft-trash","draft-restore","draft-send-review","health"}
 
 class AuditError(RuntimeError): pass
 

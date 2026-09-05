@@ -89,8 +89,9 @@ def test_armed_runtime_is_offline_and_exposes_no_submission_surface(
     assert "Send: unavailable" in output
     assert "smtp.example.invalid" not in output
     assert "HERMES_EMAIL" not in output
-    assert len(context.tools) == 13
-    assert all("send" not in tool["name"] for tool in context.tools)
+    assert len(context.tools) == 14
+    assert "email_review_draft_send" in {tool["name"] for tool in context.tools}
+    assert not ({"email_send", "email_send_draft", "email_confirm_send"} & {tool["name"] for tool in context.tools})
     assert [command[0] for command in context.commands] == ["email-status"]
     assert not context.state.data_dir.exists()
 

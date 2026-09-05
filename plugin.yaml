@@ -1,6 +1,6 @@
 manifest_version: 1
 name: hermes-email
-version: 0.35.0
+version: 0.36.0
 kind: standalone
 description: Safe email access with profile isolation and prompt-injection trust boundaries
 author: MKI13
@@ -15,6 +15,7 @@ provides_tools:
   - email_create_reply_all_draft
   - email_list_drafts
   - email_get_draft
+  - email_review_draft_send
   - email_update_draft
   - email_trash_draft
   - email_restore_draft

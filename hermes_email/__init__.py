@@ -41,4 +41,4 @@ __all__ = [
     "load_config",
     "validate_secret_reference",
 ]
-__version__ = "0.35.0"
+__version__ = "0.36.0"
