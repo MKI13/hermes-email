@@ -19,16 +19,12 @@ from .draft_storage import (
 )
 from .models import EmailDraft, EmailDraftPage, EmailMessage, EmailMessagePage
 from .providers import (
+    ProviderProtocolError,
     EmailProvider,
     EmailProviderError,
     EmailProviderResolutionError,
-    ProviderAuthenticationError,
-    ProviderConnectionError,
-    ProviderMailboxError,
     ProviderNotConfiguredError,
-    ProviderProtocolError,
-    ProviderTimeoutError,
-    ProviderTlsError,
+    provider_error_code,
     resolve_email_provider,
 )
 from .secrets import SecretResolver
@@ -70,7 +66,13 @@ class EmailRuntimeState(StrEnum):
     PROVIDER_CONFIGURED = "provider-configured"
     PROVIDER_READY = "provider-ready"
     AUTHENTICATION_ERROR = "authentication-error"
-    PROVIDER_UNREACHABLE = "provider-unreachable"
+    TLS_ERROR = "tls-error"
+    TIMEOUT_ERROR = "timeout-error"
+    CONNECTION_ERROR = "connection-error"
+    MAILBOX_ERROR = "mailbox-error"
+    PROTOCOL_ERROR = "protocol-error"
+    MESSAGE_ERROR = "message-error"
+    PROVIDER_ERROR = "provider-error"
     STORAGE_ERROR = "storage-error"
     CONFIGURATION_ERROR = "configuration-error"
 
@@ -293,27 +295,19 @@ class EmailPlugin:
     def _record_provider_failure(self, error: EmailProviderError) -> None:
         if self._closed:
             return
-        if isinstance(error, ProviderAuthenticationError):
-            self._runtime_state = EmailRuntimeState.AUTHENTICATION_ERROR
-            self._runtime_diagnostic = "authentication-failed"
-        elif isinstance(error, ProviderTlsError):
-            self._runtime_state = EmailRuntimeState.PROVIDER_UNREACHABLE
-            self._runtime_diagnostic = "tls-failed"
-        elif isinstance(error, ProviderTimeoutError):
-            self._runtime_state = EmailRuntimeState.PROVIDER_UNREACHABLE
-            self._runtime_diagnostic = "provider-timeout"
-        elif isinstance(error, ProviderConnectionError):
-            self._runtime_state = EmailRuntimeState.PROVIDER_UNREACHABLE
-            self._runtime_diagnostic = "connection-failed"
-        elif isinstance(error, ProviderMailboxError):
-            self._runtime_state = EmailRuntimeState.PROVIDER_UNREACHABLE
-            self._runtime_diagnostic = "mailbox-unavailable"
-        elif isinstance(error, ProviderProtocolError):
-            self._runtime_state = EmailRuntimeState.PROVIDER_UNREACHABLE
-            self._runtime_diagnostic = "protocol-error"
-        else:
-            self._runtime_state = EmailRuntimeState.PROVIDER_UNREACHABLE
-            self._runtime_diagnostic = "provider-error"
+        code = provider_error_code(error)
+        states = {
+            "authentication-failed": EmailRuntimeState.AUTHENTICATION_ERROR,
+            "tls-failed": EmailRuntimeState.TLS_ERROR,
+            "provider-timeout": EmailRuntimeState.TIMEOUT_ERROR,
+            "provider-unreachable": EmailRuntimeState.CONNECTION_ERROR,
+            "mailbox-unavailable": EmailRuntimeState.MAILBOX_ERROR,
+            "protocol-error": EmailRuntimeState.PROTOCOL_ERROR,
+            "message-error": EmailRuntimeState.MESSAGE_ERROR,
+            "provider-error": EmailRuntimeState.PROVIDER_ERROR,
+        }
+        self._runtime_state = states[code]
+        self._runtime_diagnostic = code
 
     def _record_provider_success(self) -> None:
         if not self._closed and self.provider is not None:

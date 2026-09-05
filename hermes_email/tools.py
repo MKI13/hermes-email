@@ -23,15 +23,11 @@ from .plugin import (
     EmailSearchQueryError,
 )
 from .providers import (
+    ProviderProtocolError,
+    ProviderMessageError,
     EmailProviderError,
     ImapCursorError,
-    ProviderAuthenticationError,
-    ProviderConnectionError,
-    ProviderMailboxError,
-    ProviderMessageError,
-    ProviderProtocolError,
-    ProviderTimeoutError,
-    ProviderTlsError,
+    provider_error_code,
     ImapLimitError,
     ImapMessageIdError,
     MockCursorError,
@@ -646,22 +642,8 @@ def _json_error(plugin: EmailPlugin, operation: str, error: Exception) -> str:
         code = "storage-invalid"
     elif isinstance(error, EmailStorageError):
         code = "storage-unavailable"
-    elif isinstance(error, ProviderAuthenticationError):
-        code = "authentication-failed"
-    elif isinstance(error, ProviderTlsError):
-        code = "tls-failed"
-    elif isinstance(error, ProviderTimeoutError):
-        code = "provider-timeout"
-    elif isinstance(error, ProviderConnectionError):
-        code = "provider-unreachable"
-    elif isinstance(error, ProviderMailboxError):
-        code = "mailbox-unavailable"
-    elif isinstance(error, ProviderProtocolError):
-        code = "protocol-error"
-    elif isinstance(error, ProviderMessageError):
-        code = "message-error"
     elif isinstance(error, EmailProviderError):
-        code = "provider-error"
+        code = provider_error_code(error)
     elif isinstance(error, ValueError):
         code = "invalid-arguments"
     else:

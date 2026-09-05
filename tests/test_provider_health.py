@@ -17,6 +17,7 @@ from hermes_email.providers import (
     ProviderCapabilities,
     ProviderConnectionError,
     ProviderMailboxError,
+    ProviderMessageError,
     ProviderProtocolError,
     ProviderTimeoutError,
     ProviderTlsError,
@@ -117,28 +118,33 @@ def test_explicit_health_success_marks_provider_ready() -> None:
         ),
         (
             ProviderTlsError("SYNTHETIC PRIVATE DETAIL"),
-            EmailRuntimeState.PROVIDER_UNREACHABLE,
+            EmailRuntimeState.TLS_ERROR,
             "tls-failed",
         ),
         (
             ProviderTimeoutError("SYNTHETIC PRIVATE DETAIL"),
-            EmailRuntimeState.PROVIDER_UNREACHABLE,
+            EmailRuntimeState.TIMEOUT_ERROR,
             "provider-timeout",
         ),
         (
             ProviderConnectionError("SYNTHETIC PRIVATE DETAIL"),
-            EmailRuntimeState.PROVIDER_UNREACHABLE,
-            "connection-failed",
+            EmailRuntimeState.CONNECTION_ERROR,
+            "provider-unreachable",
         ),
         (
             ProviderMailboxError("SYNTHETIC PRIVATE DETAIL"),
-            EmailRuntimeState.PROVIDER_UNREACHABLE,
+            EmailRuntimeState.MAILBOX_ERROR,
             "mailbox-unavailable",
         ),
         (
             ProviderProtocolError("SYNTHETIC PRIVATE DETAIL"),
-            EmailRuntimeState.PROVIDER_UNREACHABLE,
+            EmailRuntimeState.PROTOCOL_ERROR,
             "protocol-error",
+        ),
+        (
+            ProviderMessageError("SYNTHETIC PRIVATE DETAIL"),
+            EmailRuntimeState.MESSAGE_ERROR,
+            "message-error",
         ),
     ],
 )
@@ -247,6 +253,6 @@ def test_failed_read_updates_status_and_propagates_error() -> None:
         asyncio.run(plugin.fetch_messages(limit=1))
 
     status = plugin.get_runtime_status()
-    assert status.state is EmailRuntimeState.PROVIDER_UNREACHABLE
+    assert status.state is EmailRuntimeState.TIMEOUT_ERROR
     assert status.diagnostic == "provider-timeout"
     assert "SYNTHETIC PRIVATE DETAIL" not in repr(asdict(status))

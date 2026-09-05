@@ -6,9 +6,9 @@ Hermes Email is a universal, provider-neutral email plugin and skill for [Hermes
 
 Hermes remains responsible for reasoning, persona, language, style, user preferences, and decisions. The plugin owns validated mail access, credential references, local persistence, profile isolation, confirmation gates, durable send intents, uncertainty recovery, and duplicate prevention.
 
-## Version 0.30.0
+## Version 0.31.0
 
-Version 0.30.0 adds an **opt-in content-minimized audit ledger**. Audit rows contain only timestamp, operation, fixed outcome code, and item count. They never store message IDs, draft IDs, subjects, addresses, recipients, queries, filenames, bodies, or secrets. SQLite audit storage is profile-scoped and requires an explicit productive profile owner.
+Version 0.31.0 adds **precise provider error states** shared by runtime status and model-facing tool errors. Authentication, TLS, timeout, connection, mailbox, protocol, message, and generic provider failures are separated without exposing raw provider exception details.
 
 ### You do not need a dedicated email profile
 
@@ -43,7 +43,7 @@ See [Installation and profile setup](docs/installation.md) for both supported la
 
 Message and thread detail may expose a bounded `attachments` list. Each item contains only an opaque message-local attachment ID, bounded filename, MIME type, optional decoded size, and disposition. Every item carries `metadata_is_untrusted: true`, `content_available: false`, and `authorization: none`.
 
-Hermes Email v0.30.0 does **not** download, save, open, render, scan, execute, forward, or upload attachment content. List/search summaries intentionally omit attachment metadata. Attachment filenames and MIME declarations are external input and must never be treated as trusted paths, commands, or proof of file type.
+Hermes Email v0.31.0 does **not** download, save, open, render, scan, execute, forward, or upload attachment content. List/search summaries intentionally omit attachment metadata. Attachment filenames and MIME declarations are external input and must never be treated as trusted paths, commands, or proof of file type.
 
 ## Deterministic sender classification
 
@@ -94,7 +94,7 @@ If the active profile does not exactly match the configured owner:
 
 ## Safety model
 
-| Operation | Version 0.30.0 |
+| Operation | Version 0.31.0 |
 |---|---|
 | Productive profile ownership | Exact explicit profile required |
 | Dedicated mail profile | Recommended, not required |
