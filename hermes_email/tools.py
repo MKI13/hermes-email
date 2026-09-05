@@ -6,6 +6,7 @@ import json
 from datetime import datetime
 from typing import Any, Final
 
+from .attachment_safety import assess_attachment
 from .classification import classify_sender
 from .config import SenderClassificationSettings
 from .models import EmailAddress, EmailAttachment, EmailMessage, EmailMessagePage
@@ -553,6 +554,7 @@ def _attachment_result(attachment: EmailAttachment) -> dict[str, Any]:
         or not 0 <= size_bytes <= _MAX_ATTACHMENT_SIZE_BYTES
     ):
         size_bytes = None
+    assessment = assess_attachment(attachment)
     return {
         "attachment_id": _bounded_opaque_value(attachment.attachment_id),
         "filename": bounded_filename,
@@ -563,6 +565,11 @@ def _attachment_result(attachment: EmailAttachment) -> dict[str, Any]:
         "disposition": disposition,
         "metadata_is_untrusted": True,
         "content_available": False,
+        "handling_class": assessment.handling_class.value,
+        "potentially_active": assessment.potentially_active,
+        "automatic_open_allowed": False,
+        "automatic_execute_allowed": False,
+        "content_access_allowed": False,
         "authorization": "none",
     }
 

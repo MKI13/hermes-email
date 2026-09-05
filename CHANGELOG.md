@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.29.0] - 2026-09-05
+
+### Added
+- Deterministic metadata-only attachment handling classes: `document`, `image`, `archive`, `active-content`, and `unknown`.
+- `potentially_active` plus explicit deny fields for automatic opening, execution, and content access.
+
+### Security
+- Handling classes are warnings derived from untrusted metadata, not trust labels. Attachment bytes remain unavailable and no class grants action authority.
+
+
 ## [0.28.0] - 2026-09-05
 
 ### Added

@@ -229,6 +229,11 @@ def test_get_exposes_attachment_metadata_without_content_or_authority() -> None:
             "disposition": "attachment",
             "metadata_is_untrusted": True,
             "content_available": False,
+            "handling_class": "document",
+            "potentially_active": False,
+            "automatic_open_allowed": False,
+            "automatic_execute_allowed": False,
+            "content_access_allowed": False,
             "authorization": "none",
         }
     ]
