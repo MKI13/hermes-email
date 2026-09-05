@@ -21,6 +21,7 @@ from .draft_storage import (
     DraftValidationError,
 )
 from .models import EmailAddress, EmailDraft, EmailDraftPage, EmailDraftSummary
+from .addressing import canonical_address, AddressValidationError
 from .replying import derive_reply_route
 from .threading import message_rfc_id
 from .plugin import DraftingDisabledError, EmailPlugin
@@ -28,6 +29,7 @@ from .plugin import DraftingDisabledError, EmailPlugin
 TOOLSET: Final = "hermes_email"
 CREATE_DRAFT_TOOL: Final = "email_create_draft"
 CREATE_REPLY_DRAFT_TOOL: Final = "email_create_reply_draft"
+CREATE_REPLY_ALL_DRAFT_TOOL: Final = "email_create_reply_all_draft"
 LIST_DRAFTS_TOOL: Final = "email_list_drafts"
 GET_DRAFT_TOOL: Final = "email_get_draft"
 UPDATE_DRAFT_TOOL: Final = "email_update_draft"
@@ -104,6 +106,24 @@ CREATE_REPLY_DRAFT_SCHEMA: Final = {
     "description": (
         "Create one local reply draft from a user-selected message. The recipient is derived "
         "only from the validated Reply-To/From route; source mail body is never copied. " + _DRAFT_NOTICE
+    ),
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "message_id": {"type": "string", "minLength": 1, "maxLength": 512},
+            "body_text": {"type": "string", "maxLength": 20_000},
+            "operation_id": _OPERATION_PROPERTY,
+        },
+        "required": ["message_id", "body_text", "operation_id"],
+        "additionalProperties": False,
+    },
+}
+CREATE_REPLY_ALL_DRAFT_SCHEMA: Final = {
+    "name": CREATE_REPLY_ALL_DRAFT_TOOL,
+    "description": (
+        "Create one local Reply-All draft from a user-selected message. The primary recipient "
+        "uses validated Reply-To/From; original recipients are added only after configured own "
+        "addresses are removed. Source mail body is never copied and Bcc is always empty. " + _DRAFT_NOTICE
     ),
     "parameters": {
         "type": "object",
@@ -202,6 +222,7 @@ def register_draft_tools(ctx: Any, plugin: EmailPlugin) -> tuple[Any, ...]:
     registrations = (
         (CREATE_DRAFT_TOOL, CREATE_DRAFT_SCHEMA, _create_handler(plugin), _drafts_available, "📝"),
         (CREATE_REPLY_DRAFT_TOOL, CREATE_REPLY_DRAFT_SCHEMA, _create_reply_handler(plugin), _reply_draft_available, "↩️"),
+        (CREATE_REPLY_ALL_DRAFT_TOOL, CREATE_REPLY_ALL_DRAFT_SCHEMA, _create_reply_all_handler(plugin), _reply_all_draft_available, "↪️"),
         (LIST_DRAFTS_TOOL, LIST_DRAFTS_SCHEMA, _list_handler(plugin), _drafts_available, "📄"),
         (GET_DRAFT_TOOL, GET_DRAFT_SCHEMA, _get_handler(plugin), _drafts_available, "🔍"),
         (UPDATE_DRAFT_TOOL, UPDATE_DRAFT_SCHEMA, _update_handler(plugin), _drafts_available, "✏️"),
@@ -243,6 +264,9 @@ def _reply_draft_available(plugin: EmailPlugin) -> bool:
         and plugin.config.email.read_mode in {"mock", "readonly"}
         and provider.capabilities.get
     )
+
+def _reply_all_draft_available(plugin: EmailPlugin) -> bool:
+    return _reply_draft_available(plugin) and bool(plugin.config.reply_policy.own_addresses)
 
 
 def _create_handler(plugin: EmailPlugin):
@@ -288,6 +312,58 @@ def _create_reply_handler(plugin: EmailPlugin):
             })
         except Exception as error:
             return _error(plugin, "draft-reply-create", error)
+    return handle
+
+
+def _create_reply_all_handler(plugin: EmailPlugin):
+    async def handle(args: dict[str, Any], **kwargs: Any) -> str:
+        del kwargs
+        try:
+            _arguments(args, {"message_id", "body_text", "operation_id"}, {"message_id", "body_text", "operation_id"})
+            if not plugin.config.reply_policy.own_addresses:
+                raise ReplyDraftRouteError("reply-all requires configured own addresses")
+            source = await plugin.get_message(_required_string(args, "message_id"))
+            if source is None:
+                raise ReplyDraftSourceError("source message is unavailable")
+            route = derive_reply_route(source)
+            if route.selected is None or route.ambiguous or not route.valid:
+                raise ReplyDraftRouteError("reply route is unavailable")
+            own = set(plugin.config.reply_policy.own_addresses)
+            try:
+                primary = canonical_address(route.selected.address)
+            except AddressValidationError:
+                raise ReplyDraftRouteError("reply route is invalid") from None
+            cc: list[EmailAddress] = []
+            seen = {primary}
+            for address in source.recipients:
+                try:
+                    canonical = canonical_address(address.address)
+                except AddressValidationError:
+                    continue
+                if canonical in own or canonical in seen:
+                    continue
+                seen.add(canonical)
+                cc.append(address)
+                if len(cc) >= 49:
+                    break
+            draft = EmailDraft(
+                recipients=(route.selected,), cc=tuple(cc), bcc=(),
+                subject=_reply_subject(source.subject),
+                body_text=_required_text(args, "body_text"),
+                in_reply_to=message_rfc_id(source),
+            )
+            receipt = await plugin.create_draft(draft, _required_string(args, "operation_id"))
+            return _success(plugin, "draft-reply-all-create", {
+                "mutation": _mutation(receipt),
+                "reply_route_source": route.source,
+                "reply_all_cc_count": len(cc),
+                "own_addresses_excluded": True,
+                "source_body_copied": False,
+                "bcc_included": False,
+                "sent": False,
+            })
+        except Exception as error:
+            return _error(plugin, "draft-reply-all-create", error)
     return handle
 
 

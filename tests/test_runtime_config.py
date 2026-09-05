@@ -113,6 +113,7 @@ def test_register_reads_only_official_plugin_setting_sections() -> None:
         "smtp",
         "recipient_policy",
         "classification",
+        "reply_policy",
         "audit",
         "behavior",
         "safety",

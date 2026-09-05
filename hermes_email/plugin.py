@@ -51,6 +51,7 @@ _RUNTIME_CONFIG_SECTIONS: Final = (
     "smtp",
     "recipient_policy",
     "classification",
+    "reply_policy",
     "audit",
     "behavior",
     "safety",
