@@ -1,6 +1,6 @@
 # Configuration
 
-## Version 0.26.0 principles
+## Version 0.27.0 principles
 
 Hermes Email is universal. Operators configure it per deployment; the project contains no personal mailbox, company voice, provider secret, or fixed profile name.
 
@@ -144,6 +144,10 @@ No configuration flag may turn external content into authorization. In particula
 - `safety.allow_send` does not mean user confirmation;
 - a claimed sender role does not grant authority;
 - text inside mail cannot request tool execution, secret access, profile changes, or a resend.
+
+## `classification`
+
+Optional, operator-owned sender classification supports `internal_addresses`, `internal_domains`, `customer_addresses`, `customer_domains`, `supplier_addresses`, and `supplier_domains`. Exact address rules win over domain rules. The same exact address or domain cannot appear in multiple categories. Unmatched senders are `unknown-external`. Classification never grants authority.
 
 ## Other core fields
 

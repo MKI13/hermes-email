@@ -7,6 +7,7 @@ from hermes_email.config import (
     DraftSettings,
     EmailPluginConfig,
     RecipientPolicySettings,
+    SenderClassificationSettings,
     SmtpSettings,
     ImapSettings,
     StorageSettings,
@@ -420,3 +421,19 @@ def test_sqlite_storage_requires_namespace_and_readable_provider() -> None:
 def test_storage_resource_bounds_are_enforced(field_name: str, value: int) -> None:
     with pytest.raises(ConfigError, match=field_name):
         StorageSettings(**{field_name: value})
+
+
+def test_sender_classification_mapping_is_operator_configured_and_universal() -> None:
+    config = EmailPluginConfig.from_mapping(
+        {
+            "classification": {
+                "internal_domains": ["company.invalid"],
+                "customer_addresses": ["vip@customer.invalid"],
+                "customer_domains": ["customer.invalid"],
+                "supplier_domains": ["supplier.invalid"],
+            }
+        }
+    )
+    assert config.classification.internal_domains == ("company.invalid",)
+    assert config.classification.customer_addresses == ("vip@customer.invalid",)
+    assert config.classification.supplier_domains == ("supplier.invalid",)

@@ -53,6 +53,14 @@ recipient_policy:
   allowed_addresses: []
   allowed_domains: []
 
+classification:
+  internal_addresses: []
+  internal_domains: []
+  customer_addresses: []
+  customer_domains: []
+  supplier_addresses: []
+  supplier_domains: []
+
 behavior:
   inherit_persona: true
   inherit_language: true

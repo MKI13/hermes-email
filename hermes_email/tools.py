@@ -6,6 +6,8 @@ import json
 from datetime import datetime
 from typing import Any, Final
 
+from .classification import classify_sender
+from .config import SenderClassificationSettings
 from .models import EmailAddress, EmailMessage, EmailMessagePage
 from .replying import derive_reply_route
 from .plugin import (
@@ -273,7 +275,7 @@ def _list_handler(plugin: EmailPlugin):
             limit = _tool_limit(args)
             cursor = _optional_string(args, "cursor")
             page = await plugin.fetch_messages(limit=limit, cursor=cursor)
-            return _json_success("list", _page_result(page, limit))
+            return _json_success("list", _page_result(page, limit, plugin.config.classification))
         except Exception as error:
             return _json_error("list", error)
 
@@ -306,7 +308,7 @@ def _get_handler(plugin: EmailPlugin):
                 {
                     "content_is_untrusted": True,
                     "found": True,
-                    "message": _message_detail(message, body_offset, body_limit),
+                    "message": _message_detail(message, body_offset, body_limit, plugin.config.classification),
                 },
             )
         except Exception as error:
@@ -324,7 +326,7 @@ def _search_handler(plugin: EmailPlugin):
             limit = _tool_limit(args)
             cursor = _optional_string(args, "cursor")
             page = await plugin.search_messages(query, limit=limit, cursor=cursor)
-            return _json_success("search", _page_result(page, limit))
+            return _json_success("search", _page_result(page, limit, plugin.config.classification))
         except Exception as error:
             return _json_error("search", error)
 
@@ -367,7 +369,7 @@ def _thread_handler(plugin: EmailPlugin):
                     },
                 )
             messages = [
-                _message_detail(message, 0, body_limit) for message in thread.messages
+                _message_detail(message, 0, body_limit, plugin.config.classification) for message in thread.messages
             ]
             return _json_success(
                 "thread",
@@ -445,10 +447,12 @@ def _optional_string(args: dict[str, Any], name: str) -> str | None:
     return value
 
 
-def _page_result(page: EmailMessagePage, requested_limit: int) -> dict[str, Any]:
+def _page_result(
+    page: EmailMessagePage, requested_limit: int, classification: SenderClassificationSettings
+) -> dict[str, Any]:
     if len(page.messages) > requested_limit:
         raise ProviderProtocolError("provider returned too many messages")
-    messages = [_message_summary(message) for message in page.messages]
+    messages = [_message_summary(message, classification) for message in page.messages]
     return {
         "content_is_untrusted": True,
         "messages": messages,
@@ -457,20 +461,26 @@ def _page_result(page: EmailMessagePage, requested_limit: int) -> dict[str, Any]
     }
 
 
-def _message_summary(message: EmailMessage) -> dict[str, Any]:
+def _message_summary(
+    message: EmailMessage, classification: SenderClassificationSettings
+) -> dict[str, Any]:
     subject = message.subject[:_MAX_SUBJECT_CHARACTERS]
     return {
         "message_id": _bounded_opaque_value(message.message_id),
         "subject": subject,
         "subject_truncated": len(message.subject) > len(subject),
         "sender": _address_result(message.sender),
+        "sender_classification": _classification_result(message, classification),
         "received_at": _datetime_result(message.received_at),
         "source_truncated": message.metadata.get("truncated") == "true",
     }
 
 
 def _message_detail(
-    message: EmailMessage, body_offset: int, body_limit: int
+    message: EmailMessage,
+    body_offset: int,
+    body_limit: int,
+    classification: SenderClassificationSettings,
 ) -> dict[str, Any]:
     body = message.body_text or ""
     body_window = body[body_offset : body_offset + body_limit]
@@ -486,6 +496,7 @@ def _message_detail(
         "subject": subject,
         "subject_truncated": len(message.subject) > len(subject),
         "sender": _address_result(message.sender),
+        "sender_classification": _classification_result(message, classification),
         "reply_route": {
             "source": reply_route.source,
             "ambiguous": reply_route.ambiguous,
@@ -511,6 +522,17 @@ def _message_detail(
         },
         "source_truncated": message.metadata.get("truncated") == "true",
         "content_format": content_format,
+    }
+
+
+def _classification_result(
+    message: EmailMessage, classification: SenderClassificationSettings
+) -> dict[str, Any]:
+    result = classify_sender(message.sender, classification)
+    return {
+        "category": result.category.value,
+        "matched_by": result.matched_by,
+        "authorization": result.authorization,
     }
 
 

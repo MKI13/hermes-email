@@ -333,6 +333,59 @@ class RecipientPolicySettings:
 
 
 @dataclass(frozen=True, slots=True)
+class SenderClassificationSettings:
+    """Operator-owned sender categories; never inferred from email content."""
+
+    internal_addresses: tuple[str, ...] = ()
+    internal_domains: tuple[str, ...] = ()
+    customer_addresses: tuple[str, ...] = ()
+    customer_domains: tuple[str, ...] = ()
+    supplier_addresses: tuple[str, ...] = ()
+    supplier_domains: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        address_fields = ("internal_addresses", "customer_addresses", "supplier_addresses")
+        domain_fields = ("internal_domains", "customer_domains", "supplier_domains")
+        normalized: dict[str, tuple[str, ...]] = {}
+        for field_name in address_fields:
+            values = _string_sequence(f"classification.{field_name}", getattr(self, field_name), 200)
+            items: list[str] = []
+            for value in values:
+                try:
+                    items.append(canonical_address(value))
+                except AddressValidationError as exc:
+                    raise ConfigError(f"classification.{field_name} contains an invalid address") from exc
+            if len(items) != len(set(items)):
+                raise ConfigError(f"classification.{field_name} contains duplicates")
+            normalized[field_name] = tuple(items)
+        for field_name in domain_fields:
+            values = _string_sequence(f"classification.{field_name}", getattr(self, field_name), 200)
+            items: list[str] = []
+            for value in values:
+                if not value.isascii() or value != value.strip() or value != value.casefold() or len(value) > 253:
+                    raise ConfigError(f"classification.{field_name} must contain lowercase ASCII domains")
+                try:
+                    normalize_ascii_address("local@" + value)
+                except AddressValidationError as exc:
+                    raise ConfigError(f"classification.{field_name} contains an invalid domain") from exc
+                items.append(value)
+            if len(items) != len(set(items)):
+                raise ConfigError(f"classification.{field_name} contains duplicates")
+            normalized[field_name] = tuple(items)
+
+        for field_name, values in normalized.items():
+            object.__setattr__(self, field_name, values)
+        for names, label in ((address_fields, "address"), (domain_fields, "domain")):
+            seen: dict[str, str] = {}
+            for field_name in names:
+                for value in normalized[field_name]:
+                    previous = seen.get(value)
+                    if previous is not None:
+                        raise ConfigError(f"classification {label} appears in multiple categories: {value}")
+                    seen[value] = field_name
+
+
+@dataclass(frozen=True, slots=True)
 class BehaviorSettings:
     """Controls which active Hermes characteristics should be inherited."""
 
@@ -372,6 +425,7 @@ class EmailPluginConfig:
     recipient_policy: RecipientPolicySettings = field(
         default_factory=RecipientPolicySettings
     )
+    classification: SenderClassificationSettings = field(default_factory=SenderClassificationSettings)
     behavior: BehaviorSettings = field(default_factory=BehaviorSettings)
     safety: SafetySettings = field(default_factory=SafetySettings)
 
@@ -428,6 +482,7 @@ class EmailPluginConfig:
                 "drafts",
                 "smtp",
                 "recipient_policy",
+                "classification",
                 "behavior",
                 "safety",
             },
@@ -447,6 +502,9 @@ class EmailPluginConfig:
                 "recipient_policy",
                 raw.get("recipient_policy"),
             ),
+            classification=_build_section(
+                SenderClassificationSettings, "classification", raw.get("classification")
+            ),
             behavior=_build_section(BehaviorSettings, "behavior", raw.get("behavior")),
             safety=_build_section(SafetySettings, "safety", raw.get("safety")),
         )
@@ -462,6 +520,7 @@ Section = TypeVar(
     DraftSettings,
     SmtpSettings,
     RecipientPolicySettings,
+    SenderClassificationSettings,
     BehaviorSettings,
     SafetySettings,
 )
