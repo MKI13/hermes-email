@@ -1,6 +1,6 @@
 # Configuration
 
-## Version 0.37.0 principles
+## Version 0.38.0 principles
 
 Hermes Email is universal. Operators configure it per deployment; the project contains no personal mailbox, company voice, provider secret, or fixed profile name.
 
@@ -135,7 +135,7 @@ This preserves simple local testing without creating productive account ownershi
 
 ## Attachment metadata boundary
 
-No configuration option enables attachment content access in v0.37.0. IMAP may normalize bounded attachment metadata for message/thread detail only. Attachment bytes are never returned to Hermes tools, stored as files, opened, executed, or uploaded. Filename and MIME metadata remain untrusted external data.
+No configuration option enables attachment content access in v0.38.0. IMAP may normalize bounded attachment metadata for message/thread detail only. Attachment bytes are never returned to Hermes tools, stored as files, opened, executed, or uploaded. Filename and MIME metadata remain untrusted external data.
 
 ## Untrusted content rule
 
@@ -220,7 +220,7 @@ No extra provider credential or write permission is required. `email_get_thread`
 
 Reply routing requires no new configuration. `Reply-To` is read as untrusted message metadata. One valid address may be exposed as the selected reply route; multiple, malformed, or more than ten candidates are marked ambiguous and are never selected automatically. `From` is used only when Reply-To is absent, not when a present Reply-To is invalid.
 
-Attachment handling classification is deterministic and requires no trust configuration; automatic open, execute, and content access remain disabled in v0.37.0.
+Attachment handling classification is deterministic and requires no trust configuration; automatic open, execute, and content access remain disabled in v0.38.0.
 
 ### `audit`
 
@@ -229,13 +229,13 @@ Attachment handling classification is deterministic and requires no trust config
 ## Provider error states
 
 No configuration is required for provider error classification. The runtime uses fixed states for authentication, TLS, timeout, connection, mailbox, protocol, and message failures, with the same stable codes used by read tools.
-## v0.37.0 health tool
+## v0.38.0 health tool
 
 No additional configuration is required. The health tool is available only when a readable provider is configured and returns fixed redacted state only.
-## v0.37.0 Proton/local bridge example
+## v0.38.0 Proton/local bridge example
 
 For a local STARTTLS bridge use `host: 127.0.0.1`, its IMAP port, `security: starttls-pinned`, and the exact lowercase SHA-256 DER certificate fingerprint in `tls_sha256_fingerprint`. Never disable verification without a pin.
-## v0.37.0 reply-draft tool
+## v0.38.0 reply-draft tool
 
 The reply-draft tool requires both readable-message lookup and local SQLite drafts. No new configuration enables sending; the source message and local draft remain untrusted/reviewable data.
 
@@ -248,6 +248,6 @@ The reply-draft tool requires both readable-message lookup and local SQLite draf
 The review tool uses the existing `recipient_policy`, SMTP readiness, and local draft state. No new configuration enables sending; review remains available when local drafts are enabled and remains side-effect free.
 
 
-## v0.37.0 audit reliability
+## v0.38.0 audit reliability
 
 The optional operational audit now validates private storage, schema identity, legacy migration, fixed outcomes and transaction bounds. Tool results preserve the actual action outcome and add a separate audit receipt when auditing is enabled. A write failure remains visible in `/email-status` for the runtime lifetime; later successful events do not reconstruct missing history. No send or confirmation path is enabled. See [Audit reliability](audit-reliability.md).
