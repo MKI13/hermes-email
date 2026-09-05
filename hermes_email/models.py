@@ -37,6 +37,7 @@ class EmailMessage:
     received_at: datetime | None = None
     status: MessageStatus = MessageStatus.NEW
     metadata: dict[str, str] = field(default_factory=dict)
+    reply_to: tuple[EmailAddress, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

@@ -6,9 +6,9 @@ Hermes Email is a universal, provider-neutral email plugin and skill for [Hermes
 
 Hermes remains responsible for reasoning, persona, language, style, user preferences, and decisions. The plugin owns validated mail access, credential references, local persistence, profile isolation, confirmation gates, durable send intents, uncertainty recovery, and duplicate prevention.
 
-## Version 0.24.0
+## Version 0.25.0
 
-Version 0.24.0 adds **bounded RFC-based thread/conversation context** on top of the existing untrusted-content and universal-profile safety model.
+Version 0.25.0 adds **safe Reply-To routing** on top of bounded RFC thread context. Hermes can distinguish the sender from the intended reply address without granting external headers any action authority.
 
 ### You do not need a dedicated email profile
 
@@ -38,6 +38,12 @@ hermes:
 The name `ef-sinn-email` used in project examples is only an example of a dedicated profile. Nothing in Hermes Email is hard-coded for EF-Sinn or any particular organization.
 
 See [Installation and profile setup](docs/installation.md) for both supported layouts.
+
+## Safe Reply-To routing
+
+Message detail and thread results now include a bounded `reply_route`. A single syntactically valid `Reply-To` address is selected ahead of `From`; when no `Reply-To` exists, the validated `From` sender is used. Multiple, invalid, or oversized `Reply-To` sets are marked ambiguous and receive no automatic selection.
+
+`reply_route.authorization` is always `none`. The route is untrusted metadata only: it cannot create a draft, choose a recipient for sending, confirm a send, or trigger any tool. Any external action still requires the current user's direct request and the existing draft/confirmation/send gates.
 
 ## Prompt-injection boundary
 
@@ -76,7 +82,7 @@ If the active profile does not exactly match the configured owner:
 
 ## Safety model
 
-| Operation | Version 0.24.0 |
+| Operation | Version 0.25.0 |
 |---|---|
 | Productive profile ownership | Exact explicit profile required |
 | Dedicated mail profile | Recommended, not required |

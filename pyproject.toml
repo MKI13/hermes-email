@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hermes-email"
-version = "0.24.0"
+version = "0.25.0"
 description = "Safe Hermes email access with profile isolation and prompt-injection trust boundaries."
 readme = "README.md"
 requires-python = ">=3.11,<3.14"

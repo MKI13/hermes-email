@@ -1,6 +1,6 @@
 # Configuration
 
-## Version 0.24.0 principles
+## Version 0.25.0 principles
 
 Hermes Email is universal. Operators configure it per deployment; the project contains no personal mailbox, company voice, provider secret, or fixed profile name.
 
@@ -207,3 +207,7 @@ Blocked status reports fixed non-secret diagnostics only and does not open provi
 ## Thread context
 
 No extra provider credential or write permission is required. `email_get_thread` uses the existing read-only provider and scans at most 100 recent messages per request, returning at most 25 linked messages with bounded body windows. It never automatically follows provider cursors. A result can therefore be explicitly incomplete.
+
+## Reply-To behavior
+
+Reply routing requires no new configuration. `Reply-To` is read as untrusted message metadata. One valid address may be exposed as the selected reply route; multiple, malformed, or more than ten candidates are marked ambiguous and are never selected automatically. `From` is used only when Reply-To is absent, not when a present Reply-To is invalid.

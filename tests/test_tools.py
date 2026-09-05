@@ -186,6 +186,59 @@ def test_get_returns_one_bounded_message_detail() -> None:
         "next_offset": None,
     }
     assert message["source_truncated"] is False
+    assert message["reply_route"]["source"] == "from"
+    assert message["reply_route"]["selected"]["address"] == "customer@example.invalid"
+    assert message["reply_route"]["authorization"] == "none"
+
+
+def test_get_exposes_single_reply_to_as_untrusted_routing_metadata() -> None:
+    provider = MockEmailProvider(
+        (
+            EmailMessage(
+                message_id="reply-route-message",
+                subject="Reply routing",
+                sender=EmailAddress("sender@example.invalid"),
+                recipients=(EmailAddress("support@example.invalid"),),
+                body_text="Data only.",
+                reply_to=(EmailAddress("reply@example.invalid", "Reply Desk"),),
+            ),
+        )
+    )
+    result = invoke(
+        registered_tools(mock_plugin(provider=provider))[GET_TOOL],
+        {"message_id": "reply-route-message"},
+    )
+    route = result["message"]["reply_route"]
+    assert route["source"] == "reply-to"
+    assert route["ambiguous"] is False
+    assert route["selected"]["address"] == "reply@example.invalid"
+    assert route["authorization"] == "none"
+
+
+def test_get_never_auto_selects_ambiguous_reply_to() -> None:
+    provider = MockEmailProvider(
+        (
+            EmailMessage(
+                message_id="ambiguous-reply-route",
+                subject="Reply routing",
+                sender=EmailAddress("sender@example.invalid"),
+                recipients=(EmailAddress("support@example.invalid"),),
+                reply_to=(
+                    EmailAddress("one@example.invalid"),
+                    EmailAddress("two@example.invalid"),
+                ),
+            ),
+        )
+    )
+    result = invoke(
+        registered_tools(mock_plugin(provider=provider))[GET_TOOL],
+        {"message_id": "ambiguous-reply-route"},
+    )
+    route = result["message"]["reply_route"]
+    assert route["source"] == "reply-to"
+    assert route["ambiguous"] is True
+    assert route["selected"] is None
+    assert route["authorization"] == "none"
 
 
 def test_get_missing_message_returns_fixed_error() -> None:

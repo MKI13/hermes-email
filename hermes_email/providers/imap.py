@@ -439,6 +439,7 @@ class ImapReadOnlyProvider(EmailProvider):
         recipients = _addresses(
             parsed.get_all("To", []) + parsed.get_all("Cc", [])
         )
+        reply_to = _addresses(parsed.get_all("Reply-To", []))
         body_text, body_kind = _extract_body(parsed)
         received_at = _parse_received_at(parsed.get("Date"))
         metadata = {
@@ -466,6 +467,7 @@ class ImapReadOnlyProvider(EmailProvider):
             subject=subject,
             sender=sender,
             recipients=recipients,
+            reply_to=reply_to,
             body_text=body_text,
             received_at=received_at,
             metadata=metadata,
