@@ -95,6 +95,7 @@ class EmailRuntimeStatus:
     send_enabled: bool
     diagnostic: str | None = None
     draft_diagnostic: str | None = None
+    audit_diagnostic: str | None = None
 
 
 class EmailReadDisabledError(PermissionError):
@@ -159,6 +160,7 @@ class EmailPlugin:
         self._runtime_state = runtime_state or self._initial_runtime_state(provider)
         self._runtime_diagnostic = runtime_diagnostic
         self._draft_diagnostic = draft_diagnostic
+        self._audit_diagnostic: str | None = None
 
     @staticmethod
     def _initial_runtime_state(provider: EmailProvider | None) -> EmailRuntimeState:
@@ -229,6 +231,7 @@ class EmailPlugin:
             send_enabled=False,
             diagnostic=self._runtime_diagnostic,
             draft_diagnostic=self._draft_diagnostic,
+            audit_diagnostic=self._audit_diagnostic,
         )
 
     def _read_provider(self) -> EmailProvider:
@@ -569,11 +572,29 @@ class EmailPlugin:
         )
 
 
-    def record_audit(self, operation: str, outcome: str, item_count: int = 0) -> None:
-        """Best-effort content-minimized audit; never expose mail content."""
+    def record_audit(
+        self, operation: str, outcome: str, item_count: int = 0
+    ) -> dict[str, Any]:
+        """Report audit failure separately; never invalidate an action receipt.
+
+        This operational log is best-effort, NOT the mandatory SMTP intent
+        ledger. A detected gap remains visible for this runtime's lifetime.
+        """
         store = self.audit_store
-        if store is not None:
+        if store is None:
+            return {}
+        try:
             store.record(operation, outcome, item_count)
+        except Exception:
+            self._audit_diagnostic = "audit-write-failed"
+            return {"audit": {
+                "recorded": False, "diagnostic": "audit-write-failed",
+                "gap_detected": True,
+            }}
+        return {"audit": {
+            "recorded": True, "diagnostic": None,
+            "gap_detected": self._audit_diagnostic is not None,
+        }}
 
 
 def format_runtime_status(status: EmailRuntimeStatus) -> str:
@@ -589,6 +610,8 @@ def format_runtime_status(status: EmailRuntimeStatus) -> str:
         lines.append(f"Diagnostic: {status.diagnostic}")
     if status.draft_diagnostic is not None:
         lines.append(f"Draft diagnostic: {status.draft_diagnostic}")
+    if status.audit_diagnostic is not None:
+        lines.append(f"Audit diagnostic: {status.audit_diagnostic}")
     lines.extend(
         (
             f"Read: {'enabled' if status.read_enabled else 'disabled'}",

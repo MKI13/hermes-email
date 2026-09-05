@@ -689,8 +689,8 @@ def _timestamp(value: datetime | None) -> str | None:
 
 
 def _success(plugin: EmailPlugin, operation: str, payload: dict[str, Any]) -> str:
-    count = payload.get("count", 1)
-    plugin.record_audit(operation, "ok", count if isinstance(count, int) and not isinstance(count, bool) else 1)
+    count = payload.get("count", 1 if payload.get("found", True) else 0)
+    audit = plugin.record_audit(operation, "ok", count if isinstance(count, int) and not isinstance(count, bool) else 0)
     return json.dumps(
         {
             "ok": True,
@@ -698,6 +698,7 @@ def _success(plugin: EmailPlugin, operation: str, payload: dict[str, Any]) -> st
             "local_draft_only": True,
             "sent": False,
             **payload,
+            **audit,
         },
         ensure_ascii=False,
         separators=(",", ":"),
@@ -739,12 +740,13 @@ def _error(plugin: EmailPlugin, operation: str, error: Exception) -> str:
         code = "draft-storage-unavailable"
     elif isinstance(error, DraftError):
         code = "draft-error"
-    plugin.record_audit(operation, code, 0)
+    audit = plugin.record_audit(operation, code, 0)
     return json.dumps(
         {
             "ok": False,
             "operation": operation,
             "error": {"code": code, **safe},
+            **audit,
         },
         ensure_ascii=False,
         separators=(",", ":"),

@@ -160,6 +160,8 @@ def _authorized_status(runtime: Any, decision: ProfilePolicyDecision, raw_args: 
         lines.append(f"Diagnostic: {status.diagnostic}")
     if status.draft_diagnostic is not None:
         lines.append(f"Draft diagnostic: {status.draft_diagnostic}")
+    if status.audit_diagnostic is not None:
+        lines.append(f"Audit diagnostic: {status.audit_diagnostic}")
     lines.extend(
         (
             f"Read: {'enabled' if status.read_enabled else 'disabled'}",
