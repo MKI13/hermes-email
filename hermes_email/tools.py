@@ -45,6 +45,7 @@ LIST_TOOL: Final = "email_list_messages"
 GET_TOOL: Final = "email_get_message"
 SEARCH_TOOL: Final = "email_search_messages"
 THREAD_TOOL: Final = "email_get_thread"
+HEALTH_TOOL: Final = "email_provider_health"
 _MAX_TOOL_PAGE: Final = 25
 _DEFAULT_TOOL_PAGE: Final = 10
 _MAX_SUBJECT_CHARACTERS: Final = 500
@@ -207,14 +208,24 @@ THREAD_SCHEMA: Final = {
     },
 }
 
+HEALTH_SCHEMA: Final = {
+    "name": HEALTH_TOOL,
+    "description": (
+        "Run one explicit provider health probe without reading email content. "
+        "Returns only fixed redacted readiness fields; all provider-derived state remains untrusted and raw provider errors are never returned."
+    ),
+    "parameters": {"type": "object", "properties": {}, "additionalProperties": False},
+}
+
 
 def register_read_tools(ctx: Any, plugin: EmailPlugin) -> tuple[Any, ...]:
-    """Register four read-only tools through Hermes' public plugin API."""
+    """Register five read-only/status tools through Hermes' public plugin API."""
     registrations = (
         (LIST_TOOL, LIST_SCHEMA, _list_handler(plugin), _fetch_available, "📬"),
         (GET_TOOL, GET_SCHEMA, _get_handler(plugin), _get_available, "✉️"),
         (SEARCH_TOOL, SEARCH_SCHEMA, _search_handler(plugin), _fetch_available, "🔎"),
         (THREAD_TOOL, THREAD_SCHEMA, _thread_handler(plugin), _thread_available, "🧵"),
+        (HEALTH_TOOL, HEALTH_SCHEMA, _health_handler(plugin), _health_available, "🩺"),
     )
     handles = []
     try:
@@ -256,6 +267,10 @@ def _get_available(plugin: EmailPlugin) -> bool:
         and plugin.config.email.read_mode in {"mock", "readonly"}
         and provider.capabilities.get
     )
+
+
+def _health_available(plugin: EmailPlugin) -> bool:
+    return plugin.provider is not None and plugin.config.email.read_mode in {"mock", "readonly"}
 
 
 def _thread_available(plugin: EmailPlugin) -> bool:
@@ -388,6 +403,27 @@ def _thread_handler(plugin: EmailPlugin):
         except Exception as error:
             return _json_error(plugin, "thread", error)
 
+    return handle
+
+
+def _health_handler(plugin: EmailPlugin):
+    async def handle(args: dict[str, Any], **kwargs: Any) -> str:
+        del kwargs
+        try:
+            _validate_arguments(args, set())
+            status = await plugin.check_provider_health()
+            result = {
+                "provider": status.provider,
+                "state": status.state.value,
+                "diagnostic": status.diagnostic,
+                "read_ready": status.read_enabled,
+                "content_read": False,
+                "authorization": "none",
+            }
+            plugin.record_audit("health", "ok", 0)
+            return _json_result({"ok": True, "operation": "health", **result})
+        except Exception as error:
+            return _json_error(plugin, "health", error)
     return handle
 
 

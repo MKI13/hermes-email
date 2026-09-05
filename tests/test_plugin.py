@@ -42,6 +42,7 @@ def test_register_adds_bundled_skill_and_all_local_draft_and_read_tools() -> Non
         "email_get_message",
         "email_search_messages",
         "email_get_thread",
+        "email_provider_health",
         "email_create_draft",
         "email_list_drafts",
         "email_get_draft",

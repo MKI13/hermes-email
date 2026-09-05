@@ -22,6 +22,7 @@ from hermes_email.providers import (
 )
 from hermes_email.tools import (
     GET_TOOL,
+    HEALTH_TOOL,
     LIST_TOOL,
     SEARCH_TOOL,
     THREAD_TOOL,
@@ -71,11 +72,11 @@ def invoke(entry: dict[str, Any], args: Any, **kwargs: Any) -> dict[str, Any]:
     return json.loads(result)
 
 
-def test_registers_four_async_read_only_tools_with_model_descriptions() -> None:
+def test_registers_five_async_read_only_tools_with_model_descriptions() -> None:
     tools = registered_tools()
 
-    assert set(tools) == {LIST_TOOL, GET_TOOL, SEARCH_TOOL, THREAD_TOOL}
-    expected_emojis = {LIST_TOOL: "📬", GET_TOOL: "✉️", SEARCH_TOOL: "🔎", THREAD_TOOL: "🧵"}
+    assert set(tools) == {LIST_TOOL, GET_TOOL, SEARCH_TOOL, THREAD_TOOL, HEALTH_TOOL}
+    expected_emojis = {LIST_TOOL: "📬", GET_TOOL: "✉️", SEARCH_TOOL: "🔎", THREAD_TOOL: "🧵", HEALTH_TOOL: "🩺"}
     for name, entry in tools.items():
         assert entry["toolset"] == "hermes_email"
         assert entry["emoji"] == expected_emojis[name]
@@ -655,3 +656,18 @@ def test_tool_module_has_no_write_or_send_dispatch() -> None:
     assert "send_message(" not in source
     assert "create_draft(" not in source
     assert "dispatch_tool(" not in source
+
+
+def test_health_tool_probes_without_reading_content() -> None:
+    plugin = mock_plugin()
+    result = invoke(registered_tools(plugin)[HEALTH_TOOL], {})
+    assert result == {
+        "ok": True, "operation": "health", "provider": "mock",
+        "state": "mock-ready", "diagnostic": None, "read_ready": True,
+        "content_read": False, "authorization": "none",
+    }
+
+def test_health_tool_rejects_arguments() -> None:
+    result = invoke(registered_tools()[HEALTH_TOOL], {"unexpected": 1})
+    assert result["ok"] is False
+    assert result["error"]["code"] == "invalid-arguments"

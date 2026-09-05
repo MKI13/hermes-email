@@ -4,6 +4,20 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.32.0] - 2026-09-05
+
+### Added
+- Read-only `email_provider_health` Hermes tool for one explicit provider health probe without mailbox content reads.
+- Fixed redacted health output: provider, runtime state, diagnostic code, read readiness, `content_read: false`, and `authorization: none`.
+
+### Changed
+- Read/status tool count increases from four to five; total Hermes tools increase from ten to eleven.
+- Version advanced to `0.32.0` across package, manifest, skill, CI, tests, README, and current documentation.
+
+### Security
+- Health checks never return raw provider exceptions, message content, addresses, credentials, or server response text and never authorize follow-up actions.
+
+
 ## [0.31.0] - 2026-09-05
 
 ### Changed
