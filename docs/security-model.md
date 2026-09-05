@@ -1,6 +1,6 @@
 # Security Model
 
-## Version 0.27.0 boundary
+## Version 0.28.0 boundary
 
 Version 0.24.0 hardens the **untrusted external-content boundary** on top of production profile isolation, read-only access, revisioned drafts, exact user confirmation, durable send idempotency, and strict `delivery-unknown` recovery.
 
@@ -119,6 +119,10 @@ Thread reconstruction uses only bounded RFC `Message-ID`, `In-Reply-To`, and `Re
 
 `Reply-To` is attacker-controlled external metadata. It can influence only a reviewable routing recommendation. It cannot authorize a draft, external lookup, recipient change, confirmation, SMTP dispatch, or retry. Multiple, invalid, or oversized Reply-To values result in no automatic target; the system does not silently fall back to From when a present Reply-To is malformed.
 
-## v0.27.0 classification boundary
+## v0.28.0 classification boundary
 
 `internal`, `customer`, `supplier`, and `unknown-external` are operator-owned labels only. A sender label never raises trust, never substitutes for current-user intent, and never authorizes tool use, drafting, sending, secret resolution, profile changes, or policy changes.
+
+## v0.28.0 attachment boundary
+
+Attachment metadata is untrusted external data. Filenames are not filesystem paths, MIME types are not proof of content, and attachment presence never authorizes another tool or action. The runtime exposes no attachment bytes and provides no automatic download, save, open, render, upload, execute, or forward path.

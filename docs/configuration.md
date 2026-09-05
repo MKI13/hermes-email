@@ -1,6 +1,6 @@
 # Configuration
 
-## Version 0.27.0 principles
+## Version 0.28.0 principles
 
 Hermes Email is universal. Operators configure it per deployment; the project contains no personal mailbox, company voice, provider secret, or fixed profile name.
 
@@ -132,6 +132,10 @@ safety:
 ```
 
 This preserves simple local testing without creating productive account ownership ambiguity.
+
+## Attachment metadata boundary
+
+No configuration option enables attachment content access in v0.28.0. IMAP may normalize bounded attachment metadata for message/thread detail only. Attachment bytes are never returned to Hermes tools, stored as files, opened, executed, or uploaded. Filename and MIME metadata remain untrusted external data.
 
 ## Untrusted content rule
 

@@ -438,6 +438,14 @@ ATTACHMENT CONTENT\r
     assert message is not None
     assert message.body_text == "Visible body"
     assert "ATTACHMENT" not in message.body_text
+    assert len(message.attachments) == 1
+    attachment = message.attachments[0]
+    assert attachment.attachment_id == "part-0001"
+    assert attachment.filename == "note.txt"
+    assert attachment.content_type == "text/plain"
+    assert attachment.size_bytes == len(b"ATTACHMENT CONTENT")
+    assert attachment.disposition == "attachment"
+    assert attachment.filename_truncated is False
 
 
 def test_nested_message_attachment_content_is_not_exposed_as_body() -> None:
@@ -472,6 +480,10 @@ NESTED ATTACHMENT CONTENT\r
     assert message is not None
     assert message.body_text == "Visible body"
     assert "NESTED" not in message.body_text
+    assert len(message.attachments) == 1
+    assert message.attachments[0].filename == "attached.eml"
+    assert message.attachments[0].content_type == "message/rfc822"
+    assert message.attachments[0].size_bytes is None
 
 
 def test_truncated_remote_message_is_marked_without_unbounded_fetch() -> None:
@@ -787,3 +799,27 @@ def test_source_contains_no_mutating_or_seen_setting_imap_commands() -> None:
         "client.close(",
     ):
         assert forbidden not in source
+
+
+def test_attachment_metadata_is_bounded_and_never_decodes_more_than_message_literal() -> None:
+    long_name = "x" * 400 + ".bin"
+    raw = (
+        "From: sender@example.invalid\r\n"
+        "To: recipient@example.invalid\r\n"
+        "Subject: Bounded attachment\r\n"
+        "MIME-Version: 1.0\r\n"
+        "Content-Type: multipart/mixed; boundary=B\r\n\r\n"
+        "--B\r\nContent-Type: text/plain\r\n\r\nVisible\r\n"
+        f"--B\r\nContent-Type: application/octet-stream\r\nContent-Disposition: attachment; filename=\"{long_name}\"\r\n\r\nabc\r\n"
+        "--B--\r\n"
+    ).encode("ascii")
+    client = FakeImapClient()
+    client.fetch_responses["9:9"] = [fetch_record(9, raw)]
+    provider, _, _ = provider_with_client(client)
+    message = asyncio.run(provider.get_message("imap-v1:77:9"))
+    assert message is not None
+    assert len(message.attachments) == 1
+    attachment = message.attachments[0]
+    assert len(attachment.filename or "") == 255
+    assert attachment.filename_truncated is True
+    assert attachment.size_bytes == 3

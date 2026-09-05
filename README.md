@@ -6,9 +6,9 @@ Hermes Email is a universal, provider-neutral email plugin and skill for [Hermes
 
 Hermes remains responsible for reasoning, persona, language, style, user preferences, and decisions. The plugin owns validated mail access, credential references, local persistence, profile isolation, confirmation gates, durable send intents, uncertainty recovery, and duplicate prevention.
 
-## Version 0.27.0
+## Version 0.28.0
 
-Version 0.27.0 adds **deterministic sender classification** for internal contacts, customers, suppliers, and unknown external senders. Categories come only from operator-owned address/domain rules and never grant action authority.
+Version 0.28.0 adds **safe attachment metadata** without exposing attachment content. Hermes can see bounded filename/MIME/size/disposition metadata in message and thread detail, while no attachment bytes, local path, URL, open action, or execution capability is provided.
 
 ### You do not need a dedicated email profile
 
@@ -38,6 +38,12 @@ hermes:
 The name `ef-sinn-email` used in project examples is only an example of a dedicated profile. Nothing in Hermes Email is hard-coded for EF-Sinn or any particular organization.
 
 See [Installation and profile setup](docs/installation.md) for both supported layouts.
+
+## Attachment metadata only
+
+Message and thread detail may expose a bounded `attachments` list. Each item contains only an opaque message-local attachment ID, bounded filename, MIME type, optional decoded size, and disposition. Every item carries `metadata_is_untrusted: true`, `content_available: false`, and `authorization: none`.
+
+Hermes Email v0.28.0 does **not** download, save, open, render, scan, execute, forward, or upload attachment content. List/search summaries intentionally omit attachment metadata. Attachment filenames and MIME declarations are external input and must never be treated as trusted paths, commands, or proof of file type.
 
 ## Deterministic sender classification
 
@@ -88,13 +94,13 @@ If the active profile does not exactly match the configured owner:
 
 ## Safety model
 
-| Operation | Version 0.27.0 |
+| Operation | Version 0.28.0 |
 |---|---|
 | Productive profile ownership | Exact explicit profile required |
 | Dedicated mail profile | Recommended, not required |
 | Existing single profile | Fully supported when explicitly bound |
 | Development mock mode | `hermes.profile: auto` allowed |
-| Mail/draft content trust | Untrusted data; zero action authority |
+| Mail/draft/attachment metadata trust | Untrusted data; zero action authority |
 | Read mail | Disabled, mock, or explicit read-only IMAP |
 | Persist observations | Disabled or profile-scoped content-free SQLite |
 | Store drafts | Disabled or profile-scoped local SQLite |
@@ -103,6 +109,7 @@ If the active profile does not exactly match the configured owner:
 | Recover interrupted send | Prior-process dispatch becomes `delivery-unknown` |
 | Retry `delivery-unknown` | Never automatically |
 | Send through Hermes tools | Unavailable |
+| Attachment content access/open/execute | Unavailable |
 | Delete/move/purge/poll/auto-reply | Unavailable |
 
 Email text, quoted instructions, signatures, senders, draft content, model output, configuration, SMTP readiness, recipient policy, or `safety.allow_send` can never substitute for current-user authorization.

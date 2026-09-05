@@ -6,7 +6,7 @@ from dataclasses import replace
 from datetime import UTC, datetime
 from typing import Final, Sequence
 
-from ..models import EmailAddress, EmailMessage, EmailMessagePage
+from ..models import EmailAddress, EmailAttachment, EmailMessage, EmailMessagePage
 from .base import EmailProvider, ProviderCapabilities
 
 
@@ -104,5 +104,14 @@ def _default_messages() -> tuple[EmailMessage, ...]:
             body_text="<p>Hello from a <strong>local HTML fixture</strong>.</p>",
             received_at=datetime(2026, 1, 15, 10, 30, tzinfo=UTC),
             metadata={"content_type": "text/html"},
+            attachments=(
+                EmailAttachment(
+                    attachment_id="part-0001",
+                    filename="sample.pdf",
+                    content_type="application/pdf",
+                    size_bytes=1234,
+                    disposition="attachment",
+                ),
+            ),
         ),
     )
