@@ -45,7 +45,7 @@ jobs:
         run: python -m pytest
 
       - name: Verify installed import
-        run: python -c "import hermes_email; assert hermes_email.__version__ == '0.21.0'; print(hermes_email.__version__)"
+        run: python -c "import hermes_email; assert hermes_email.__version__ == '0.22.0'; print(hermes_email.__version__)"
 
       - name: Build distributions
         run: python -m build
@@ -57,7 +57,7 @@ jobs:
         run: |
           python -c "from pathlib import Path; from zipfile import ZipFile; wheel, = Path('dist').glob('*.whl'); ZipFile(wheel).extractall(Path('${RUNNER_TEMP}') / 'wheel-smoke')"
           cd "${RUNNER_TEMP}"
-          PYTHONPATH="${RUNNER_TEMP}/wheel-smoke" python -c "import hermes_email, hermes_email.addressing, hermes_email.sending, hermes_email.smtp, hermes_email.send_orchestration; assert hermes_email.__version__ == '0.21.0'"
+          PYTHONPATH="${RUNNER_TEMP}/wheel-smoke" python -c "import hermes_email, hermes_email.addressing, hermes_email.profile_guard, hermes_email.sending, hermes_email.smtp, hermes_email.send_orchestration; assert hermes_email.__version__ == '0.22.0'"
 
   plugin-doctor:
     name: Hermes Plugin Doctor
@@ -89,5 +89,5 @@ jobs:
           mkdir -p "${RUNNER_TEMP}/hermes-home"
           HOME="${RUNNER_TEMP}/hermes-home" hermes plugins doctor . --ci
 
-      - name: Verify tools and storage through pinned Hermes APIs
-        run: python -m pytest tests/test_tools.py tests/test_persistence_integration.py tests/test_draft_integration.py tests/test_draft_tools.py tests/test_smtp_runtime.py tests/test_sending.py tests/test_send_orchestration.py
+      - name: Verify tools, storage, and profile isolation through pinned Hermes APIs
+        run: python -m pytest tests/test_tools.py tests/test_persistence_integration.py tests/test_draft_integration.py tests/test_draft_tools.py tests/test_smtp_runtime.py tests/test_sending.py tests/test_send_orchestration.py tests/test_profile_guard.py
