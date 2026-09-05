@@ -89,5 +89,5 @@ jobs:
           mkdir -p "${RUNNER_TEMP}/hermes-home"
           HOME="${RUNNER_TEMP}/hermes-home" hermes plugins doctor . --ci
 
-      - name: Verify tools, storage, profile isolation, content trust, and onboarding through pinned Hermes APIs
-        run: python -m pytest tests/test_tools.py tests/test_persistence_integration.py tests/test_draft_integration.py tests/test_draft_tools.py tests/test_smtp_runtime.py tests/test_sending.py tests/test_send_orchestration.py tests/test_profile_guard.py tests/test_prompt_injection_contract.py tests/test_installation_contract.py
+      - name: Verify tools, storage, profile isolation, content trust, onboarding, and version consistency
+        run: python -m pytest tests/test_tools.py tests/test_persistence_integration.py tests/test_draft_integration.py tests/test_draft_tools.py tests/test_smtp_runtime.py tests/test_sending.py tests/test_send_orchestration.py tests/test_profile_guard.py tests/test_prompt_injection_contract.py tests/test_installation_contract.py tests/test_version_consistency.py
