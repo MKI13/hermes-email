@@ -12,6 +12,7 @@ from hermes_email.draft_storage import DraftStorageUnavailableError, SqliteDraft
 from hermes_email.draft_tools import (
     CREATE_DRAFT_TOOL,
     CREATE_REPLY_DRAFT_TOOL,
+    CREATE_REPLY_ALL_DRAFT_TOOL,
     GET_DRAFT_TOOL,
     LIST_DRAFTS_TOOL,
     RESTORE_DRAFT_TOOL,
@@ -98,10 +99,11 @@ def test_registers_seven_tools_without_opening_database(tmp_path: Path) -> None:
 
     handles = register_draft_tools(context, runtime)
 
-    assert len(handles) == 7
+    assert len(handles) == 8
     assert {tool["name"] for tool in context.tools} == {
         CREATE_DRAFT_TOOL,
     CREATE_REPLY_DRAFT_TOOL,
+    CREATE_REPLY_ALL_DRAFT_TOOL,
         LIST_DRAFTS_TOOL,
         GET_DRAFT_TOOL,
         UPDATE_DRAFT_TOOL,
@@ -110,7 +112,7 @@ def test_registers_seven_tools_without_opening_database(tmp_path: Path) -> None:
     }
     assert all(tool["toolset"] == "hermes_email" for tool in context.tools)
     assert all(tool["is_async"] is True for tool in context.tools)
-    assert all(tool["check_fn"]() is True for tool in context.tools if tool["name"] != CREATE_REPLY_DRAFT_TOOL)
+    assert all(tool["check_fn"]() is True for tool in context.tools if tool["name"] not in {CREATE_REPLY_DRAFT_TOOL, CREATE_REPLY_ALL_DRAFT_TOOL})
     assert next(tool for tool in context.tools if tool["name"] == CREATE_REPLY_DRAFT_TOOL)["check_fn"]() is False
     assert database.exists() is False
 
@@ -132,7 +134,7 @@ def test_registration_collision_rolls_back_every_acquired_draft_tool(
     with pytest.raises(DraftToolRegistrationError):
         register_draft_tools(context, plugin(tmp_path))
 
-    assert len(context.handles) == 4
+    assert len(context.handles) == 5
     assert all(handle.disposed for handle in context.handles)
 
 
@@ -468,3 +470,57 @@ def test_reply_draft_rejects_ambiguous_reply_to(tmp_path: Path) -> None:
     assert result["ok"] is False
     assert result["error"]["code"] == "reply-route-unavailable"
     assert runtime.draft_store.list_drafts(limit=10).drafts == ()
+
+
+def test_reply_all_requires_explicit_own_addresses(tmp_path: Path) -> None:
+    runtime, tools = registered(tmp_path)
+    assert tools[CREATE_REPLY_ALL_DRAFT_TOOL]["check_fn"]() is False
+
+
+def test_reply_all_excludes_self_deduplicates_and_never_bcc(tmp_path: Path) -> None:
+    from hermes_email.models import EmailAddress, EmailMessage
+    from hermes_email.providers import MockEmailProvider
+
+    cfg = EmailPluginConfig.from_mapping({
+        "email": {"provider": "mock", "read_mode": "mock"},
+        "drafts": {"mode": "sqlite", "account_namespace": "tool-account"},
+        "reply_policy": {"own_addresses": ["support@example.invalid"]},
+    })
+    store = SqliteDraftStore(tmp_path / "plugin-data" / "email-drafts.sqlite3", cfg.drafts)
+    source = EmailMessage(
+        message_id="reply-all-source",
+        subject="Project update",
+        sender=EmailAddress("customer@example.invalid", "Customer"),
+        recipients=(
+            EmailAddress("support@example.invalid", "Us"),
+            EmailAddress("teammate@example.invalid", "Teammate"),
+            EmailAddress("teammate@example.invalid", "Duplicate"),
+        ),
+        body_text="UNTRUSTED SOURCE BODY MUST NOT BE COPIED",
+        metadata={"rfc_message_id": "<reply-all@example.invalid>"},
+    )
+    runtime = EmailPlugin(cfg, provider=MockEmailProvider((source,)), draft_store=store)
+    context = Context()
+    register_draft_tools(context, runtime)
+    tools = {tool["name"]: tool for tool in context.tools}
+    assert tools[CREATE_REPLY_ALL_DRAFT_TOOL]["check_fn"]() is True
+
+    result = invoke(tools[CREATE_REPLY_ALL_DRAFT_TOOL], {
+        "message_id": "reply-all-source",
+        "body_text": "My reviewed reply.",
+        "operation_id": "reply-all-operation-0001",
+    })
+    draft = asyncio.run(runtime.get_draft(result["mutation"]["draft_id"]))
+    assert result["reply_all_cc_count"] == 1
+    assert result["own_addresses_excluded"] is True
+    assert result["bcc_included"] is False
+    assert result["source_body_copied"] is False
+    assert result["sent"] is False
+    assert draft is not None
+    assert [item.address for item in draft.recipients] == ["customer@example.invalid"]
+    assert [item.address for item in draft.cc] == ["teammate@example.invalid"]
+    assert draft.bcc == ()
+    assert draft.subject == "Re: Project update"
+    assert draft.body_text == "My reviewed reply."
+    assert "UNTRUSTED" not in draft.body_text
+    assert draft.in_reply_to == "<reply-all@example.invalid>"

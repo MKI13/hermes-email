@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.35.0] - 2026-09-06
+
+### Added
+- Safe local `email_create_reply_all_draft` with explicit self-address configuration, deduplication, Cc-only additional recipients, empty Bcc, and no source-body copying.
+
+### Security
+- Reply-All is unavailable until `reply_policy.own_addresses` is configured and remains draft-only with `sent: false`.
+
+
 ## [0.34.0] - 2026-09-05
 
 ### Added

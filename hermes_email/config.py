@@ -411,6 +411,25 @@ class AuditSettings:
 
 
 @dataclass(frozen=True, slots=True)
+class ReplyPolicySettings:
+    """Operator-owned identities used only to exclude self from Reply-All."""
+
+    own_addresses: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        values = _string_sequence("reply_policy.own_addresses", self.own_addresses, 20)
+        normalized: list[str] = []
+        for value in values:
+            try:
+                normalized.append(canonical_address(value))
+            except AddressValidationError as exc:
+                raise ConfigError("reply_policy.own_addresses contains an invalid address") from exc
+        if len(normalized) != len(set(normalized)):
+            raise ConfigError("reply_policy.own_addresses contains duplicates")
+        object.__setattr__(self, "own_addresses", tuple(normalized))
+
+
+@dataclass(frozen=True, slots=True)
 class BehaviorSettings:
     """Controls which active Hermes characteristics should be inherited."""
 
@@ -451,6 +470,7 @@ class EmailPluginConfig:
         default_factory=RecipientPolicySettings
     )
     classification: SenderClassificationSettings = field(default_factory=SenderClassificationSettings)
+    reply_policy: ReplyPolicySettings = field(default_factory=ReplyPolicySettings)
     audit: AuditSettings = field(default_factory=AuditSettings)
     behavior: BehaviorSettings = field(default_factory=BehaviorSettings)
     safety: SafetySettings = field(default_factory=SafetySettings)
@@ -509,6 +529,7 @@ class EmailPluginConfig:
                 "smtp",
                 "recipient_policy",
                 "classification",
+                "reply_policy",
                 "audit",
                 "behavior",
                 "safety",
@@ -532,6 +553,7 @@ class EmailPluginConfig:
             classification=_build_section(
                 SenderClassificationSettings, "classification", raw.get("classification")
             ),
+            reply_policy=_build_section(ReplyPolicySettings, "reply_policy", raw.get("reply_policy")),
             audit=_build_section(AuditSettings, "audit", raw.get("audit")),
             behavior=_build_section(BehaviorSettings, "behavior", raw.get("behavior")),
             safety=_build_section(SafetySettings, "safety", raw.get("safety")),
@@ -549,6 +571,7 @@ Section = TypeVar(
     SmtpSettings,
     RecipientPolicySettings,
     SenderClassificationSettings,
+    ReplyPolicySettings,
     AuditSettings,
     BehaviorSettings,
     SafetySettings,
