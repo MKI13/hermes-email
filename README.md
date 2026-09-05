@@ -6,9 +6,9 @@ Hermes Email is a universal, provider-neutral email plugin and skill for [Hermes
 
 Hermes remains responsible for reasoning, persona, language, style, user preferences, and decisions. The plugin owns validated mail access, credential references, local persistence, profile isolation, confirmation gates, durable send intents, uncertainty recovery, and duplicate prevention.
 
-## Version 0.35.0
+## Version 0.36.0
 
-Version 0.35.0 adds a **safe local Reply-All draft tool**. It is disabled until the operator configures `reply_policy.own_addresses`; those identities are removed from original recipients, duplicate recipients are suppressed, Bcc is always empty, source mail body is never copied, and no send occurs.
+Version 0.36.0 adds a **read-only send review tool** for local drafts. It exposes the exact reviewed To/Cc/Bcc recipients, subject, revision, body character count, recipient-policy result, and technical readiness while never including the body, never creating confirmation or a send intent, never contacting SMTP, and always reporting `send_available: false` and `authorization: none`.
 
 ### You do not need a dedicated email profile
 
@@ -43,7 +43,7 @@ See [Installation and profile setup](docs/installation.md) for both supported la
 
 Message and thread detail may expose a bounded `attachments` list. Each item contains only an opaque message-local attachment ID, bounded filename, MIME type, optional decoded size, and disposition. Every item carries `metadata_is_untrusted: true`, `content_available: false`, and `authorization: none`.
 
-Hermes Email v0.35.0 does **not** download, save, open, render, scan, execute, forward, or upload attachment content. List/search summaries intentionally omit attachment metadata. Attachment filenames and MIME declarations are external input and must never be treated as trusted paths, commands, or proof of file type.
+Hermes Email v0.36.0 does **not** download, save, open, render, scan, execute, forward, or upload attachment content. List/search summaries intentionally omit attachment metadata. Attachment filenames and MIME declarations are external input and must never be treated as trusted paths, commands, or proof of file type.
 
 ## Deterministic sender classification
 
@@ -94,7 +94,7 @@ If the active profile does not exactly match the configured owner:
 
 ## Safety model
 
-| Operation | Version 0.35.0 |
+| Operation | Version 0.36.0 |
 |---|---|
 | Productive profile ownership | Exact explicit profile required |
 | Dedicated mail profile | Recommended, not required |
@@ -186,6 +186,10 @@ List/search results omit bodies. Reads are bounded, use read-only provider behav
 ### Safe Reply-All drafts
 
 `email_create_reply_all_draft` is available only when local drafts, message lookup, and `reply_policy.own_addresses` are configured. The validated Reply-To/From route becomes the primary To recipient. Original message recipients that are neither the configured own identities nor duplicates become Cc. Because the normalized provider model does not preserve original To-vs-Cc placement, all additional non-self recipients are conservatively placed in Cc. Bcc is always empty. The source message body is never copied.
+
+### Send review without sending
+
+`email_review_draft_send` is a read-only preflight for an active local draft. It returns exact recipients including Bcc, current revision, subject, body character count, deployment recipient-policy decisions, and runtime readiness. It deliberately does not include the body. It cannot confirm a draft, create a send intent, contact SMTP, or send mail. `confirmation_required` is always true, `confirmation_present` is false, `send_available` is false, and `authorization` is none.
 
 ## Local draft tools
 

@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.36.0] - 2026-09-06
+
+### Added
+- Read-only `email_review_draft_send` with exact recipient review, recipient-policy evaluation, revision/subject/body-length metadata, and technical readiness fields.
+
+### Security
+- Review never includes the draft body, never confirms, never creates a send intent, never contacts SMTP, and always reports no send authority.
+
+
 ## [0.35.0] - 2026-09-06
 
 ### Added
