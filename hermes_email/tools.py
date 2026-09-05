@@ -8,7 +8,7 @@ from typing import Any, Final
 
 from .classification import classify_sender
 from .config import SenderClassificationSettings
-from .models import EmailAddress, EmailMessage, EmailMessagePage
+from .models import EmailAddress, EmailAttachment, EmailMessage, EmailMessagePage
 from .replying import derive_reply_route
 from .plugin import (
     EmailFetchCursorError,
@@ -54,6 +54,10 @@ _MAX_SUBJECT_CHARACTERS: Final = 500
 _MAX_DISPLAY_NAME_CHARACTERS: Final = 200
 _MAX_ADDRESS_CHARACTERS: Final = 320
 _MAX_TOOL_RECIPIENTS: Final = 50
+_MAX_TOOL_ATTACHMENTS: Final = 25
+_MAX_ATTACHMENT_FILENAME_CHARACTERS: Final = 255
+_MAX_ATTACHMENT_CONTENT_TYPE_CHARACTERS: Final = 255
+_MAX_ATTACHMENT_SIZE_BYTES: Final = 100_000_000
 _MAX_OPAQUE_IDENTIFIER: Final = 512
 _MAX_BODY_OFFSET: Final = 200_000
 _MAX_BODY_WINDOW: Final = 20_000
@@ -487,6 +491,7 @@ def _message_detail(
     end = body_offset + len(body_window)
     subject = message.subject[:_MAX_SUBJECT_CHARACTERS]
     recipients = message.recipients[:_MAX_TOOL_RECIPIENTS]
+    attachments = message.attachments[:_MAX_TOOL_ATTACHMENTS]
     content_format = message.metadata.get("content")
     if content_format not in {"text/plain", "text/html"}:
         content_format = None
@@ -512,6 +517,8 @@ def _message_detail(
         },
         "recipients": [_address_result(address) for address in recipients],
         "recipients_truncated": len(message.recipients) > len(recipients),
+        "attachments": [_attachment_result(item) for item in attachments],
+        "attachments_truncated": len(message.attachments) > len(attachments),
         "received_at": _datetime_result(message.received_at),
         "body_text": body_window or None,
         "body_window": {
@@ -522,6 +529,41 @@ def _message_detail(
         },
         "source_truncated": message.metadata.get("truncated") == "true",
         "content_format": content_format,
+    }
+
+
+def _attachment_result(attachment: EmailAttachment) -> dict[str, Any]:
+    filename = attachment.filename
+    if filename is not None and not isinstance(filename, str):
+        filename = None
+    bounded_filename = (
+        filename[:_MAX_ATTACHMENT_FILENAME_CHARACTERS] if filename is not None else None
+    )
+    content_type = attachment.content_type
+    if not isinstance(content_type, str) or not content_type.isascii():
+        content_type = "application/octet-stream"
+    content_type = content_type[:_MAX_ATTACHMENT_CONTENT_TYPE_CHARACTERS]
+    disposition = attachment.disposition
+    if disposition not in {"attachment", "inline", "unspecified"}:
+        disposition = "unspecified"
+    size_bytes = attachment.size_bytes
+    if (
+        isinstance(size_bytes, bool)
+        or not isinstance(size_bytes, int)
+        or not 0 <= size_bytes <= _MAX_ATTACHMENT_SIZE_BYTES
+    ):
+        size_bytes = None
+    return {
+        "attachment_id": _bounded_opaque_value(attachment.attachment_id),
+        "filename": bounded_filename,
+        "filename_truncated": attachment.filename_truncated
+        or (filename is not None and len(filename) > len(bounded_filename or "")),
+        "content_type": content_type,
+        "size_bytes": size_bytes,
+        "disposition": disposition,
+        "metadata_is_untrusted": True,
+        "content_available": False,
+        "authorization": "none",
     }
 
 

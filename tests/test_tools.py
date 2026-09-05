@@ -7,7 +7,7 @@ from typing import Any
 import pytest
 
 from hermes_email.config import EmailPluginConfig
-from hermes_email.models import EmailAddress, EmailMessage, EmailMessagePage
+from hermes_email.models import EmailAddress, EmailAttachment, EmailMessage, EmailMessagePage
 from hermes_email.plugin import EmailPlugin
 from hermes_email.providers import (
     MockEmailProvider,
@@ -211,6 +211,70 @@ def test_get_returns_one_bounded_message_detail() -> None:
     assert message["reply_route"]["source"] == "from"
     assert message["reply_route"]["selected"]["address"] == "customer@example.invalid"
     assert message["reply_route"]["authorization"] == "none"
+
+
+def test_get_exposes_attachment_metadata_without_content_or_authority() -> None:
+    result = invoke(
+        registered_tools()[GET_TOOL],
+        {"message_id": "mock-message-html-003"},
+    )
+    attachments = result["message"]["attachments"]
+    assert attachments == [
+        {
+            "attachment_id": "part-0001",
+            "filename": "sample.pdf",
+            "filename_truncated": False,
+            "content_type": "application/pdf",
+            "size_bytes": 1234,
+            "disposition": "attachment",
+            "metadata_is_untrusted": True,
+            "content_available": False,
+            "authorization": "none",
+        }
+    ]
+    assert result["message"]["attachments_truncated"] is False
+    assert "content" not in attachments[0]
+    assert "path" not in attachments[0]
+    assert "url" not in attachments[0]
+
+
+def test_list_never_exposes_attachment_metadata() -> None:
+    result = invoke(registered_tools()[LIST_TOOL], {"limit": 3})
+    assert all("attachments" not in item for item in result["messages"])
+
+
+def test_attachment_output_is_bounded_even_for_custom_provider_models() -> None:
+    attachments = tuple(
+        EmailAttachment(
+            attachment_id=f"part-{index:04d}",
+            filename="x" * 400,
+            content_type="application/pdf",
+            size_bytes=123,
+            disposition="attachment",
+        )
+        for index in range(30)
+    )
+    provider = MockEmailProvider(
+        (
+            EmailMessage(
+                message_id="many-attachments",
+                subject="Attachments",
+                sender=EmailAddress("sender@example.invalid"),
+                recipients=(EmailAddress("support@example.invalid"),),
+                attachments=attachments,
+            ),
+        )
+    )
+    result = invoke(
+        registered_tools(mock_plugin(provider=provider))[GET_TOOL],
+        {"message_id": "many-attachments"},
+    )
+    returned = result["message"]["attachments"]
+    assert len(returned) == 25
+    assert result["message"]["attachments_truncated"] is True
+    assert all(len(item["filename"]) == 255 for item in returned)
+    assert all(item["filename_truncated"] is True for item in returned)
+    assert all(item["authorization"] == "none" for item in returned)
 
 
 def test_get_exposes_single_reply_to_as_untrusted_routing_metadata() -> None:

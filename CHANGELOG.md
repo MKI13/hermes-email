@@ -4,6 +4,20 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.28.0] - 2026-09-05
+
+### Added
+
+- Provider-neutral `EmailAttachment` metadata with message-local attachment ID, bounded filename, MIME type, optional decoded size, disposition, and filename-truncation state.
+- Read/thread detail outputs now expose at most 25 attachment metadata records; list/search summaries remain content-minimized and omit attachments.
+- IMAP MIME normalization identifies attachment parts without exposing their content, including nested `message/rfc822` attachments as one outer attachment.
+
+### Security
+
+- Attachment tool output is metadata-only with fixed `metadata_is_untrusted: true`, `content_available: false`, and `authorization: none`.
+- No attachment bytes, local paths, URLs, download/open/render/execute actions, or automatic file handling are introduced.
+- Tool-boundary validation re-bounds attachment IDs, filenames, MIME values, sizes, dispositions, and total attachment count independently of provider behavior.
+
 ## [0.27.0] - 2026-09-05
 
 ### Added

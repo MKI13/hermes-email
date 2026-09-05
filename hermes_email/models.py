@@ -26,6 +26,18 @@ class EmailAddress:
 
 
 @dataclass(frozen=True, slots=True)
+class EmailAttachment:
+    """Bounded attachment metadata only; never attachment content."""
+
+    attachment_id: str
+    filename: str | None
+    content_type: str
+    size_bytes: int | None
+    disposition: str
+    filename_truncated: bool = False
+
+
+@dataclass(frozen=True, slots=True)
 class EmailMessage:
     """Normalized message data returned by a provider."""
 
@@ -38,6 +50,7 @@ class EmailMessage:
     status: MessageStatus = MessageStatus.NEW
     metadata: dict[str, str] = field(default_factory=dict)
     reply_to: tuple[EmailAddress, ...] = ()
+    attachments: tuple[EmailAttachment, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

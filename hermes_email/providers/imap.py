@@ -20,7 +20,7 @@ from html.parser import HTMLParser
 from typing import Any, Final, Never
 
 from ..config import ImapSettings
-from ..models import EmailAddress, EmailMessage, EmailMessagePage
+from ..models import EmailAddress, EmailAttachment, EmailMessage, EmailMessagePage
 from ..secrets import SecretResolutionError, SecretResolver
 from ..threading import parse_message_ids
 from .base import EmailProvider, ProviderCapabilities
@@ -44,6 +44,8 @@ _MAX_PAGE_MESSAGES: Final = 100
 _MAX_MIME_PARTS: Final = 100
 _MAX_BODY_CHARACTERS: Final = 200_000
 _MAX_HEADER_CHARACTERS: Final = 2_000
+_MAX_ATTACHMENTS: Final = 25
+_MAX_ATTACHMENT_FILENAME_CHARACTERS: Final = 255
 
 ImapClientFactory = Callable[..., imaplib.IMAP4_SSL]
 
@@ -441,6 +443,7 @@ class ImapReadOnlyProvider(EmailProvider):
         )
         reply_to = _addresses(parsed.get_all("Reply-To", []))
         body_text, body_kind = _extract_body(parsed)
+        attachments = _extract_attachments(parsed)
         received_at = _parse_received_at(parsed.get("Date"))
         metadata = {
             "provider": self.NAME,
@@ -471,6 +474,7 @@ class ImapReadOnlyProvider(EmailProvider):
             body_text=body_text,
             received_at=received_at,
             metadata=metadata,
+            attachments=attachments,
         )
 
     def _cursor_upper_bound(
@@ -657,6 +661,51 @@ class _PlainTextExtractor(HTMLParser):
 
     def text(self) -> str:
         return _clean_body("".join(self._chunks))
+
+
+def _extract_attachments(message: Message) -> tuple[EmailAttachment, ...]:
+    """Return bounded MIME attachment metadata without exposing content."""
+    attachments: list[EmailAttachment] = []
+    visited = 0
+
+    def visit(part: Message) -> None:
+        nonlocal visited
+        if visited >= _MAX_MIME_PARTS or len(attachments) >= _MAX_ATTACHMENTS:
+            return
+        visited += 1
+        filename_value = part.get_filename()
+        disposition_value = part.get_content_disposition()
+        is_attachment = disposition_value == "attachment" or filename_value is not None
+        if is_attachment:
+            raw_name = _clean_header(str(filename_value)) if filename_value is not None else ""
+            filename = raw_name[:_MAX_ATTACHMENT_FILENAME_CHARACTERS] or None
+            content_type = part.get_content_type().casefold()
+            if not content_type.isascii() or len(content_type) > 255:
+                content_type = "application/octet-stream"
+            payload = part.get_payload(decode=True)
+            size_bytes = len(payload) if isinstance(payload, bytes) else None
+            attachments.append(
+                EmailAttachment(
+                    attachment_id=f"part-{len(attachments) + 1:04d}",
+                    filename=filename,
+                    content_type=content_type,
+                    size_bytes=size_bytes,
+                    disposition=disposition_value or "unspecified",
+                    filename_truncated=len(raw_name) > len(filename or ""),
+                )
+            )
+            return
+        if part.get_content_maintype().casefold() == "multipart":
+            payload = part.get_payload()
+            if isinstance(payload, list):
+                for child in payload:
+                    if isinstance(child, Message):
+                        visit(child)
+        elif part.is_multipart():
+            return
+
+    visit(message)
+    return tuple(attachments)
 
 
 def _extract_body(message: Message) -> tuple[str | None, str]:
