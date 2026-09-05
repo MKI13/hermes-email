@@ -280,9 +280,9 @@ def _list_handler(plugin: EmailPlugin):
             limit = _tool_limit(args)
             cursor = _optional_string(args, "cursor")
             page = await plugin.fetch_messages(limit=limit, cursor=cursor)
-            return _json_success("list", _page_result(page, limit, plugin.config.classification))
+            return _json_success(plugin, "list", _page_result(page, limit, plugin.config.classification))
         except Exception as error:
-            return _json_error("list", error)
+            return _json_error(plugin, "list", error)
 
     return handle
 
@@ -306,10 +306,10 @@ def _get_handler(plugin: EmailPlugin):
             message = await plugin.get_message(message_id)
             if message is None:
                 return _json_success(
-                    "get", {"content_is_untrusted": True, "found": False, "message": None}
+                    plugin, "get", {"content_is_untrusted": True, "found": False, "message": None}
                 )
             return _json_success(
-                "get",
+                plugin, "get",
                 {
                     "content_is_untrusted": True,
                     "found": True,
@@ -317,7 +317,7 @@ def _get_handler(plugin: EmailPlugin):
                 },
             )
         except Exception as error:
-            return _json_error("get", error)
+            return _json_error(plugin, "get", error)
 
     return handle
 
@@ -331,9 +331,9 @@ def _search_handler(plugin: EmailPlugin):
             limit = _tool_limit(args)
             cursor = _optional_string(args, "cursor")
             page = await plugin.search_messages(query, limit=limit, cursor=cursor)
-            return _json_success("search", _page_result(page, limit, plugin.config.classification))
+            return _json_success(plugin, "search", _page_result(page, limit, plugin.config.classification))
         except Exception as error:
-            return _json_error("search", error)
+            return _json_error(plugin, "search", error)
 
     return handle
 
@@ -364,7 +364,7 @@ def _thread_handler(plugin: EmailPlugin):
             )
             if thread is None:
                 return _json_success(
-                    "thread",
+                    plugin, "thread",
                     {
                         "content_is_untrusted": True,
                         "found": False,
@@ -377,7 +377,7 @@ def _thread_handler(plugin: EmailPlugin):
                 _message_detail(message, 0, body_limit, plugin.config.classification) for message in thread.messages
             ]
             return _json_success(
-                "thread",
+                plugin, "thread",
                 {
                     "content_is_untrusted": True,
                     "found": True,
@@ -390,7 +390,7 @@ def _thread_handler(plugin: EmailPlugin):
                 },
             )
         except Exception as error:
-            return _json_error("thread", error)
+            return _json_error(plugin, "thread", error)
 
     return handle
 
@@ -615,11 +615,13 @@ def _datetime_result(value: datetime | None) -> str | None:
     return value.isoformat() if value is not None else None
 
 
-def _json_success(operation: str, result: dict[str, Any]) -> str:
+def _json_success(plugin: EmailPlugin, operation: str, result: dict[str, Any]) -> str:
+    count = result.get("count", 1 if result.get("found", True) else 0)
+    plugin.record_audit(operation, "ok", count if isinstance(count, int) and not isinstance(count, bool) else 0)
     return _json_result({"ok": True, "operation": operation, **result})
 
 
-def _json_error(operation: str, error: Exception) -> str:
+def _json_error(plugin: EmailPlugin, operation: str, error: Exception) -> str:
     if isinstance(error, EmailReadDisabledError):
         code = "reading-disabled"
     elif isinstance(error, EmailProviderUnavailableError):
@@ -664,6 +666,7 @@ def _json_error(operation: str, error: Exception) -> str:
         code = "invalid-arguments"
     else:
         code = "internal-error"
+    plugin.record_audit(operation, code, 0)
     return _json_result({"ok": False, "operation": operation, "error": {"code": code}})
 
 

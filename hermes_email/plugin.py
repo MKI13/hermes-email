@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, Final, Self
 
 from . import __version__
+from .audit import ContentMinimizedAuditStore
 from .config import ConfigError, EmailPluginConfig
 from .context import ActiveProfileContextSource, HermesContext, HermesContextSource
 from .draft_storage import (
@@ -54,6 +55,7 @@ _RUNTIME_CONFIG_SECTIONS: Final = (
     "smtp",
     "recipient_policy",
     "classification",
+    "audit",
     "behavior",
     "safety",
 )
@@ -84,6 +86,7 @@ class EmailRuntimeStatus:
     read_enabled: bool
     storage_enabled: bool
     draft_enabled: bool
+    audit_enabled: bool
     smtp_configured: bool
     technical_send_armed: bool
     send_enabled: bool
@@ -138,6 +141,7 @@ class EmailPlugin:
         provider: EmailProvider | None = None,
         observation_store: SqliteObservationStore | None = None,
         draft_store: SqliteDraftStore | None = None,
+        audit_store: ContentMinimizedAuditStore | None = None,
         runtime_state: EmailRuntimeState | None = None,
         runtime_diagnostic: str | None = None,
         draft_diagnostic: str | None = None,
@@ -147,6 +151,7 @@ class EmailPlugin:
         self.provider = provider
         self.observation_store = observation_store
         self.draft_store = draft_store
+        self.audit_store = audit_store
         self._closed = False
         self._runtime_state = runtime_state or self._initial_runtime_state(provider)
         self._runtime_diagnostic = runtime_diagnostic
@@ -169,6 +174,7 @@ class EmailPlugin:
         secret_resolver: SecretResolver | None = None,
         observation_store: SqliteObservationStore | None = None,
         draft_store: SqliteDraftStore | None = None,
+        audit_store: ContentMinimizedAuditStore | None = None,
     ) -> Self:
         """Create a disconnected plugin using only the configured provider resolver."""
         provider = resolve_email_provider(config, secret_resolver=secret_resolver)
@@ -178,6 +184,7 @@ class EmailPlugin:
             provider=provider,
             observation_store=observation_store,
             draft_store=draft_store,
+            audit_store=audit_store,
         )
 
     def get_hermes_context(self) -> HermesContext:
@@ -207,6 +214,7 @@ class EmailPlugin:
             ),
             storage_enabled=self.observation_store is not None and not self._closed,
             draft_enabled=self.draft_store is not None and not self._closed,
+            audit_enabled=self.audit_store is not None and not self._closed,
             smtp_configured=self.config.smtp.mode == "submission",
             technical_send_armed=(
                 not self._closed
@@ -236,13 +244,17 @@ class EmailPlugin:
         provider = self.provider
         observation_store = self.observation_store
         draft_store = self.draft_store
+        audit_store = self.audit_store
         self.provider = None
         self.observation_store = None
         self.draft_store = None
+        self.audit_store = None
         self.context_source = None
         self._runtime_state = EmailRuntimeState.DISABLED
         self._runtime_diagnostic = None
         self._draft_diagnostic = None
+        if audit_store is not None:
+            audit_store.close()
         if draft_store is not None:
             draft_store.close()
         if observation_store is not None:
@@ -562,6 +574,13 @@ class EmailPlugin:
         )
 
 
+    def record_audit(self, operation: str, outcome: str, item_count: int = 0) -> None:
+        """Best-effort content-minimized audit; never expose mail content."""
+        store = self.audit_store
+        if store is not None:
+            store.record(operation, outcome, item_count)
+
+
 def format_runtime_status(status: EmailRuntimeStatus) -> str:
     """Format only the fixed, non-sensitive runtime health fields."""
     lines = [
@@ -580,6 +599,7 @@ def format_runtime_status(status: EmailRuntimeStatus) -> str:
             f"Read: {'enabled' if status.read_enabled else 'disabled'}",
             f"Storage: {'enabled' if status.storage_enabled else 'disabled'}",
             f"Draft: {'enabled' if status.draft_enabled else 'disabled'}",
+            f"Audit: {'enabled' if status.audit_enabled else 'disabled'}",
             f"SMTP: {'configured' if status.smtp_configured else 'disabled'}",
             "Technical send gates: "
             + ("armed" if status.technical_send_armed else "disabled"),
@@ -618,6 +638,15 @@ def _create_observation_store(
     )
 
 
+def _create_audit_store(ctx: Any, config: EmailPluginConfig) -> ContentMinimizedAuditStore | None:
+    if config.audit.mode != "sqlite":
+        return None
+    data_dir = ctx.state.data_dir
+    if not isinstance(data_dir, Path):
+        raise RuntimeError("Hermes plugin state directory is unavailable")
+    return ContentMinimizedAuditStore(data_dir / "email-audit.sqlite3", config.audit)
+
+
 def _create_draft_store(ctx: Any, config: EmailPluginConfig) -> SqliteDraftStore | None:
     if config.drafts.mode != "sqlite":
         return None
@@ -640,13 +669,14 @@ def _create_runtime_plugin(ctx: Any) -> EmailPlugin:
 
     observation_store = _create_observation_store(ctx, config)
     draft_store = _create_draft_store(ctx, config)
+    audit_store = _create_audit_store(ctx, config)
     provider_name = config.email.provider
     if (
         (provider_name is None or not provider_name.strip())
         and config.email.read_mode == "disabled"
     ):
         return EmailPlugin(
-            config, context_source=context_source, draft_store=draft_store
+            config, context_source=context_source, draft_store=draft_store, audit_store=audit_store
         )
 
     try:
@@ -655,6 +685,7 @@ def _create_runtime_plugin(ctx: Any) -> EmailPlugin:
             context_source=context_source,
             observation_store=observation_store,
             draft_store=draft_store,
+            audit_store=audit_store,
         )
     except EmailProviderResolutionError as exc:
         diagnostic = (
@@ -666,6 +697,7 @@ def _create_runtime_plugin(ctx: Any) -> EmailPlugin:
             config,
             context_source=context_source,
             draft_store=draft_store,
+            audit_store=audit_store,
             runtime_state=EmailRuntimeState.CONFIGURATION_ERROR,
             runtime_diagnostic=diagnostic,
         )

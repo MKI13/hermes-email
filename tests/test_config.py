@@ -437,3 +437,11 @@ def test_sender_classification_mapping_is_operator_configured_and_universal() ->
     assert config.classification.internal_domains == ("company.invalid",)
     assert config.classification.customer_addresses == ("vip@customer.invalid",)
     assert config.classification.supplier_domains == ("supplier.invalid",)
+
+
+def test_audit_configuration_is_bounded() -> None:
+    from hermes_email.config import AuditSettings
+    config=EmailPluginConfig.from_mapping({"audit":{"mode":"sqlite","retention_days":30,"max_events":500,"max_database_bytes":4194304}})
+    assert config.audit == AuditSettings(mode="sqlite", retention_days=30, max_events=500, max_database_bytes=4194304)
+    with pytest.raises(ConfigError, match="audit.max_events"):
+        AuditSettings(max_events=0)

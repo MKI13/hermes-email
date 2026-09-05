@@ -186,3 +186,9 @@ def test_invalid_explicit_profile_policy_fails_closed(profile: object) -> None:
 
     assert decision.allowed is False
     assert decision.diagnostic == "invalid-profile-policy"
+
+
+def test_audit_sqlite_requires_explicit_profile_binding() -> None:
+    decision = evaluate_profile_policy(FakeContext("default", {"hermes": {"profile": "auto"}, "audit": {"mode": "sqlite"}}))
+    assert decision.allowed is False
+    assert decision.diagnostic == "explicit-profile-required"

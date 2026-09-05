@@ -165,6 +165,7 @@ def _authorized_status(runtime: Any, decision: ProfilePolicyDecision, raw_args: 
             f"Read: {'enabled' if status.read_enabled else 'disabled'}",
             f"Storage: {'enabled' if status.storage_enabled else 'disabled'}",
             f"Draft: {'enabled' if status.draft_enabled else 'disabled'}",
+            f"Audit: {'enabled' if status.audit_enabled else 'disabled'}",
             f"SMTP: {'configured' if status.smtp_configured else 'disabled'}",
             "Technical send gates: " + ("armed" if status.technical_send_armed else "disabled"),
             "Send: unavailable",
@@ -190,6 +191,7 @@ def _blocked_status(runtime: ProfileBlockedRuntime, raw_args: str) -> str:
             "Read: disabled",
             "Storage: disabled",
             "Draft: disabled",
+            "Audit: disabled",
             "SMTP: disabled",
             "Technical send gates: disabled",
             "Send: unavailable",
@@ -209,7 +211,7 @@ def _production_capability_configured(ctx: Any) -> bool:
         if provider not in {None, "", "mock"} or read_mode == "readonly":
             return True
 
-    for section_name in ("storage", "drafts"):
+    for section_name in ("storage", "drafts", "audit"):
         section = _config_section(ctx, section_name)
         if section is _INVALID:
             return True

@@ -61,6 +61,12 @@ classification:
   supplier_addresses: []
   supplier_domains: []
 
+audit:
+  mode: disabled
+  retention_days: 90
+  max_events: 10000
+  max_database_bytes: 16777216
+
 behavior:
   inherit_persona: true
   inherit_language: true

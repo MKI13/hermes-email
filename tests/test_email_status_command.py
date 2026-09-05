@@ -107,6 +107,7 @@ def test_disabled_status_command_output() -> None:
             "Read: disabled",
             "Storage: disabled",
             "Draft: disabled",
+            "Audit: disabled",
             "SMTP: disabled",
             "Technical send gates: disabled",
             "Send: unavailable",

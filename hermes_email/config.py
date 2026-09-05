@@ -386,6 +386,22 @@ class SenderClassificationSettings:
 
 
 @dataclass(frozen=True, slots=True)
+class AuditSettings:
+    """Content-minimized local audit settings."""
+
+    mode: str = "disabled"
+    retention_days: int = 90
+    max_events: int = 10_000
+    max_database_bytes: int = 16_777_216
+
+    def __post_init__(self) -> None:
+        _choice("audit.mode", self.mode, {"disabled", "sqlite"})
+        _bounded_integer("audit.retention_days", self.retention_days, 1, 3650)
+        _bounded_integer("audit.max_events", self.max_events, 1, 100_000)
+        _bounded_integer("audit.max_database_bytes", self.max_database_bytes, 1_048_576, 268_435_456)
+
+
+@dataclass(frozen=True, slots=True)
 class BehaviorSettings:
     """Controls which active Hermes characteristics should be inherited."""
 
@@ -426,6 +442,7 @@ class EmailPluginConfig:
         default_factory=RecipientPolicySettings
     )
     classification: SenderClassificationSettings = field(default_factory=SenderClassificationSettings)
+    audit: AuditSettings = field(default_factory=AuditSettings)
     behavior: BehaviorSettings = field(default_factory=BehaviorSettings)
     safety: SafetySettings = field(default_factory=SafetySettings)
 
@@ -483,6 +500,7 @@ class EmailPluginConfig:
                 "smtp",
                 "recipient_policy",
                 "classification",
+                "audit",
                 "behavior",
                 "safety",
             },
@@ -505,6 +523,7 @@ class EmailPluginConfig:
             classification=_build_section(
                 SenderClassificationSettings, "classification", raw.get("classification")
             ),
+            audit=_build_section(AuditSettings, "audit", raw.get("audit")),
             behavior=_build_section(BehaviorSettings, "behavior", raw.get("behavior")),
             safety=_build_section(SafetySettings, "safety", raw.get("safety")),
         )
@@ -521,6 +540,7 @@ Section = TypeVar(
     SmtpSettings,
     RecipientPolicySettings,
     SenderClassificationSettings,
+    AuditSettings,
     BehaviorSettings,
     SafetySettings,
 )
