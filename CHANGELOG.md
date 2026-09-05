@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.36.1] - 2026-09-06
+
+### Fixed
+- Added `draft-reply-all-create` to the content-minimized audit operation allowlist so audited Reply-All draft creation no longer fails after the draft mutation completes.
+
+### Security
+- Audit remains limited to timestamp, fixed operation, fixed outcome, and item count; no mail or draft content is added.
+
+
 ## [0.36.0] - 2026-09-06
 
 ### Added

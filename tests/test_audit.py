@@ -27,3 +27,19 @@ def test_audit_bounds_and_private_permissions(tmp_path: Path):
     if __import__('os').name=='posix':
         assert path.stat().st_mode & 0o777 == 0o600
         assert path.parent.stat().st_mode & 0o777 == 0o700
+
+
+def test_audit_accepts_reply_all_operation_without_content_fields(tmp_path: Path):
+    path = tmp_path / 'data' / 'email-audit.sqlite3'
+    store = ContentMinimizedAuditStore(path, AuditSettings(mode='sqlite'))
+    store.record('draft-reply-all-create', 'ok', 1)
+    row = store.recent(limit=1)[0]
+    assert row == {
+        'created_at': row['created_at'],
+        'operation': 'draft-reply-all-create',
+        'outcome': 'ok',
+        'item_count': 1,
+    }
+    with sqlite3.connect(path) as c:
+        columns = [r[1] for r in c.execute('PRAGMA table_info(audit_events)')]
+    assert columns == ['id', 'created_at', 'operation', 'outcome', 'item_count']

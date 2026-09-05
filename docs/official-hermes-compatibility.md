@@ -1,6 +1,6 @@
 # Hermes Compatibility
 
-Hermes Email version 0.36.0 targets the manifest v1 schema accepted by the pinned Hermes Agent v0.21.0 compatibility target.
+Hermes Email version 0.36.1 targets the manifest v1 schema accepted by the pinned Hermes Agent v0.21.0 compatibility target.
 
 The plugin uses only public Hermes extension surfaces:
 
@@ -87,43 +87,47 @@ Authoritative upstream references remain:
 
 The fourth read-only tool, `email_get_thread`, uses the same public `ctx.register_tool()` surface as existing read tools. It adds no new Hermes private API, background worker, write capability, or send path. Thread reconstruction is provider-neutral and bounded; IMAP contributes normalized RFC relationship metadata while the model-facing result remains explicitly untrusted.
 
-## v0.36.0 Reply-To handling
+## v0.36.1 Reply-To handling
 
 Reply routing uses no new private Hermes API and no new tool. Existing `email_get_message` and `email_get_thread` results expose a bounded `reply_route` with source, candidates, ambiguity, validity, truncation, selected address, and `authorization: none`.
 
-## v0.36.0 sender classification
+## v0.36.1 sender classification
 
 Classification uses only plugin-local validated configuration and existing public Hermes tool output surfaces. It introduces no private Hermes API dependency and no new tool registration.
 
-## v0.36.0 attachment metadata
+## v0.36.1 attachment metadata
 
 Attachment metadata is carried through the existing provider-neutral message model and existing read/thread tools. No new Hermes tool registration or private Hermes API is introduced.
 
-## v0.36.0 attachment handling
+## v0.36.1 attachment handling
 
 Existing read tools expose bounded metadata-only handling classes; no new Hermes extension surface or attachment-content tool is added.
 
-## v0.36.0 content-minimized audit
+## v0.36.1 content-minimized audit
 
 Audit persistence uses only the plugin-owned profile data directory and adds no new Hermes extension surface.
 
-## v0.36.0 provider error states
+## v0.36.1 provider error states
 
-Hermes Email v0.36.0 keeps the existing manifest/tool registration contract while replacing the broad provider-unreachable runtime bucket with fixed specific runtime states that mirror the already-redacted tool error codes.
-## v0.36.0 provider health tool
+Hermes Email v0.36.1 keeps the existing manifest/tool registration contract while replacing the broad provider-unreachable runtime bucket with fixed specific runtime states that mirror the already-redacted tool error codes.
+## v0.36.1 provider health tool
 
 The fifth read/status tool uses the same public `ctx.register_tool()` API and calls the existing explicit provider health probe. No background polling is introduced.
-## v0.36.0 Proton Bridge compatibility
+## v0.36.1 Proton Bridge compatibility
 
 Pinned loopback STARTTLS remains inside the existing IMAP provider and uses no new Hermes private API. No background connection, polling, or SMTP path is introduced.
-## v0.36.0 reply-draft tool
+## v0.36.1 reply-draft tool
 
 The seventh draft tool uses the existing public tool API plus existing provider lookup and local draft storage. No private Hermes API or provider write endpoint is introduced.
 
-## v0.36.0 Reply-All drafts
+## v0.36.1 Reply-All drafts
 
 The manifest now advertises 13 tools. Reply-All is registered statically but is available only with a readable provider, local draft store, and configured own addresses.
 
-## v0.36.0 draft send review
+## v0.36.1 draft send review
 
 The manifest advertises 14 tools. The new review tool uses the existing local draft store only and performs no provider or SMTP operation.
+
+## v0.36.1 audit compatibility
+
+Fixes runtime compatibility between the Reply-All draft tool and enabled content-minimized audit logging without changing the 14-tool manifest.
