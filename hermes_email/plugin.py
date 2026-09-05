@@ -53,6 +53,7 @@ _RUNTIME_CONFIG_SECTIONS: Final = (
     "drafts",
     "smtp",
     "recipient_policy",
+    "classification",
     "behavior",
     "safety",
 )

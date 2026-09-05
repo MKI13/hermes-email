@@ -4,6 +4,19 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.27.0] - 2026-09-05
+
+### Added
+
+- Deterministic operator-configured sender classification for `internal`, `customer`, `supplier`, and `unknown-external`.
+- Exact-address rules take precedence over domain rules; conflicting exact address/domain category rules fail configuration validation.
+- `sender_classification` appears in list, search, message-detail, and thread outputs with fixed `authorization: none`.
+
+### Security
+
+- Sender category is never inferred from message text, display name, model judgment, or claimed role.
+- Classification never authorizes tools, drafting, sending, secret access, profile changes, recipient decisions, or policy changes.
+
 ## [0.26.0] - 2026-09-05
 
 ### Fixed

@@ -1,6 +1,6 @@
 # Architecture
 
-## Version 0.26.0
+## Version 0.27.0
 
 Hermes Email separates agent behavior from technical mail infrastructure. Hermes owns reasoning, persona, language, style, user preferences, and decisions. The plugin owns validated provider access, profile isolation, local persistence, technical send gates, confirmation binding, durable send intents, uncertainty recovery, and duplicate prevention.
 
@@ -131,4 +131,8 @@ Version 0.24.0 adds a bounded provider-neutral thread resolver and `email_get_th
 
 ## Reply routing
 
-Version 0.26.0 adds provider-neutral `ReplyRoute` derivation. IMAP normalizes `Reply-To` separately from `From`. One valid `Reply-To` may be recommended; absent `Reply-To` falls back to a valid sender. Multiple, malformed, or oversized Reply-To candidates fail closed to no automatic selection. Routing data is included only in existing read/thread results and carries no draft or send authority.
+Version 0.27.0 adds provider-neutral `ReplyRoute` derivation. IMAP normalizes `Reply-To` separately from `From`. One valid `Reply-To` may be recommended; absent `Reply-To` falls back to a valid sender. Multiple, malformed, or oversized Reply-To candidates fail closed to no automatic selection. Routing data is included only in existing read/thread results and carries no draft or send authority.
+
+## v0.27.0 sender classification
+
+Sender classification is derived at tool-render time from validated operator configuration. Provider messages remain unchanged. Exact address rules precede domain rules; no semantic/model inference is permitted. Results are informational and carry no action authority.

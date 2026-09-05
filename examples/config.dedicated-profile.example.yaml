@@ -31,6 +31,15 @@ smtp:
 recipient_policy:
   mode: deny
 
+classification:
+  # Optional operator-owned rules. Exact addresses override domain rules.
+  internal_addresses: []
+  internal_domains: []
+  customer_addresses: []
+  customer_domains: []
+  supplier_addresses: []
+  supplier_domains: []
+
 safety:
   allow_send: false
   allow_delete: false

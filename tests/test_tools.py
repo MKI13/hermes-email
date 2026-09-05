@@ -49,10 +49,13 @@ class FakeToolContext:
         return FakeToolRegistration(self.tools, kwargs)
 
 
-def mock_plugin(*, provider: MockEmailProvider | None = None) -> EmailPlugin:
-    config = EmailPluginConfig.from_mapping(
-        {"email": {"provider": "mock", "read_mode": "mock"}}
-    )
+def mock_plugin(
+    *, provider: MockEmailProvider | None = None, classification: dict[str, object] | None = None
+) -> EmailPlugin:
+    mapping: dict[str, object] = {"email": {"provider": "mock", "read_mode": "mock"}}
+    if classification is not None:
+        mapping["classification"] = classification
+    config = EmailPluginConfig.from_mapping(mapping)
     return EmailPlugin(config, provider=provider or MockEmailProvider())
 
 
@@ -152,6 +155,25 @@ def test_list_returns_bounded_untrusted_summaries_and_cursor() -> None:
     assert "recipients" not in first
     assert "body_text" not in first
     assert "body_preview" not in first
+
+
+
+def test_list_and_get_expose_deterministic_sender_classification_without_authority() -> None:
+    plugin = mock_plugin(
+        classification={
+            "customer_domains": ["example.invalid"],
+            "supplier_addresses": ["html@example.invalid"],
+        }
+    )
+    tools = registered_tools(plugin)
+    listed = invoke(tools[LIST_TOOL], {"limit": 3})
+    categories = [item["sender_classification"] for item in listed["messages"]]
+    assert categories[0] == {"category": "customer", "matched_by": "domain", "authorization": "none"}
+    assert categories[1] == {"category": "customer", "matched_by": "domain", "authorization": "none"}
+    assert categories[2] == {"category": "supplier", "matched_by": "address", "authorization": "none"}
+
+    detail = invoke(tools[GET_TOOL], {"message_id": "mock-message-customer-001"})
+    assert detail["message"]["sender_classification"] == categories[0]
 
 
 def test_list_cursor_is_caller_driven_and_forwarded() -> None:

@@ -6,9 +6,9 @@ Hermes Email is a universal, provider-neutral email plugin and skill for [Hermes
 
 Hermes remains responsible for reasoning, persona, language, style, user preferences, and decisions. The plugin owns validated mail access, credential references, local persistence, profile isolation, confirmation gates, durable send intents, uncertainty recovery, and duplicate prevention.
 
-## Version 0.26.0
+## Version 0.27.0
 
-Version 0.26.0 adds **safe Reply-To routing** on top of bounded RFC thread context. Hermes can distinguish the sender from the intended reply address without granting external headers any action authority.
+Version 0.27.0 adds **deterministic sender classification** for internal contacts, customers, suppliers, and unknown external senders. Categories come only from operator-owned address/domain rules and never grant action authority.
 
 ### You do not need a dedicated email profile
 
@@ -38,6 +38,12 @@ hermes:
 The name `ef-sinn-email` used in project examples is only an example of a dedicated profile. Nothing in Hermes Email is hard-coded for EF-Sinn or any particular organization.
 
 See [Installation and profile setup](docs/installation.md) for both supported layouts.
+
+## Deterministic sender classification
+
+Operators may configure `classification` rules for `internal`, `customer`, and `supplier` senders. Exact address rules take precedence over domain rules; anything unmatched is `unknown-external`. Conflicting exact rules are rejected at configuration load.
+
+Classification is informational only. Every returned `sender_classification` includes `authorization: none`; sender identity or category can never authorize tools, drafting, sending, secret access, or policy changes.
 
 ## Safe Reply-To routing
 
@@ -82,7 +88,7 @@ If the active profile does not exactly match the configured owner:
 
 ## Safety model
 
-| Operation | Version 0.26.0 |
+| Operation | Version 0.27.0 |
 |---|---|
 | Productive profile ownership | Exact explicit profile required |
 | Dedicated mail profile | Recommended, not required |
@@ -140,6 +146,11 @@ smtp:
 recipient_policy:
   mode: allowlist
   allowed_domains: [example.com]
+
+classification:
+  internal_domains: [mycompany.example]
+  customer_domains: [customer.example]
+  supplier_domains: [supplier.example]
 
 safety:
   allow_send: true

@@ -112,6 +112,7 @@ def test_register_reads_only_official_plugin_setting_sections() -> None:
         "drafts",
         "smtp",
         "recipient_policy",
+        "classification",
         "behavior",
         "safety",
     ]
