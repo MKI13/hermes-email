@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 import pytest
 
 from hermes_email.profile_guard import (
@@ -57,6 +55,12 @@ class FakeContext:
         raise AssertionError("blocked profile must not register the email skill")
 
 
+class ExplodingConfigContext(FakeContext):
+    def get_config(self, name, default=None):
+        del name, default
+        raise RuntimeError("synthetic config lookup failure")
+
+
 def production_settings(profile: str = "ef-sinn-email") -> dict[str, object]:
     return {
         "hermes": {"profile": profile},
@@ -67,12 +71,8 @@ def production_settings(profile: str = "ef-sinn-email") -> dict[str, object]:
 
 
 def test_explicit_mail_profile_allows_only_exact_active_profile() -> None:
-    allowed = evaluate_profile_policy(
-        FakeContext("ef-sinn-email", production_settings())
-    )
-    denied = evaluate_profile_policy(
-        FakeContext("ef-sinn-main", production_settings())
-    )
+    allowed = evaluate_profile_policy(FakeContext("ef-sinn-email", production_settings()))
+    denied = evaluate_profile_policy(FakeContext("ef-sinn-main", production_settings()))
 
     assert allowed.allowed is True
     assert allowed.required_profile == "ef-sinn-email"
@@ -145,6 +145,28 @@ def test_auto_production_denial_does_not_register_mail_surfaces() -> None:
     assert runtime.decision.diagnostic == "explicit-profile-required"
     assert context.tool_registrations == 0
     assert context.skill_registrations == 0
+
+
+def test_config_lookup_failure_is_never_treated_as_safe_auto_mode() -> None:
+    context = ExplodingConfigContext("ef-sinn-email", {})
+
+    decision = evaluate_profile_policy(context)
+    runtime = register(context)
+
+    assert decision.allowed is False
+    assert decision.diagnostic == "invalid-profile-policy"
+    assert isinstance(runtime, ProfileBlockedRuntime)
+    assert context.tool_registrations == 0
+    assert context.skill_registrations == 0
+
+
+@pytest.mark.parametrize("active_profile", [None, "", "bad profile", "bad/profile"])
+def test_invalid_active_profile_fails_closed_for_explicit_owner(active_profile: str | None) -> None:
+    decision = evaluate_profile_policy(FakeContext(active_profile, production_settings()))
+
+    assert decision.allowed is False
+    assert decision.required_profile == "ef-sinn-email"
+    assert decision.diagnostic == "invalid-active-profile"
 
 
 @pytest.mark.parametrize(
