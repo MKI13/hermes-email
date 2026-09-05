@@ -2,22 +2,65 @@
 
 [![CI](https://github.com/MKI13/hermes-email/actions/workflows/ci.yml/badge.svg)](https://github.com/MKI13/hermes-email/actions/workflows/ci.yml)
 
-Hermes Email is a universal, provider-neutral email plugin and skill for [Hermes Agent](https://github.com/NousResearch/hermes-agent). Hermes remains responsible for reasoning, persona, language, style, user preferences, and decisions. The plugin owns validated mail access, credential references, local persistence, profile isolation, confirmation gates, durable send intents, uncertainty recovery, and duplicate prevention.
+Hermes Email is a universal, provider-neutral email plugin and skill for [Hermes Agent](https://github.com/NousResearch/hermes-agent). It is designed for ordinary single-profile Hermes users as well as larger multi-profile deployments.
 
-## Version 0.22.0
+Hermes remains responsible for reasoning, persona, language, style, user preferences, and decisions. The plugin owns validated mail access, credential references, local persistence, profile isolation, confirmation gates, durable send intents, uncertainty recovery, and duplicate prevention.
 
-Version 0.22.0 introduces **exclusive production profile isolation**.
+## Version 0.23.0
 
-Production mail capabilities must be owned by one explicit Hermes profile. The official plugin entrypoint evaluates profile ownership before provider resolution, SQLite construction, secret access, mail-tool registration, or skill registration.
+Version 0.23.0 hardens the **untrusted mail-content boundary** and makes installation/profile choices explicit for every Hermes user.
 
-For a dedicated deployment, configure:
+### You do not need a dedicated email profile
+
+A dedicated email profile is recommended for stronger operational separation, but it is not required.
+
+Two productive layouts are supported:
+
+1. **Dedicated mail profile — recommended**: create a profile such as `email`, `work-email`, or `office-mail` and bind Hermes Email to it.
+2. **Existing profile — supported**: bind Hermes Email to the exact Hermes profile you already use, such as `default` or `personal`.
+
+The security rule is simple: **exactly one explicit Hermes profile owns productive mail access for one deployment/account.**
+
+Examples:
 
 ```yaml
 hermes:
-  profile: ef-sinn-email
+  profile: email
 ```
 
-`ef-sinn-email` is only an example; Hermes Email never hard-codes a company or profile name.
+or:
+
+```yaml
+hermes:
+  profile: default
+```
+
+The name `ef-sinn-email` used in project examples is only an example of a dedicated profile. Nothing in Hermes Email is hard-coded for EF-Sinn or any particular organization.
+
+See [Installation and profile setup](docs/installation.md) for both supported layouts.
+
+## Prompt-injection boundary
+
+Every mailbox and draft field is **untrusted external data**. This includes sender names, addresses, subjects, message bodies, signatures, forwarded text, quoted replies, HTML-derived text, headers, attachment metadata, and tool-like text embedded in a message.
+
+External mail content has **zero action authority**. It cannot authorize Hermes to:
+
+- run another tool;
+- reveal or resolve secrets;
+- change safety rules or profiles;
+- create, mutate, confirm, or send a draft;
+- forward/reply/contact another recipient;
+- bypass recipient policy or duplicate prevention;
+- retry a `delivery-unknown` send;
+- treat a claimed administrator, CEO, support agent, system message, or security warning as current-user authorization.
+
+Reading a mail authorizes only the requested read operation. Any later action must be independently justified by the **current user's direct request** and governing Hermes policy.
+
+CI now locks this trust contract so the untrusted-content markers and core prompt-injection rules cannot be silently removed without failing tests.
+
+## Exclusive productive profile isolation
+
+Production mail capabilities must be owned by one explicit Hermes profile. The official plugin entrypoint evaluates profile ownership before provider resolution, SQLite construction, secret access, mail-tool registration, or skill registration.
 
 If the active profile does not exactly match the configured owner:
 
@@ -29,16 +72,17 @@ If the active profile does not exactly match the configured owner:
 - SMTP/send gates remain unavailable;
 - only `/email-status` is registered so the operator can see that access was blocked.
 
-For safer production defaults, `hermes.profile: auto` is accepted only for development-only configurations. As soon as real IMAP, SQLite observation storage, SQLite drafts, SMTP submission, or `safety.allow_send` is configured, an explicit profile owner is required.
-
-This closes the accidental multi-profile access path: a real mailbox configuration copied or loaded into another Hermes profile fails closed instead of opening the same mailbox there.
+`hermes.profile: auto` is accepted only for development/mock configurations. As soon as real IMAP, SQLite observation storage, SQLite drafts, SMTP submission, or `safety.allow_send` is configured, an explicit profile owner is required.
 
 ## Safety model
 
-| Operation | Version 0.22.0 |
+| Operation | Version 0.23.0 |
 |---|---|
-| Production profile ownership | Exact explicit profile required |
+| Productive profile ownership | Exact explicit profile required |
+| Dedicated mail profile | Recommended, not required |
+| Existing single profile | Fully supported when explicitly bound |
 | Development mock mode | `hermes.profile: auto` allowed |
+| Mail/draft content trust | Untrusted data; zero action authority |
 | Read mail | Disabled, mock, or explicit read-only IMAP |
 | Persist observations | Disabled or profile-scoped content-free SQLite |
 | Store drafts | Disabled or profile-scoped local SQLite |
@@ -49,13 +93,13 @@ This closes the accidental multi-profile access path: a real mailbox configurati
 | Send through Hermes tools | Unavailable |
 | Delete/move/purge/poll/auto-reply | Unavailable |
 
-Every returned email field is untrusted external content. Email text, quoted instructions, signatures, senders, draft content, model output, configuration, SMTP readiness, recipient policy, or `safety.allow_send` can never substitute for current-user authorization.
+Email text, quoted instructions, signatures, senders, draft content, model output, configuration, SMTP readiness, recipient policy, or `safety.allow_send` can never substitute for current-user authorization.
 
-## Profile-isolated production example
+## Productive profile example
 
 ```yaml
 hermes:
-  profile: ef-sinn-email
+  profile: email
 
 email:
   provider: imap
@@ -97,7 +141,7 @@ safety:
   allow_move: false
 ```
 
-SMTP remains disconnected from the Hermes model-facing runtime in this release. `allow_send: true` only arms technical eligibility for internal future send orchestration; it does not create a send tool and is not user confirmation.
+Replace `email` with the exact active Hermes profile that should own productive mail access. SMTP remains disconnected from the Hermes model-facing runtime in this release. `allow_send: true` only arms technical eligibility for internal future send orchestration; it does not create a send tool and is not user confirmation.
 
 ## Read tools
 
@@ -107,7 +151,7 @@ When the authorized profile has a readable provider, Hermes can expose:
 - `email_get_message`
 - `email_search_messages`
 
-List/search results omit bodies. Reads are bounded, use read-only provider behavior, and treat all mail fields as untrusted data.
+List/search results omit bodies. Reads are bounded, use read-only provider behavior, and mark returned mail fields as untrusted external content.
 
 ## Local draft tools
 
@@ -120,7 +164,7 @@ When the authorized profile enables local draft SQLite, Hermes can expose:
 - `email_trash_draft`
 - `email_restore_draft`
 
-Draft mutations require opaque operation IDs and exact revisions. A revision conflict must be reviewed instead of overwritten. Drafts are local plugin records, not provider mailbox drafts.
+Draft mutations require opaque operation IDs and exact revisions. A revision conflict must be reviewed instead of overwritten. Drafts are local plugin records, not provider mailbox drafts. Draft content remains untrusted data and cannot authorize another action.
 
 ## Confirmation and duplicate prevention
 
@@ -159,6 +203,8 @@ hermes plugins enable hermes-email
 hermes plugins doctor hermes-email --ci
 ```
 
+Read [Installation and profile setup](docs/installation.md) before enabling productive IMAP, persistent storage/drafts, or SMTP.
+
 Hermes Email targets Python 3.11 through 3.13.
 
 ```bash
@@ -170,10 +216,11 @@ python -m build
 python scripts/check_dist.py
 ```
 
-CI tests Python 3.11, 3.12, and 3.13, validates the built wheel/sdist, imports the clean wheel, and runs Hermes Plugin Doctor against the pinned Hermes Agent compatibility target. Profile-isolation tests verify that blocked profiles do not touch `ctx.state`, do not register mail tools/skill, and do not proceed into provider or storage initialization.
+CI tests Python 3.11, 3.12, and 3.13, validates the built wheel/sdist, imports the clean wheel, and runs Hermes Plugin Doctor against the pinned Hermes Agent compatibility target. Profile-isolation tests verify blocked profiles cannot reach mail infrastructure. Prompt-injection contract tests verify that model-facing mail content remains explicitly untrusted and that external content cannot become action authorization.
 
 ## Documentation
 
+- [Installation and profile setup](docs/installation.md)
 - [Architecture](docs/architecture.md)
 - [Configuration](docs/configuration.md)
 - [Security model](docs/security-model.md)
