@@ -420,8 +420,8 @@ def _health_handler(plugin: EmailPlugin):
                 "content_read": False,
                 "authorization": "none",
             }
-            plugin.record_audit("health", "ok", 0)
-            return _json_result({"ok": True, "operation": "health", **result})
+            audit = plugin.record_audit("health", status.diagnostic or "ok", 0)
+            return _json_result({"ok": True, "operation": "health", **result, **audit})
         except Exception as error:
             return _json_error(plugin, "health", error)
     return handle
@@ -649,8 +649,8 @@ def _datetime_result(value: datetime | None) -> str | None:
 
 def _json_success(plugin: EmailPlugin, operation: str, result: dict[str, Any]) -> str:
     count = result.get("count", 1 if result.get("found", True) else 0)
-    plugin.record_audit(operation, "ok", count if isinstance(count, int) and not isinstance(count, bool) else 0)
-    return _json_result({"ok": True, "operation": operation, **result})
+    audit = plugin.record_audit(operation, "ok", count if isinstance(count, int) and not isinstance(count, bool) else 0)
+    return _json_result({"ok": True, "operation": operation, **result, **audit})
 
 
 def _json_error(plugin: EmailPlugin, operation: str, error: Exception) -> str:
@@ -684,8 +684,8 @@ def _json_error(plugin: EmailPlugin, operation: str, error: Exception) -> str:
         code = "invalid-arguments"
     else:
         code = "internal-error"
-    plugin.record_audit(operation, code, 0)
-    return _json_result({"ok": False, "operation": operation, "error": {"code": code}})
+    audit = plugin.record_audit(operation, code, 0)
+    return _json_result({"ok": False, "operation": operation, "error": {"code": code}, **audit})
 
 
 def _json_result(payload: dict[str, Any]) -> str:

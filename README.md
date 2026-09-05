@@ -6,9 +6,9 @@ Hermes Email is a universal, provider-neutral email plugin and skill for [Hermes
 
 Hermes remains responsible for reasoning, persona, language, style, user preferences, and decisions. The plugin owns validated mail access, credential references, local persistence, profile isolation, confirmation gates, durable send intents, uncertainty recovery, and duplicate prevention.
 
-## Version 0.36.1
+## Version 0.37.0
 
-Version 0.36.1 fixes the content-minimized audit allowlist so the v0.35 Reply-All draft operation can complete when audit logging is enabled. The audit schema remains content-minimized and the Reply-All operation remains local-draft-only with no send authority.
+Version 0.37.0 hardens the **optional operational audit**: private file creation, validated legacy databases, strict event codes, transactional limits, and visible audit-gap warnings. An audit failure no longer hides an already committed local draft or replaces the original provider error. Sending remains unavailable through Hermes tools.
 
 ### You do not need a dedicated email profile
 
@@ -43,7 +43,7 @@ See [Installation and profile setup](docs/installation.md) for both supported la
 
 Message and thread detail may expose a bounded `attachments` list. Each item contains only an opaque message-local attachment ID, bounded filename, MIME type, optional decoded size, and disposition. Every item carries `metadata_is_untrusted: true`, `content_available: false`, and `authorization: none`.
 
-Hermes Email v0.36.1 does **not** download, save, open, render, scan, execute, forward, or upload attachment content. List/search summaries intentionally omit attachment metadata. Attachment filenames and MIME declarations are external input and must never be treated as trusted paths, commands, or proof of file type.
+Hermes Email v0.37.0 does **not** download, save, open, render, scan, execute, forward, or upload attachment content. List/search summaries intentionally omit attachment metadata. Attachment filenames and MIME declarations are external input and must never be treated as trusted paths, commands, or proof of file type.
 
 ## Deterministic sender classification
 
@@ -94,7 +94,7 @@ If the active profile does not exactly match the configured owner:
 
 ## Safety model
 
-| Operation | Version 0.36.1 |
+| Operation | Version 0.37.0 |
 |---|---|
 | Productive profile ownership | Exact explicit profile required |
 | Dedicated mail profile | Recommended, not required |
@@ -270,3 +270,10 @@ CI tests Python 3.11, 3.12, and 3.13, validates the built wheel/sdist, imports t
 ## License
 
 [MIT](LICENSE)
+
+
+## Reliable operational audit
+
+With `audit.mode: sqlite`, tool results include an `audit` receipt indicating whether the event was recorded. A failed audit write is a visible warning, not proof that the mail operation failed. Reuse the original draft `operation_id` only for the identical request. Do not create a replacement operation merely because an audit warning appeared.
+
+See [Audit reliability and upgrade guidance](docs/audit-reliability.md). This optional log is not the mandatory send-intent ledger and does not confer consent or send authority.

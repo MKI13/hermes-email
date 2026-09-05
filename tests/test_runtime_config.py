@@ -256,6 +256,7 @@ def test_status_contains_no_secrets_or_message_content() -> None:
         "send_enabled",
         "diagnostic",
         "draft_diagnostic",
+        "audit_diagnostic",
     }
 
 

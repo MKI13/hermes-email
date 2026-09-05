@@ -4,6 +4,26 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.37.0] - 2026-09-06
+
+### Fixed
+
+- Audit errors no longer mask a committed draft receipt or the original provider failure. Tool responses expose a separate audit warning and the runtime retains a visible gap diagnostic.
+- A failed provider health probe records its fixed diagnostic rather than an incorrect `ok` outcome. Missing drafts are counted as zero items.
+- Fresh audit reads do not create files; closed and disabled stores reject further use.
+
+### Security
+
+- New audit databases are created exclusively with POSIX mode `0600` in a private directory; unsafe modes, symbolic links, hard links, replaced files and unsafe SQLite sidecars are rejected without silently changing permissions.
+- Exact schema and application/version identity checks reject foreign tables and triggers. Valid legacy audit databases are adopted transactionally without dropping their rows.
+- Outcomes and operations use strict allowlists. SQLite page limits apply before writes, and retention/event-count pruning is transactional.
+- This remains a best-effort operational audit, never a substitute for mandatory send intents or explicit user approval.
+
+### Tests
+
+- Exercise all 14 registered tools with audit enabled, all 14 invalid-argument paths, committed-draft replay after audit failure, and provider-error preservation.
+- Add file-permission, lifecycle, legacy-schema, schema-tampering, capacity, retention, and concurrent-writer regressions.
+
 ## [0.36.1] - 2026-09-06
 
 ### Fixed
