@@ -31,3 +31,23 @@ class ProviderTimeoutError(ProviderConnectionError):
 
 class ProviderMessageError(EmailProviderError):
     """Raised when one remote message cannot be retrieved safely."""
+
+def provider_error_code(error: BaseException) -> str:
+    """Return one fixed non-sensitive provider failure code."""
+    if isinstance(error, ProviderAuthenticationError):
+        return "authentication-failed"
+    if isinstance(error, ProviderTlsError):
+        return "tls-failed"
+    if isinstance(error, ProviderTimeoutError):
+        return "provider-timeout"
+    if isinstance(error, ProviderConnectionError):
+        return "provider-unreachable"
+    if isinstance(error, ProviderMailboxError):
+        return "mailbox-unavailable"
+    if isinstance(error, ProviderProtocolError):
+        return "protocol-error"
+    if isinstance(error, ProviderMessageError):
+        return "message-error"
+    if isinstance(error, EmailProviderError):
+        return "provider-error"
+    raise TypeError("error is not an EmailProviderError")

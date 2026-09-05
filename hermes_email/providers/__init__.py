@@ -10,6 +10,7 @@ from .errors import (
     ProviderProtocolError,
     ProviderTimeoutError,
     ProviderTlsError,
+    provider_error_code,
 )
 from .imap import (
     ImapCursorError,
@@ -44,6 +45,7 @@ __all__ = [
     "ProviderProtocolError",
     "ProviderTimeoutError",
     "ProviderTlsError",
+    "provider_error_code",
     "UnsupportedEmailProviderError",
     "resolve_email_provider",
 ]

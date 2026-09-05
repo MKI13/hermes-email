@@ -4,6 +4,19 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.31.0] - 2026-09-05
+
+### Changed
+
+- Runtime provider failures now use distinct states for authentication, TLS, timeout, connection, mailbox, protocol, message, and generic provider errors.
+- Model-facing read-tool errors and runtime diagnostics share one central fixed provider error-code mapping.
+- Connection failures consistently use `provider-unreachable` instead of the previous runtime-only `connection-failed` diagnostic.
+- Version advanced to `0.31.0` across package metadata, manifest, skill, CI, README, and current documentation.
+
+### Security
+
+- Provider exception text remains redacted from runtime status and model-facing tool JSON; only fixed non-sensitive codes/states are exposed.
+
 ## [0.30.0] - 2026-09-05
 
 ### Added
