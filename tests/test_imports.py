@@ -6,6 +6,7 @@ import hermes_email.draft_storage
 import hermes_email.draft_tools
 import hermes_email.models
 import hermes_email.plugin
+import hermes_email.profile_guard
 import hermes_email.providers
 import hermes_email.providers.errors
 import hermes_email.providers.imap
@@ -18,11 +19,12 @@ import hermes_email.tools
 
 
 def test_public_modules_import() -> None:
-    assert hermes_email.__version__ == "0.21.0"
+    assert hermes_email.__version__ == "0.22.0"
     assert hermes_email.config.EmailPluginConfig is hermes_email.EmailPluginConfig
     assert hermes_email.context.HermesContext is hermes_email.HermesContext
     assert hermes_email.models.EmailDraft is not None
     assert hermes_email.plugin.EmailPlugin is not None
+    assert hermes_email.profile_guard.evaluate_profile_policy is not None
     assert (
         hermes_email.secrets.EnvironmentSecretResolver
         is hermes_email.EnvironmentSecretResolver

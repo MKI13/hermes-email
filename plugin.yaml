@@ -1,8 +1,8 @@
 manifest_version: 1
 name: hermes-email
-version: 0.21.0
+version: 0.22.0
 kind: standalone
-description: Safe email access, local drafts, and strict delivery-unknown recovery
+description: Safe email access with exclusive production profile isolation
 author: MKI13
 provides_tools:
   - email_list_messages

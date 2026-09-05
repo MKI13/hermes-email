@@ -26,6 +26,7 @@ REQUIRED_RUNTIME_PATHS = {
     "hermes_email/addressing.py",
     "hermes_email/config.py",
     "hermes_email/draft_storage.py",
+    "hermes_email/profile_guard.py",
     "hermes_email/send_orchestration.py",
     "hermes_email/sending.py",
     "hermes_email/smtp.py",

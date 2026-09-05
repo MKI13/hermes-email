@@ -4,6 +4,28 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.22.0] - 2026-09-05
+
+### Added
+
+- Official-entrypoint `profile_guard` that binds production mail capabilities to one explicit Hermes profile before provider, state-directory, database, secret, tool, or skill access.
+- `profile-blocked` diagnostic runtime that registers only `/email-status` and unload cleanup on denied profiles.
+- Production safety rule requiring explicit `hermes.profile` ownership for real IMAP, persistent observation storage, persistent drafts, SMTP submission, or send authorization.
+- Development-only `hermes.profile: auto` compatibility for mock/non-persistent configurations.
+- Profile-isolation tests proving blocked profiles do not touch `ctx.state`, register mail tools, or register the email skill.
+
+### Changed
+
+- Root directory-plugin registration now routes through the profile guard instead of directly entering the core email runtime.
+- Authorized status output reports the current package version and profile-isolation state dynamically; the stale hard-coded `Send: unavailable in v0.18` status path is no longer used by the official entrypoint.
+- README, skill, architecture, configuration, security, compatibility, CI, distribution checks, imports, package metadata, and manifest are synchronized to version `0.22.0`.
+
+### Security
+
+- Accidentally loading a production mailbox configuration in another Hermes profile now fails closed before provider resolution, SQLite access, or secret resolution.
+- A blocked profile exposes no email read tools, draft tools, email skill, SMTP eligibility, or send path.
+- Profile ownership does not imply send authorization; exact user confirmation, durable idempotency, and `delivery-unknown` rules remain unchanged.
+
 ## [0.21.0] - 2026-09-05
 
 ### Added
@@ -183,7 +205,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Security
 
-- IMAP permits only verified implicit TLS 1.2 or newer and ignores process-level TLS key-log configuration.
+- IMAP permits only verified implicit TLS 1.2 or newer and ignores `SSLKEYLOGFILE`.
 - Authentication uses SASL PLAIN over verified TLS rather than the CPython IMAP LOGIN command path.
 - Every mailbox operation requires read-only `EXAMINE` and uses bounded UID `BODY.PEEK` partial fetches; no mutating IMAP commands are implemented.
 - UID cursors bind to `UIDVALIDITY`, descend from a fixed `UIDNEXT` snapshot, and are never followed automatically.
@@ -388,7 +410,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - Initial project metadata and safe-by-default foundation.
 
-[Unreleased]: https://github.com/MKI13/hermes-email/compare/v0.21.0...HEAD
+[Unreleased]: https://github.com/MKI13/hermes-email/compare/v0.22.0...HEAD
+[0.22.0]: https://github.com/MKI13/hermes-email/compare/v0.21.0...v0.22.0
 [0.21.0]: https://github.com/MKI13/hermes-email/compare/v0.20.0...v0.21.0
 [0.20.0]: https://github.com/MKI13/hermes-email/compare/v0.19.0...v0.20.0
 [0.19.0]: https://github.com/MKI13/hermes-email/compare/v0.18.0...v0.19.0
