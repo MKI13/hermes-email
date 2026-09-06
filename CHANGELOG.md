@@ -6,6 +6,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 adds opt-in scoped IMAP mailbox sets, bounded header-only list/search, signed query-bound cursors and targeted conversation body reads. Coverage limits and unavailable folders are explicit; no mailbox writes or model-facing sending are enabled.
 
+- Use a non-sensitive invalid cursor fixture and a normal `os` import in tests;
+  preserve their rejection/permission assertions without triggering the community
+  install scanner. Include both files in the installer-regression scan.
+
 ## [0.43.0] — Independent provider/account validation (step 6, partial)
 
 - Add explicit loopback-only IMAP/SMTP certificate pin modes; verify the exact

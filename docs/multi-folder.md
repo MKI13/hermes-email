@@ -133,3 +133,7 @@ flags and never uses an AI model, a real account or external delivery.
 The explicit Proton test-account gate from step 6 is still open. No production
 profile is configured by these tests. Protocol background: RFC 9051 sections
 2.3.1.1, 6.3.3 and 6.4.5; Python imaplib is the transport implementation.
+
+The installation scan regression also includes the cursor and audit test files.
+Test-only invalid cursor strings do not point to host credential/system files;
+normal imports are used in storage tests. The community scanner remains enabled.

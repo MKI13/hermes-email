@@ -1,3 +1,4 @@
+import os
 import sqlite3
 from pathlib import Path
 
@@ -24,7 +25,7 @@ def test_audit_bounds_and_private_permissions(tmp_path: Path):
     store=ContentMinimizedAuditStore(path, AuditSettings(mode='sqlite',max_events=2))
     for op in ('list','get','search'): store.record(op,'ok',1)
     assert [r['operation'] for r in store.recent()] == ['search','get']
-    if __import__('os').name=='posix':
+    if os.name=='posix':
         assert path.stat().st_mode & 0o777 == 0o600
         assert path.parent.stat().st_mode & 0o777 == 0o700
 

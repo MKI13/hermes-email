@@ -12,7 +12,8 @@ def _install_guard_fixture(tmp_path: Path) -> Path:
 
     Runtime/package metadata, skill and documentation are scanned exactly as
     shipped. The prompt-injection regression test that previously triggered a
-    CRITICAL finding is included explicitly. Unrelated test modules are omitted
+    CRITICAL finding is included explicitly, alongside the audited cursor/storage
+    regression files required for installation. Unrelated test modules are omitted
     because Hermes' regex guard can time out on arbitrary test corpus strings,
     which makes CI nondeterministic without improving this install regression.
     """
@@ -38,10 +39,8 @@ def _install_guard_fixture(tmp_path: Path) -> Path:
 
     tests = target / "tests"
     tests.mkdir()
-    shutil.copy2(
-        ROOT / "tests" / "test_prompt_injection_contract.py",
-        tests / "test_prompt_injection_contract.py",
-    )
+    for name in ("test_prompt_injection_contract.py", "test_multi_mailbox.py", "test_audit.py"):
+        shutil.copy2(ROOT / "tests" / name, tests / name)
     return target
 
 
