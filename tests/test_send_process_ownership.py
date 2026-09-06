@@ -366,3 +366,24 @@ def test_disappearing_lock_verify_error_is_redacted(tmp_path):
         with pytest.raises(SendStorageError) as error:lease.verify()
         assert str(tmp_path) not in str(error.value)
     finally:lease.close()
+
+
+def test_discarded_file_lease_does_not_leak_a_kernel_lock(tmp_path):
+    import gc
+    first=FileLease(tmp_path/'lock');assert first.acquire()
+    del first;gc.collect()
+    replacement=FileLease(tmp_path/'lock')
+    try:assert replacement.acquire()
+    finally:replacement.close()
+
+
+def test_discarded_store_preserves_unknown_intent_without_fd_leak(tmp_path):
+    import gc
+    store=SqliteSendIntentStore(tmp_path/'data')
+    store.begin(OPERATION_ID,candidate())
+    del store;gc.collect()
+    observer=SqliteSendIntentStore(tmp_path/'data')
+    assert observer.recover_interrupted_dispatches()==1
+    transport=FakeTransport()
+    record=IdempotentSendOrchestrator(observer,transport).send_once(OPERATION_ID,candidate())
+    assert record.state=='delivery-unknown' and record.replayed and transport.calls==0

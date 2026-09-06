@@ -75,6 +75,9 @@ SIGSTOP does not release the kernel lease; a crashed process does. A fork child
 closes inherited descriptors without unlocking the parent's open-file description;
 inherited store ownership is discarded before reuse. Closing a store while it
 owns an attempt raises a busy error instead of releasing another worker's lease.
+An abandoned lease object closes its descriptor on finalization; an active
+synchronous sender retains a strong reference until its completion/finally path.
+Abandonment never removes the durable intent or permits redispatch.
 
 For conservative operation, one profile/data directory dispatches one message at
 a time. A concurrent identical operation gets a replay/status receipt. Another
