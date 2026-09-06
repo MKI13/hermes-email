@@ -223,8 +223,8 @@ def test_real_hermes_cli_handler_has_no_model_send_surface(tmp_path,monkeypatch,
     from dataclasses import asdict
     from hermes_email import human_cli, send_workflow
     from hermes_email.profile_guard import register
-    from tools.registry import registry
     plugins=pytest.importorskip("hermes_cli.plugins")
+    registry=pytest.importorskip("tools.registry").registry
     monkeypatch.setattr(plugins,"get_hermes_home",lambda:tmp_path)
     manager=plugins.PluginManager(scope_key=str(tmp_path))
     manifest=plugins.PluginManifest(name="reviewed-send-test",key="reviewed-send-test")
