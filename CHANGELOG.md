@@ -17,6 +17,8 @@ All notable changes to this project are documented here. The format follows [Kee
 - Validate uncertain transport results and failed terminal persistence without
   allowing redispatch. No new model-facing send capability.
 - Add real multi-process crash/stop/fork tests and a loopback SMTP DATA-count test.
+- Release descriptors when unused lease/store objects are discarded; preserve the
+  durable intent and recover abandoned work conservatively without redispatch.
 
 ## 0.38.0 — Send-ledger storage hardening
 

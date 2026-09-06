@@ -134,6 +134,16 @@ class FileLease:
         self.pid = os.getpid()
         self.parent_identity: tuple[int, int] | None = None
 
+    def __del__(self) -> None:
+        # An abandoned owner must not leak an FD forever. An active synchronous
+        # send retains the store/lease strongly until its finally block runs.
+        # Closing (not LOCK_UN) also preserves parent ownership after a fork.
+        try:
+            self.close()
+        except Exception:
+            # Interpreter shutdown may already have torn down module globals.
+            pass
+
     def acquire(self, *, create: bool = True) -> bool:
         if self.fd is not None:
             raise SendStorageError("send lock is already held")
