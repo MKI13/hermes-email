@@ -2,6 +2,22 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.39.0 — Cross-process send ownership and stable retries
+
+- Hold a kernel-backed exclusive dispatch lease from intent claim through SMTP
+  completion; short database locks remain independent for live status reads.
+- Recover orphan attempts only after exclusive lease acquisition. Paused/live
+  workers are not marked unknown merely because another process reads the ledger.
+- Bind dispatch-lock identity persistently, handle forked descriptors safely and
+  refuse foreign-thread finish or close while a worker owns an attempt.
+- Transactionally migrate known schemas to v4. Legacy open attempts require an
+  explicit trusted operator attestation that older workers have stopped.
+- Derive stable Date/Message-ID from persisted draft/operation inputs; persist
+  these values with the exact request digest. Changed retries are rejected.
+- Validate uncertain transport results and failed terminal persistence without
+  allowing redispatch. No new model-facing send capability.
+- Add real multi-process crash/stop/fork tests and a loopback SMTP DATA-count test.
+
 ## 0.38.0 — Send-ledger storage hardening
 
 - Private exclusive creation and durable database identity anchor; reject unsafe
