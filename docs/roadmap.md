@@ -1,12 +1,18 @@
 # Stable ten-step production-readiness roadmap
 
-Current package version: 0.38.0. These numbers remain stable when tasks are
+Current package version: 0.39.0. These numbers remain stable when tasks are
 requested by number; version numbers are not roadmap step numbers.
 
 1. **Send-ledger storage hardening** — implemented in 0.38.0; private creation,
    strict schema/identity checks, transactional migration, limits without pruning.
-2. **Cross-process dispatch ownership and recovery** — next; preserve live owners,
-   recover only after OS-lock acquisition, retain exact send date and Message-ID.
+2. **Cross-process dispatch ownership and recovery** — implemented in 0.39.0;
+   OS lease spans the full synchronous transport attempt, live owners are preserved,
+   orphan recovery requires exclusive lease acquisition. Stable Date/Message-ID
+   and exact request digests prevent regenerated retry data.
+
+**Next requested step: 3.** Steps 1 and 2 have dedicated releases and CI evidence;
+see their pull requests and release notes. The steps below are not implemented.
+
 3. **Authenticated Hermes user confirmation** — pending; trusted host-owned
    approval, exact immutable draft/account/profile/user binding and expiry.
 4. **End-to-end reply headers and recipient model** — pending; preserve To/Cc,

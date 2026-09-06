@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
+
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from email.headerregistry import Address
@@ -89,6 +92,7 @@ class DraftSendCandidate:
     message_date: datetime
     message_bytes: bytes
     confirmation_id: str
+    send_operation_id: str | None = None
 
 
 def prepare_send_candidate(
@@ -97,8 +101,9 @@ def prepare_send_candidate(
     *,
     draft_id: str,
     expected_revision: int,
-    message_id: str,
-    message_date: datetime,
+    message_id: str | None = None,
+    message_date: datetime | None = None,
+    send_operation_id: str | None = None,
     confirmation: UserSendConfirmation | None = None,
 ) -> DraftSendCandidate:
     """Prepare exact message bytes after exact current-user confirmation.
@@ -123,9 +128,23 @@ def prepare_send_candidate(
     if sender is None:
         raise SendGateMessageError("fixed SMTP sender is unavailable")
     sender = normalize_ascii_address(sender)
+    draft = draft_store.get_active_revision(draft_id, expected_revision)
+    if message_id is None and message_date is None:
+        if (not isinstance(send_operation_id, str) or not 16 <= len(send_operation_id) <= 128
+                or not send_operation_id.isascii()
+                or any(not 33 <= ord(c) <= 126 for c in send_operation_id)):
+            raise SendGateMessageError("stable send operation identity is required")
+        # Stable across processes/restarts; never regenerate Date from wall-clock
+        # time on retry. Actual attempt timestamps live in the intent ledger.
+        key = json.dumps([account_namespace,sender,draft_id,expected_revision,
+                          send_operation_id,confirmation.confirmation_id],
+                         ensure_ascii=True,separators=(",", ":")).encode("ascii")
+        message_id = "<hermes-" + hashlib.sha256(key).hexdigest()[:48] + "@" + sender.rsplit("@",1)[1] + ">"
+        message_date = draft.updated_at
+    elif message_id is None or message_date is None:
+        raise SendGateMessageError("message ID and date must be supplied together")
     identifier = _message_id(message_id)
     date = _message_date(message_date)
-    draft = draft_store.get_active_revision(draft_id, expected_revision)
     recipients = draft.recipients + draft.cc + draft.bcc
     if not recipients or len(recipients) > _MAX_RECIPIENTS:
         raise SendGateRecipientError("draft must contain a bounded recipient set")
@@ -162,6 +181,7 @@ def prepare_send_candidate(
         message_date=date,
         message_bytes=message_bytes,
         confirmation_id=confirmation.confirmation_id,
+        send_operation_id=send_operation_id,
     )
 
 

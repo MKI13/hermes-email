@@ -37,8 +37,18 @@ def _after_fork() -> None:
     _HANDLES_LOCK = threading.RLock()
 
 
+def _before_fork() -> None:
+    _HANDLES_LOCK.acquire()
+
+
+def _after_fork_parent() -> None:
+    _HANDLES_LOCK.release()
+
+
 if hasattr(os, "register_at_fork"):
-    os.register_at_fork(after_in_child=_after_fork)
+    # Do not fork in the gap between acquiring an OS lock and registering its FD.
+    os.register_at_fork(before=_before_fork, after_in_parent=_after_fork_parent,
+                        after_in_child=_after_fork)
 
 
 def private_status(status: os.stat_result, *, directory: bool = False) -> None:
@@ -130,7 +140,10 @@ class FileLease:
         if os.name not in {"posix", "nt"}:
             raise SendStorageError("send file locking is unsupported")
         with _HANDLES_LOCK:
-            fd = open_private(self.path, create=create)
+            try:
+                fd = open_private(self.path, create=create)
+            except OSError:
+                raise SendStorageError("send lock file is unavailable") from None
             try:
                 if os.name == "posix":
                     import fcntl
@@ -149,7 +162,7 @@ class FileLease:
                 os.close(fd)
                 if error.errno in {errno.EAGAIN, errno.EACCES, errno.EWOULDBLOCK}:
                     return False
-                raise
+                raise SendStorageError("send locking failed") from None
             except BaseException:
                 os.close(fd)
                 raise
@@ -157,9 +170,12 @@ class FileLease:
     def verify(self) -> None:
         if self.fd is None or self.pid != os.getpid():
             raise SendStorageError("send lock ownership is unavailable")
-        verify_descriptor(self.path, self.fd)
-        if private_parent(self.path) != self.parent_identity:
-            raise SendStorageError("send directory identity changed")
+        try:
+            verify_descriptor(self.path, self.fd)
+            if private_parent(self.path) != self.parent_identity:
+                raise SendStorageError("send directory identity changed")
+        except OSError:
+            raise SendStorageError("send lock identity is unavailable") from None
 
     def close_inherited(self) -> None:
         if self.fd is not None:

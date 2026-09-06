@@ -155,7 +155,7 @@ def test_oversized_existing_file_rejected_without_sqlite_open(tmp_path, monkeypa
 @pytest.mark.parametrize('version',[1,2])
 def test_legacy_migration_preserves_every_record_and_uniqueness(tmp_path,version):
     path = tmp_path/'data'; path.mkdir(mode=0o700)
-    ledger = SqliteSendIntentStore(path)
+    ledger = SqliteSendIntentStore(path, legacy_workers_stopped=True)
     with sqlite3.connect(ledger.path) as c:
         c.execute(META_SQL); c.execute('INSERT INTO meta VALUES (?)',(version,)); c.execute(TABLE_V1 if version==1 else TABLE_V2)
         for i,state in enumerate(('accepted','definite-failure','delivery-unknown','dispatching')):
@@ -166,7 +166,7 @@ def test_legacy_migration_preserves_every_record_and_uniqueness(tmp_path,version
     with sqlite3.connect(ledger.path) as c:
         assert c.execute('SELECT COUNT(*) FROM send_intents').fetchone() == (4,)
         assert c.execute('PRAGMA application_id').fetchone() == (APPLICATION_ID,)
-        assert c.execute('SELECT schema_version FROM meta').fetchone() == (3,)
+        assert c.execute('SELECT schema_version FROM meta').fetchone() == (4,)
         assert [r[0] for r in c.execute('SELECT state FROM send_intents ORDER BY revision')] == ['accepted','definite-failure','delivery-unknown','delivery-unknown']
     assert Path(str(ledger.path)+'.identity').exists()
 
