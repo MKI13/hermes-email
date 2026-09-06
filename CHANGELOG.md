@@ -2,6 +2,10 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.40.0] — Trusted local user confirmation (step 3)
+
+adds an expiring, single-use local human review bound to the full draft, account, profile and OS terminal session. No model-facing sending is enabled; gateway approval remains fail-closed until an authenticated adapter is supplied.
+
 ## 0.39.0 — Cross-process send ownership and stable retries
 
 - Hold a kernel-backed exclusive dispatch lease from intent claim through SMTP

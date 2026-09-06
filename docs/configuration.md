@@ -1,6 +1,6 @@
 # Configuration
 
-## Version 0.39.0 principles
+## Version 0.40.0 principles
 
 Hermes Email is universal. Operators configure it per deployment; the project contains no personal mailbox, company voice, provider secret, or fixed profile name.
 
@@ -229,13 +229,13 @@ Attachment handling classification is deterministic and requires no trust config
 ## Provider error states
 
 No configuration is required for provider error classification. The runtime uses fixed states for authentication, TLS, timeout, connection, mailbox, protocol, and message failures, with the same stable codes used by read tools.
-## v0.39.0 health tool
+## health tool
 
 No additional configuration is required. The health tool is available only when a readable provider is configured and returns fixed redacted state only.
-## v0.39.0 Proton/local bridge example
+## Proton/local bridge example
 
 For a local STARTTLS bridge use `host: 127.0.0.1`, its IMAP port, `security: starttls-pinned`, and the exact lowercase SHA-256 DER certificate fingerprint in `tls_sha256_fingerprint`. Never disable verification without a pin.
-## v0.39.0 reply-draft tool
+## reply-draft tool
 
 The reply-draft tool requires both readable-message lookup and local SQLite drafts. No new configuration enables sending; the source message and local draft remain untrusted/reviewable data.
 
@@ -248,6 +248,6 @@ The reply-draft tool requires both readable-message lookup and local SQLite draf
 The review tool uses the existing `recipient_policy`, SMTP readiness, and local draft state. No new configuration enables sending; review remains available when local drafts are enabled and remains side-effect free.
 
 
-## v0.39.0 audit reliability
+## audit reliability
 
 The optional operational audit now validates private storage, schema identity, legacy migration, fixed outcomes and transaction bounds. Tool results preserve the actual action outcome and add a separate audit receipt when auditing is enabled. A write failure remains visible in `/email-status` for the runtime lifetime; later successful events do not reconstruct missing history. No send or confirmation path is enabled. See [Audit reliability](audit-reliability.md).
