@@ -153,6 +153,7 @@ class SmtplibTransport:
         *,
         implicit_factory: Callable[..., Any] = smtplib.SMTP_SSL,
         starttls_factory: Callable[..., Any] = smtplib.SMTP,
+        before_data: Callable[[], None] | None = None,
     ) -> None:
         if (
             settings.mode != "submission"
@@ -162,6 +163,7 @@ class SmtplibTransport:
         ):
             raise ValueError("complete SMTP submission settings are required")
         self._settings = settings
+        self._before_data = before_data
         self._secret_resolver = secret_resolver
         self._implicit_factory = implicit_factory
         self._starttls_factory = starttls_factory
@@ -250,6 +252,8 @@ class SmtplibTransport:
                 if code not in {250, 251, 252}:
                     self._reset(client)
                     raise SmtpRecipientRejectedError("SMTP recipient was rejected")
+            if self._before_data is not None:
+                self._before_data()
             try:
                 code, _response = client.data(submission.message_bytes)
             except (Exception, KeyboardInterrupt):

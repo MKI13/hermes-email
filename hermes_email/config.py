@@ -456,6 +456,18 @@ class SafetySettings:
 
 
 @dataclass(frozen=True, slots=True)
+class SendWorkflowSettings:
+    """Explicit opt-in for a human-reviewed workflow; no model send tool."""
+    mode: str = "disabled"
+    save_local_copy: bool = True
+
+    def __post_init__(self) -> None:
+        _choice("send_workflow.mode", self.mode, {"disabled", "local-test"})
+        if type(self.save_local_copy) is not bool:
+            raise ConfigError("send_workflow.save_local_copy must be boolean")
+
+
+@dataclass(frozen=True, slots=True)
 class EmailPluginConfig:
     """Complete validated plugin configuration."""
 
@@ -474,8 +486,19 @@ class EmailPluginConfig:
     audit: AuditSettings = field(default_factory=AuditSettings)
     behavior: BehaviorSettings = field(default_factory=BehaviorSettings)
     safety: SafetySettings = field(default_factory=SafetySettings)
+    send_workflow: SendWorkflowSettings = field(default_factory=SendWorkflowSettings)
 
     def __post_init__(self) -> None:
+        if self.send_workflow.mode != "disabled":
+            if self.hermes.profile == "auto" or not self.safety.allow_send or self.smtp.mode != "submission":
+                raise ConfigError("human send workflow requires explicit profile, SMTP and allow_send")
+            if self.send_workflow.mode == "local-test":
+                import ipaddress
+                try:
+                    if not ipaddress.ip_address(self.smtp.host).is_loopback:
+                        raise ValueError()
+                except (ValueError, TypeError):
+                    raise ConfigError("local-test SMTP requires a literal loopback address") from None
         provider = self.email.provider
         normalized_provider = provider.strip().casefold() if isinstance(provider, str) else None
         if normalized_provider == "imap":
@@ -533,6 +556,7 @@ class EmailPluginConfig:
                 "audit",
                 "behavior",
                 "safety",
+                "send_workflow",
             },
         )
         return cls(
@@ -557,6 +581,7 @@ class EmailPluginConfig:
             audit=_build_section(AuditSettings, "audit", raw.get("audit")),
             behavior=_build_section(BehaviorSettings, "behavior", raw.get("behavior")),
             safety=_build_section(SafetySettings, "safety", raw.get("safety")),
+            send_workflow=_build_section(SendWorkflowSettings, "send_workflow", raw.get("send_workflow")),
         )
 
 
@@ -575,6 +600,7 @@ Section = TypeVar(
     AuditSettings,
     BehaviorSettings,
     SafetySettings,
+    SendWorkflowSettings,
 )
 
 

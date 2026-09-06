@@ -1,6 +1,6 @@
 # Reply header continuity
 
-Current package version: 0.41.0.
+Current package version: 0.42.0.
 
 Incoming `EmailMessage.recipients` now means original To recipients; `cc` is a
 separate appended field. The legacy positional constructor remains compatible.

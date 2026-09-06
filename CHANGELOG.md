@@ -2,6 +2,10 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.42.0] — Human-reviewed local sending (step 5)
+
+connects the opt-in local CLI approval, pinned draft revision, durable send intent and single SMTP attempt. Model-facing sending remains unavailable. Accepted delivery and local sent-copy warnings are reported separately.
+
 ## [0.41.0] — End-to-end reply headers (step 4)
 
 preserves original To/Cc, distinguishes absent and invalid Reply-To, and carries persisted RFC In-Reply-To and References into prepared SMTP bytes. Unknown or malformed reply targets fail closed.

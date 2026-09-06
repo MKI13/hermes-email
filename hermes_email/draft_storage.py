@@ -15,6 +15,7 @@ import threading
 import time
 import unicodedata
 from dataclasses import dataclass, replace
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Callable, Final, Literal
@@ -377,6 +378,49 @@ class SqliteDraftStore:
             except sqlite3.DatabaseError as error:
                 self._raise_database_error(error)
             finally:
+                connection.close()
+
+    @contextmanager
+    def hold_active_revision(self, draft_id: str, expected_revision: int):
+        """Pin the exact revision through synchronous dispatch, blocking mutations.
+
+        The prompt occurs BEFORE this short-lived exclusive write reservation.
+        No draft content is modified; the transaction is rolled back on exit.
+        """
+        identifier = _draft_id(draft_id)
+        revision = _revision(expected_revision)
+        with self._lock:
+            self._ensure_open()
+            connection = self._connect()
+            try:
+                self._initialize(connection)
+                connection.execute("BEGIN IMMEDIATE")
+                row = self._mutation_row(connection, identifier)
+                self._require_active_revision(row, revision)
+                content = connection.execute(
+                    "SELECT draft_id,revision,subject,body_text,in_reply_to,created_at,updated_at "
+                    "FROM drafts WHERE draft_id=? AND account_namespace=? AND revision=? AND state='active'",
+                    (identifier, self.settings.account_namespace, revision)).fetchone()
+                if content is None:
+                    raise DraftConflictError("reviewed draft changed")
+                status = self.path.lstat()
+                identity = (status.st_dev, status.st_ino)
+                draft = self._draft_from_row(connection, content)
+                def verify():
+                    current = self.path.lstat()
+                    _verify_private_owner(current, is_directory=False)
+                    if not stat.S_ISREG(current.st_mode) or current.st_nlink != 1 or (current.st_dev, current.st_ino) != identity:
+                        raise DraftStorageSecurityError("reviewed draft database identity changed")
+                verify()
+                # Verify immediately before transport via the yielded callback.
+                # Do not turn an already durable SMTP receipt into a draft error
+                # merely because an unrelated path changes AFTER submission.
+                yield draft, verify
+            except sqlite3.DatabaseError as error:
+                self._raise_database_error(error)
+            finally:
+                if connection.in_transaction:
+                    connection.rollback()
                 connection.close()
 
     def get_active_revision(self, draft_id: str, expected_revision: int) -> EmailDraft:

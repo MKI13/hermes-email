@@ -1,6 +1,6 @@
 # Configuration
 
-## Version 0.41.0 principles
+## Version 0.42.0 principles
 
 Hermes Email is universal. Operators configure it per deployment; the project contains no personal mailbox, company voice, provider secret, or fixed profile name.
 
@@ -251,3 +251,7 @@ The review tool uses the existing `recipient_policy`, SMTP readiness, and local 
 ## audit reliability
 
 The optional operational audit now validates private storage, schema identity, legacy migration, fixed outcomes and transaction bounds. Tool results preserve the actual action outcome and add a separate audit receipt when auditing is enabled. A write failure remains visible in `/email-status` for the runtime lifetime; later successful events do not reconstruct missing history. No send or confirmation path is enabled. See [Audit reliability](audit-reliability.md).
+
+## Human-reviewed workflow
+
+`send_workflow.mode` defaults to `disabled`. `local-test` requires an explicit profile, armed SMTP on a literal loopback host, recipient policy and `.invalid` recipients. `save_local_copy` defaults to true. It registers a local human-only CLI command, never a model send tool. See reviewed-send.md.
