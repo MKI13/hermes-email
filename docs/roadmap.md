@@ -1,6 +1,6 @@
 # Stable ten-step production-readiness roadmap
 
-Current package version: 0.43.0. These numbers remain stable when tasks are
+Current package version: 0.44.0. These numbers remain stable when tasks are
 requested by number; version numbers are not roadmap step numbers.
 
 1. **Send-ledger storage hardening** — implemented in 0.38.0; private creation,
@@ -10,7 +10,7 @@ requested by number; version numbers are not roadmap step numbers.
    orphan recovery requires exclusive lease acquisition. Stable Date/Message-ID
    and exact request digests prevent regenerated retry data.
 
-**Next incomplete step: 6 (authenticated Proton test account).** Steps 1 and 2 have dedicated releases and CI evidence;
+**Next implementable step: 8. Step 6 remains open for the separately authorized Proton account test.** Steps 1 and 2 have dedicated releases and CI evidence;
 see their pull requests and release notes. The pending steps below are not implemented.
 
 3. **Authenticated Hermes user confirmation** — implemented for the local OS-authenticated
@@ -28,8 +28,9 @@ see their pull requests and release notes. The pending steps below are not imple
    login supported. Actual Proton transport-only probes passed, but authenticated
    Proton test-account login/read/send remains NOT TESTED until separately authorized
    test credentials/recipients exist. See provider-validation.md; do not mark complete.
-7. **Multi-folder search and conversation context** — pending; bound account and
-   mailbox identities, Inbox/Sent/Archive with explicit incompleteness reporting.
+7. **Multi-folder search and conversation context** — implemented in 0.44.0;
+   opt-in account/mailbox-scoped IDs, header-only search, signed continuation,
+   targeted thread body reads and explicit coverage. See multi-folder.md.
 8. **Isolated attachment analysis** — pending; explicit request, bounded extraction,
    no network, macros or executable content; output remains untrusted.
 9. **Local mail work queue** — pending; reviewed classifications, actionable states,

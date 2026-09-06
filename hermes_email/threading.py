@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Final, Iterable
 
-from .models import EmailMessage
+from .models import EmailMessage, MailboxScan
 
 _MAX_THREAD_MESSAGES: Final = 25
 _MAX_REFERENCE_IDS: Final = 100
@@ -28,6 +28,7 @@ class EmailThreadContext:
     scan_complete: bool
     truncated: bool
     unresolved_reference_count: int
+    scan: MailboxScan | None = None
 
     @property
     def content_is_untrusted(self) -> bool:

@@ -58,11 +58,25 @@ class EmailMessage:
 
 
 @dataclass(frozen=True, slots=True)
+class MailboxScan:
+    """Coverage of explicit mailbox windows, not proof of full-text search."""
+
+    scope_id: str
+    folders: tuple[tuple[str, str], ...]
+    scan_complete: bool
+    headers_complete: bool
+    scanned_messages: int
+    uid_slot_budget: int
+    missing_messages: int = 0
+
+
+@dataclass(frozen=True, slots=True)
 class EmailMessagePage(Sequence[EmailMessage]):
     """One immutable provider page with an optional opaque continuation cursor."""
 
     messages: tuple[EmailMessage, ...]
     next_cursor: str | None = None
+    scan: MailboxScan | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "messages", tuple(self.messages))

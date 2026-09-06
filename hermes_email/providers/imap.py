@@ -13,6 +13,7 @@ import threading
 import time
 import unicodedata
 from collections.abc import Callable
+from dataclasses import replace
 from datetime import UTC, datetime
 from email import policy
 from email.message import Message
@@ -127,6 +128,31 @@ class ImapReadOnlyProvider(EmailProvider):
         except EmailProviderError as error:
             _raise_redacted(type(error)(str(error)))
 
+    async def fetch_headers(
+        self, *, limit: int = 50, cursor: str | None = None,
+        max_header_bytes: int = 16_384,
+    ) -> EmailMessagePage:
+        """Read bounded RFC headers only, leaving bodies and attachments unloaded."""
+        if type(max_header_bytes) is not int or not 1 <= max_header_bytes <= 16_384:
+            raise ImapLimitError("invalid header byte limit")
+        try:
+            return await asyncio.to_thread(
+                self._run_worker, self._fetch_messages_sync, limit, cursor, max_header_bytes
+            )
+        except EmailProviderError as error:
+            _raise_redacted(type(error)(str(error)))
+
+    async def get_message_limited(self, message_id: str, max_bytes: int) -> EmailMessage | None:
+        """Read one exact message under an additional aggregate-call byte budget."""
+        if type(max_bytes) is not int or not 1 <= max_bytes <= self._settings.max_message_bytes:
+            raise ImapLimitError("invalid message byte limit")
+        try:
+            return await asyncio.to_thread(
+                self._run_worker, self._get_message_sync, message_id, max_bytes
+            )
+        except EmailProviderError as error:
+            _raise_redacted(type(error)(str(error)))
+
     async def get_message(self, message_id: str) -> EmailMessage | None:
         """Fetch exactly one provider-stable UID without changing flags."""
         try:
@@ -173,7 +199,7 @@ class ImapReadOnlyProvider(EmailProvider):
         self._logout(client)
 
     def _fetch_messages_sync(
-        self, limit: int, cursor: str | None
+        self, limit: int, cursor: str | None, header_bytes: int | None = None
     ) -> EmailMessagePage:
         if (
             isinstance(limit, bool)
@@ -193,13 +219,27 @@ class ImapReadOnlyProvider(EmailProvider):
                 self._settings.max_message_bytes,
                 self._settings.max_page_bytes // limit,
             )
-            records = self._fetch_uid_range(client, lower_uid, upper_uid, body_limit)
+            if header_bytes is not None:
+                body_limit = min(body_limit, header_bytes)
+            records = self._fetch_uid_range(
+                client, lower_uid, upper_uid, body_limit, headers_only=header_bytes is not None
+            )
             messages = tuple(
                 self._normalize_record(
                     uid_validity, uid, raw, remote_size, body_limit
                 )
                 for uid, raw, remote_size in sorted(records, reverse=True)
             )
+            if header_bytes is not None:
+                messages = tuple(
+                    replace(message, body_text=None, attachments=(), metadata={
+                        **message.metadata,
+                        "headers_only": "true",
+                        "headers_truncated": "false" if _complete_header_window(raw, body_limit) else "true",
+                        "truncated": "false",
+                    })
+                    for message, (_, raw, _) in zip(messages, sorted(records, reverse=True))
+                )
             next_cursor = (
                 self._encode_cursor(uid_validity, lower_uid - 1)
                 if lower_uid > 1
@@ -209,14 +249,15 @@ class ImapReadOnlyProvider(EmailProvider):
         finally:
             self._logout(client)
 
-    def _get_message_sync(self, message_id: str) -> EmailMessage | None:
+    def _get_message_sync(self, message_id: str, max_bytes: int | None = None) -> EmailMessage | None:
         requested_validity, uid = self._parse_message_id(message_id)
+        body_limit = self._settings.max_message_bytes if max_bytes is None else max_bytes
         client, uid_validity, _ = self._open_readonly_mailbox()
         try:
             if requested_validity != uid_validity:
                 raise ImapMessageIdError("IMAP message identifier is stale")
             records = self._fetch_uid_range(
-                client, uid, uid, self._settings.max_message_bytes
+                client, uid, uid, body_limit
             )
             if not records:
                 return None
@@ -228,7 +269,7 @@ class ImapReadOnlyProvider(EmailProvider):
                 uid,
                 raw,
                 remote_size,
-                self._settings.max_message_bytes,
+                body_limit,
             )
         finally:
             self._logout(client)
@@ -239,7 +280,7 @@ class ImapReadOnlyProvider(EmailProvider):
             self._authenticate(client)
             try:
                 response_type, message_count_data = client.select(
-                    self._settings.mailbox, readonly=True
+                    _mailbox_argument(self._settings.mailbox), readonly=True
                 )
             except (TimeoutError, socket.timeout):
                 _raise_redacted(ProviderTimeoutError("IMAP mailbox selection timed out"))
@@ -457,9 +498,11 @@ class ImapReadOnlyProvider(EmailProvider):
         lower_uid: int,
         upper_uid: int,
         body_limit: int,
+        *, headers_only: bool = False,
     ) -> list[tuple[int, bytes, int]]:
         uid_set = f"{lower_uid}:{upper_uid}"
-        query = f"(UID RFC822.SIZE BODY.PEEK[]<0.{body_limit}>)"
+        query = (f"(UID RFC822.SIZE BODY.PEEK[HEADER]<0.{body_limit}>)" if headers_only
+                 else f"(UID RFC822.SIZE BODY.PEEK[]<0.{body_limit}>)")
         try:
             response_type, data = client.uid("FETCH", uid_set, query)
         except (TimeoutError, socket.timeout):
@@ -488,6 +531,12 @@ class ImapReadOnlyProvider(EmailProvider):
             metadata, raw = item
             if not isinstance(metadata, bytes) or not isinstance(raw, bytes):
                 raise ProviderProtocolError("IMAP returned an invalid message literal")
+            if headers_only:
+                if b"BODY[HEADER]" not in metadata.upper():
+                    raise ProviderProtocolError("IMAP did not return the requested header section")
+                separator = b"\r\n\r\n" if b"\r\n\r\n" in raw else b"\n\n"
+                if separator in raw and raw.split(separator, 1)[1]:
+                    raise ProviderProtocolError("IMAP header response contains unexpected body bytes")
             uid_match = _FETCH_UID.search(metadata)
             size_match = _FETCH_SIZE.search(metadata)
             if uid_match is None or size_match is None:
@@ -974,3 +1023,23 @@ def _parse_received_at(value: Any) -> datetime | None:
         return parsed.astimezone(UTC)
     except (ValueError, OverflowError):
         return None
+
+
+def _mailbox_argument(mailbox: str) -> str:
+    """Quote a validated mailbox as ONE IMAP argument, never a command fragment."""
+    if re.fullmatch(r"[A-Za-z0-9_./-]+", mailbox):
+        return mailbox
+    return '"' + mailbox.replace('\\', '\\\\').replace('"', '\\"') + '"'
+
+
+def _complete_header_window(raw: bytes, requested_bytes: int) -> bool:
+    # Partial FETCH returns fewer bytes when the section ends. Some servers
+    # omit the empty body separator in HEADER sections; do not call that a cut.
+    # At the exact cap, require a terminator to avoid claiming a truncated header
+    # was complete. Per-field normalization limits are checked separately below.
+    if len(raw) >= requested_bytes and not raw.endswith((b"\r\n\r\n", b"\n\n")):
+        return False
+    parsed = BytesParser(policy=policy.compat32).parsebytes(raw)
+    relevant = {"subject", "from", "to", "cc", "reply-to", "message-id", "references", "in-reply-to"}
+    return not any(len(value) > _MAX_HEADER_CHARACTERS
+                   for name, value in parsed.raw_items() if name.casefold() in relevant)

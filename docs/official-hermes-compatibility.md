@@ -1,6 +1,6 @@
 # Hermes Compatibility
 
-Hermes Email version 0.43.0 targets the manifest v1 schema accepted by the pinned Hermes Agent v0.21.0 compatibility target.
+Hermes Email version 0.44.0 targets the manifest v1 schema accepted by the pinned Hermes Agent v0.21.0 compatibility target.
 
 The plugin uses only public Hermes extension surfaces:
 
@@ -136,3 +136,10 @@ Fixes runtime compatibility between the Reply-All draft tool and enabled content
 ## audit reliability
 
 The optional operational audit now validates private storage, schema identity, legacy migration, fixed outcomes and transaction bounds. Tool results preserve the actual action outcome and add a separate audit receipt when auditing is enabled. A write failure remains visible in `/email-status` for the runtime lifetime; later successful events do not reconstruct missing history. No send or confirmation path is enabled. See [Audit reliability](audit-reliability.md).
+
+## Multi-folder read tools
+
+The same 14 model-facing tool registrations remain available. The optional
+mailbox-set mode adds `folder_scan` and message location fields to read results;
+no new model tool or live account registration is introduced. The registry test
+covers consecutive signed pages, search, thread hydration, audit and unload.

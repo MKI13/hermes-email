@@ -2,6 +2,10 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.44.0] — Multi-folder search and conversation context (step 7)
+
+adds opt-in scoped IMAP mailbox sets, bounded header-only list/search, signed query-bound cursors and targeted conversation body reads. Coverage limits and unavailable folders are explicit; no mailbox writes or model-facing sending are enabled.
+
 ## [0.43.0] — Independent provider/account validation (step 6, partial)
 
 - Add explicit loopback-only IMAP/SMTP certificate pin modes; verify the exact

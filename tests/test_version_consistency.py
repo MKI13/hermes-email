@@ -8,7 +8,7 @@ import hermes_email
 
 
 ROOT = Path(__file__).resolve().parents[1]
-EXPECTED = "0.43.0"
+EXPECTED = "0.44.0"
 
 
 def test_current_version_is_consistent_across_live_surfaces() -> None:
@@ -35,3 +35,12 @@ def test_stale_runtime_status_version_text_is_absent() -> None:
     plugin = (ROOT / "hermes_email" / "plugin.py").read_text(encoding="utf-8")
     assert "Send: unavailable in v0.18" not in plugin
     assert "Version 0.18.0 registers" not in plugin
+
+
+def test_document_current_version_headers_and_changelog_are_consistent():
+    for path in (ROOT / "docs").glob("*.md"):
+        text = path.read_text(encoding="utf-8")
+        for current in re.findall(r"(?m)^Current package version: (\d+\.\d+\.\d+)", text):
+            assert current == EXPECTED, path.name
+    changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+    assert changelog.index(EXPECTED) < changelog.index("0.43.0")

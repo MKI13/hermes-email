@@ -1,6 +1,6 @@
 # Security Model
 
-## Version 0.43.0 boundary
+## Version 0.44.0 boundary
 
 Version 0.24.0 hardens the **untrusted external-content boundary** on top of production profile isolation, read-only access, revisioned drafts, exact user confirmation, durable send idempotency, and strict `delivery-unknown` recovery.
 
@@ -160,3 +160,13 @@ Audited Reply-All records only operation/outcome/count metadata. No recipient, s
 ## audit reliability
 
 The optional operational audit now validates private storage, schema identity, legacy migration, fixed outcomes and transaction bounds. Tool results preserve the actual action outcome and add a separate audit receipt when auditing is enabled. A write failure remains visible in `/email-status` for the runtime lifetime; later successful events do not reconstruct missing history. No send or confirmation path is enabled. See [Audit reliability](audit-reliability.md).
+
+## Mailbox scope and continuation
+
+Only configured mailbox names can be selected by the multi-folder adapter.
+Names are quoted as one IMAP argument. Foreign-account, removed-folder and legacy
+IDs are rejected instead of redirected; UIDVALIDITY is checked by the selected
+server mailbox. Signed, query-bound cursor state cannot be modified or carried
+across runtime reloads. Neither identifiers, signatures nor coverage metadata
+grant user consent. A configured account namespace must be rotated when an
+operator repoints a username reference to another account. See multi-folder.md.

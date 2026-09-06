@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import StrEnum
 from pathlib import Path
 from typing import Any, Final, Self
+
+from .providers.multi_mailbox import MultiMailboxImapProvider
+from .providers.errors import ProviderMailboxError
 
 from . import __version__
 from .audit import ContentMinimizedAuditStore
@@ -426,6 +429,20 @@ class EmailPlugin:
                 f"query must not exceed {SEARCH_QUERY_MAX_LENGTH} characters"
             )
 
+        provider = self._read_provider()
+        if isinstance(provider, MultiMailboxImapProvider):
+            self._validate_fetch_limit(limit)
+            self._validate_fetch_cursor(cursor)
+            try:
+                page = await provider.search_headers(normalized_query, limit=limit, cursor=cursor)
+            except EmailProviderError as error:
+                self._record_provider_failure(error)
+                raise
+            self._ensure_open_after_operation()
+            await self._observe_messages(page.messages)
+            self._ensure_open_after_operation()
+            self._record_provider_success()
+            return page
         page = await self.fetch_messages(limit=limit, cursor=cursor)
         needle = normalized_query.casefold()
         return EmailMessagePage(
@@ -478,12 +495,41 @@ class EmailPlugin:
         if seed is None:
             return None
         page = await self.fetch_messages(limit=scan_limit, cursor=None)
-        return build_thread_context(
+        context = build_thread_context(
             seed,
             page.messages,
-            scan_complete=page.next_cursor is None,
+            scan_complete=page.scan.scan_complete if page.scan is not None else page.next_cursor is None,
             max_messages=max_messages,
         )
+        provider = self._read_provider()
+        if isinstance(provider, MultiMailboxImapProvider) and page.scan is not None:
+            # Hydrate ONLY linked messages. The additional body budget is bounded
+            # independently of the header budget; seed is already read once.
+            per_message = min(self.config.imap.max_message_bytes,
+                              self.config.imap.max_page_bytes // max(1, len(context.messages)))
+            hydrated = []
+            missing = 0
+            for message in context.messages:
+                if message.message_id == seed.message_id:
+                    hydrated.append(seed)
+                    continue
+                try:
+                    detail = await provider.get_message_limited(message.message_id, per_message)
+                except ProviderMailboxError:
+                    detail = None
+                except EmailProviderError as error:
+                    self._record_provider_failure(error)
+                    raise
+                self._ensure_open_after_operation()
+                if detail is None:
+                    missing += 1
+                else:
+                    hydrated.append(detail)
+            return replace(context, messages=tuple(hydrated),
+                           scan_complete=context.scan_complete and not missing,
+                           scan=replace(page.scan, scan_complete=page.scan.scan_complete and not missing,
+                                        missing_messages=missing))
+        return context
 
     def _local_draft_store(self) -> SqliteDraftStore:
         if self._closed:

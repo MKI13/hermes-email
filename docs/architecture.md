@@ -1,6 +1,6 @@
 # Architecture
 
-## Version 0.43.0
+## Version 0.44.0
 
 Hermes Email separates agent behavior from technical mail infrastructure. Hermes owns reasoning, persona, language, style, user preferences, and decisions. The plugin owns validated provider access, profile isolation, local persistence, technical send gates, confirmation binding, durable send intents, uncertainty recovery, and duplicate prevention.
 
@@ -174,3 +174,12 @@ The Reply-All draft operation is now included in the fixed content-minimized aud
 ## audit reliability
 
 The optional operational audit now validates private storage, schema identity, legacy migration, fixed outcomes and transaction bounds. Tool results preserve the actual action outcome and add a separate audit receipt when auditing is enabled. A write failure remains visible in `/email-status` for the runtime lifetime; later successful events do not reconstruct missing history. No send or confirmation path is enabled. See [Audit reliability](audit-reliability.md).
+
+## Bounded mailbox-set adapter
+
+The opt-in `MultiMailboxImapProvider` composes independently selected read-only
+mailbox providers. It owns stable account/mailbox IDs, a per-runtime cursor MAC,
+query binding and a total UID/header budget. The facade hydrates only linked
+thread bodies under a separate total byte budget. It performs no folder discovery
+or mailbox mutations. Single-folder legacy behavior remains separate; full
+coverage semantics and limits are specified in [multi-folder.md](multi-folder.md).

@@ -1,6 +1,6 @@
 # Configuration
 
-## Version 0.43.0 principles
+## Version 0.44.0 principles
 
 Hermes Email is universal. Operators configure it per deployment; the project contains no personal mailbox, company voice, provider secret, or fixed profile name.
 
@@ -255,3 +255,12 @@ The optional operational audit now validates private storage, schema identity, l
 ## Human-reviewed workflow
 
 `send_workflow.mode` defaults to `disabled`. `local-test` requires an explicit profile, armed SMTP on a literal loopback host, recipient policy and `.invalid` recipients. `save_local_copy` defaults to true. It registers a local human-only CLI command, never a model send tool. See reviewed-send.md.
+
+## Opt-in multi-folder IMAP
+
+`imap.account_namespace` and `imap.mailboxes` enable the mailbox-set provider.
+The namespace is an explicit account identity; choose one to eight exact ASCII
+folder names including `imap.mailbox`. Leave `mailboxes` empty for legacy
+single-folder behavior. Existing list/search tools become header-only in this
+mode and return explicit scan coverage; see [multi-folder.md](multi-folder.md)
+and `examples/config.multi-folder.example.yaml` for limits and cursor migration.

@@ -85,6 +85,8 @@ class ImapSettings:
     max_mailbox_messages: int = 10_000
     max_message_bytes: int = 2_000_000
     max_page_bytes: int = 5_000_000
+    account_namespace: str | None = None
+    mailboxes: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if self.host is not None:
@@ -125,6 +127,22 @@ class ImapSettings:
             or any(ord(character) < 32 or ord(character) > 126 for character in self.mailbox)
         ):
             raise ConfigError("imap.mailbox must be 1 to 255 printable ASCII characters")
+        if self.account_namespace is not None:
+            _portable_namespace("imap.account_namespace", self.account_namespace)
+        names = _string_sequence("imap.mailboxes", self.mailboxes, 8)
+        normalized = tuple("INBOX" if name.upper() == "INBOX" else name for name in names)
+        if any(not 1 <= len(name) <= 255 or not name.isascii()
+               or any(not 32 <= ord(char) <= 126 for char in name) for name in normalized):
+            raise ConfigError("imap.mailboxes contains an invalid mailbox name")
+        if len(set(normalized)) != len(normalized):
+            raise ConfigError("imap.mailboxes contains duplicate mailbox names")
+        if normalized:
+            if self.account_namespace is None:
+                raise ConfigError("multi-folder access requires imap.account_namespace")
+            primary = "INBOX" if self.mailbox.upper() == "INBOX" else self.mailbox
+            if primary not in normalized:
+                raise ConfigError("imap.mailboxes must include imap.mailbox")
+        object.__setattr__(self, "mailboxes", normalized)
         _bounded_integer("imap.timeout_seconds", self.timeout_seconds, 1, 120)
         _bounded_integer(
             "imap.max_mailbox_messages", self.max_mailbox_messages, 1, 50_000

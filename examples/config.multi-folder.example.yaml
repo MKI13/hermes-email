@@ -1,0 +1,27 @@
+# Set your own exact mailbox names and account namespace. No live credentials.
+# Install inside either a dedicated "email" profile or your existing "default".
+hermes:
+  profile: email
+email:
+  provider: imap
+  read_mode: readonly
+imap:
+  host: mail.example.com
+  port: 993
+  security: tls
+  username_ref: HERMES_EMAIL_IMAP_USERNAME
+  password_ref: HERMES_EMAIL_IMAP_PASSWORD
+  account_namespace: primary-mail-account
+  mailbox: INBOX
+  mailboxes:
+    - INBOX
+    - Sent Items
+    - Archive
+smtp:
+  mode: disabled
+send_workflow:
+  mode: disabled
+safety:
+  allow_send: false
+  allow_delete: false
+  allow_move: false
