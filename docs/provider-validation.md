@@ -1,6 +1,6 @@
 # Provider/account validation
 
-Current package version: 0.44.0.
+Current package version: 0.44.1.
 
 ## Evidence and remaining gate
 

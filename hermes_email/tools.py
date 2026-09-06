@@ -343,7 +343,7 @@ def _search_handler(plugin: EmailPlugin):
             limit = _tool_limit(args)
             cursor = _optional_string(args, "cursor")
             page = await plugin.search_messages(query, limit=limit, cursor=cursor)
-            return _json_success(plugin, "search", _page_result(page, limit, plugin.config.classification))
+            return _json_success(plugin, "search", _page_result(page, limit, plugin.config.classification, operation="search"))
         except Exception as error:
             return _json_error(plugin, "search", error)
 
@@ -399,7 +399,7 @@ def _thread_handler(plugin: EmailPlugin):
                     "unresolved_reference_count": thread.unresolved_reference_count,
                     "count": len(messages),
                     "messages": messages,
-                    **_scan_result(thread.scan),
+                    **_scan_result(thread.scan, operation="thread"),
                 },
             )
         except Exception as error:
@@ -487,7 +487,8 @@ def _optional_string(args: dict[str, Any], name: str) -> str | None:
 
 
 def _page_result(
-    page: EmailMessagePage, requested_limit: int, classification: SenderClassificationSettings
+    page: EmailMessagePage, requested_limit: int, classification: SenderClassificationSettings,
+    *, operation: str = "list",
 ) -> dict[str, Any]:
     if len(page.messages) > requested_limit:
         raise ProviderProtocolError("provider returned too many messages")
@@ -497,7 +498,7 @@ def _page_result(
         "messages": messages,
         "count": len(messages),
         "next_cursor": _bounded_opaque_value(page.next_cursor),
-        **_scan_result(page.scan),
+        **_scan_result(page.scan, operation=operation),
     }
 
 
@@ -714,10 +715,11 @@ def _message_location(message: EmailMessage) -> dict[str, Any]:
     return {"mailbox": message.metadata.get("mailbox"),
             "account_scope": message.metadata["account_scope"],
             "body_loaded": message.metadata.get("headers_only") != "true",
-            "headers_truncated": message.metadata.get("headers_truncated") == "true"}
+            "headers_truncated": message.metadata.get("headers_truncated") == "true",
+            "headers_normalization_incomplete": message.metadata.get("headers_normalization_incomplete") == "true"}
 
 
-def _scan_result(scan: MailboxScan | None) -> dict[str, Any]:
+def _scan_result(scan: MailboxScan | None, *, operation: str) -> dict[str, Any]:
     if scan is None:
         return {}
     return {"folder_scan": {
@@ -728,7 +730,9 @@ def _scan_result(scan: MailboxScan | None) -> dict[str, Any]:
         "scanned_messages": scan.scanned_messages,
         "uid_slot_budget": scan.uid_slot_budget,
         "missing_messages": scan.missing_messages,
-        "search_scope": "subject-from-to-cc-reply-to",
+        "operation": operation,
+        **({"search_scope": "subject-from-to-cc-reply-to"} if operation == "search" else {}),
+        **({"linkage_scope": "message-id-in-reply-to-references"} if operation == "thread" else {}),
         "body_search_performed": False,
         "cross_folder_atomic_snapshot": False,
         "authorization": "none",

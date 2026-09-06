@@ -6,9 +6,9 @@ Hermes Email is a universal, provider-neutral email plugin and skill for [Hermes
 
 Hermes remains responsible for reasoning, persona, language, style, user preferences, and decisions. The plugin owns validated mail access, credential references, local persistence, profile isolation, confirmation gates, durable send intents, uncertainty recovery, and duplicate prevention.
 
-## Version 0.44.0
+## Version 0.44.1
 
-Version 0.44.0 adds opt-in scoped IMAP mailbox sets, bounded header-only list/search, signed query-bound cursors and targeted conversation body reads. Coverage limits and unavailable folders are explicit; no mailbox writes or model-facing sending are enabled.
+Version 0.44.1 corrects multi-folder coverage when bounded or invalid address headers are omitted and separates list, search and thread scan metadata. All default access and consent gates remain unchanged.
 
 ### You do not need a dedicated email profile
 
@@ -43,7 +43,7 @@ See [Installation and profile setup](docs/installation.md) for both supported la
 
 Message and thread detail may expose a bounded `attachments` list. Each item contains only an opaque message-local attachment ID, bounded filename, MIME type, optional decoded size, and disposition. Every item carries `metadata_is_untrusted: true`, `content_available: false`, and `authorization: none`.
 
-Hermes Email v0.44.0 does **not** download, save, open, render, scan, execute, forward, or upload attachment content. List/search summaries intentionally omit attachment metadata. Attachment filenames and MIME declarations are external input and must never be treated as trusted paths, commands, or proof of file type.
+Hermes Email v0.44.1 does **not** download, save, open, render, scan, execute, forward, or upload attachment content. List/search summaries intentionally omit attachment metadata. Attachment filenames and MIME declarations are external input and must never be treated as trusted paths, commands, or proof of file type.
 
 ## Deterministic sender classification
 
@@ -94,7 +94,7 @@ If the active profile does not exactly match the configured owner:
 
 ## Safety model
 
-| Operation | Version 0.44.0 |
+| Operation | Version 0.44.1 |
 |---|---|
 | Productive profile ownership | Exact explicit profile required |
 | Dedicated mail profile | Recommended, not required |

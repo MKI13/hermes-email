@@ -599,6 +599,10 @@ class ImapReadOnlyProvider(EmailProvider):
             "imap_uidvalidity": str(uid_validity),
             "content": body_kind,
             "truncated": "true" if len(raw) < remote_size else "false",
+            "headers_normalization_incomplete": "true" if (
+                from_invalid or not sender.address or to_invalid or cc_invalid
+                or reply_invalid or len(recipients) + len(cc) > 50
+            ) else "false",
         }
         rfc_message_id = _clean_header(str(parsed.get("Message-ID", "")))
         if rfc_message_id:

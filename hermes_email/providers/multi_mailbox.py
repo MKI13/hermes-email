@@ -190,7 +190,12 @@ class MultiMailboxImapProvider(EmailProvider):
             if len(page.messages) > allowance:
                 raise ProviderProtocolError("mailbox exceeded its scan budget")
             messages.extend(self._own(index, message) for message in page.messages)
-            partial = int(bool(partial) or any(m.metadata.get("headers_truncated") == "true" for m in page.messages))
+            partial = int(bool(partial) or any(
+                m.metadata.get("headers_truncated") == "true"
+                or m.metadata.get("headers_normalization_incomplete") == "true"
+                or m.recipient_headers_invalid or m.reply_to_invalid or not m.sender.address
+                for m in page.messages
+            ))
             states[index] = (list(ImapReadOnlyProvider._parse_cursor(page.next_cursor))
                              if page.next_cursor is not None else -1)
             if isinstance(old, list) and isinstance(states[index], list):

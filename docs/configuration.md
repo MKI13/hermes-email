@@ -1,6 +1,6 @@
 # Configuration
 
-## Version 0.44.0 principles
+## Version 0.44.1 principles
 
 Hermes Email is universal. Operators configure it per deployment; the project contains no personal mailbox, company voice, provider secret, or fixed profile name.
 
