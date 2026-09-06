@@ -59,6 +59,7 @@ def main() -> None:
             try:
                 first=invoke(LIST_TOOL,{'limit':1})
                 assert first['ok'] and first['count']==1 and not first['folder_scan']['scan_complete']
+                assert first['folder_scan']['operation']=='list' and 'search_scope' not in first['folder_scan']
                 second=invoke(LIST_TOOL,{'limit':2,'cursor':first['next_cursor']})
                 assert second['ok'] and second['count']==2 and second['folder_scan']['scan_complete'],second
                 all_messages=first['messages']+second['messages']
@@ -67,10 +68,13 @@ def main() -> None:
                 assert {m['mailbox'] for m in all_messages}==set(folders)
                 found=invoke(SEARCH_TOOL,{'query':'Same project','limit':9})
                 assert found['ok'] and found['count']==3 and found['folder_scan']['scan_complete'],found
+                assert found['folder_scan']['operation']=='search' and found['folder_scan']['search_scope']=='subject-from-to-cc-reply-to'
                 no_body=invoke(SEARCH_TOOL,{'query':'Synthetic body','limit':9})
                 assert no_body['count']==0 and not no_body['folder_scan']['body_search_performed']
                 thread=invoke(THREAD_TOOL,{'message_id':first['messages'][0]['message_id'],'scan_limit':9})
                 assert thread['ok'] and thread['count']==2 and thread['scan_complete'],thread
+                assert thread['folder_scan']['operation']=='thread' and 'search_scope' not in thread['folder_scan']
+                assert thread['folder_scan']['linkage_scope']=='message-id-in-reply-to-references'
                 assert [m['mailbox'] for m in thread['messages']]==['INBOX','Sent Items']
                 assert [m['body_text'] for m in thread['messages']]==['Synthetic body 0.','Synthetic body 1.']
                 other_resolver=RecordingResolver(values)

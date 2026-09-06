@@ -383,3 +383,38 @@ def test_close_during_last_failed_folder_read_never_returns_a_success_page():
         raise ProviderMailboxError('unavailable')
     children[0][0].fetch_headers=close_then_fail
     with pytest.raises(ProviderConnectionError):invoke(p.fetch_messages(limit=1))
+
+
+@pytest.mark.parametrize('header,count',[('To',51),('Cc',51),('Reply-To',11),('From',2)])
+def test_discarded_address_header_cannot_report_complete_search(header,count):
+    values=','.join(f'u{i}@example.invalid' for i in range(count))
+    raw=raw_message('root')
+    line=(header+': '+values+'\r\n').encode()
+    if header=='To':raw=raw.replace(b'To: office@example.invalid\r\n',line)
+    elif header=='From':raw=raw.replace(b'From: customer@example.invalid\r\n',line)
+    else:raw=raw.replace(b'Subject:',line+b'Subject:')
+    # Each header fits within byte and per-field text limits: address count is
+    # what causes normalization to discard it.
+    assert len(line)<2000
+    p,_,_,_=make(data={'INBOX':{1:raw},'Sent Items':{},'Archive':{}})
+    first=invoke(p.search_headers('u0@example.invalid',limit=1))
+    assert not first.messages
+    assert not first.scan.headers_complete and not first.scan.scan_complete
+    last=invoke(p.search_headers('u0@example.invalid',limit=9,cursor=first.next_cursor))
+    assert not last.messages and last.next_cursor is None
+    assert not last.scan.headers_complete and not last.scan.scan_complete
+
+
+def test_scan_metadata_describes_only_the_actual_operation():
+    p,_,_,_=make();plugin,tools=tool_runtime(p)
+    first=json.loads(invoke(tools[LIST_TOOL]['handler']({'limit':3})))
+    assert 'search_scope' not in first['folder_scan']
+    assert first['folder_scan']['operation']=='list'
+    search=json.loads(invoke(tools[SEARCH_TOOL]['handler']({'query':'Project','limit':9})))
+    assert search['folder_scan']['operation']=='search'
+    assert search['folder_scan']['search_scope']=='subject-from-to-cc-reply-to'
+    thread=json.loads(invoke(tools[THREAD_TOOL]['handler']({'message_id':first['messages'][0]['message_id'],'scan_limit':9})))
+    assert 'search_scope' not in thread['folder_scan']
+    assert thread['folder_scan']['operation']=='thread'
+    assert thread['folder_scan']['linkage_scope']=='message-id-in-reply-to-references'
+    plugin.close()

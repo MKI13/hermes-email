@@ -1,6 +1,6 @@
 # Trusted local user approval
 
-Current package version: 0.44.0.
+Current package version: 0.44.1.
 
 ## Supported identity boundary
 

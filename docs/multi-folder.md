@@ -1,6 +1,6 @@
 # Multi-folder search and conversation context
 
-Current package version: 0.44.0.
+Current package version: 0.44.1.
 
 ## Enable only explicitly chosen mailboxes
 
@@ -74,6 +74,11 @@ Results are folder-window ordered, not a globally newest-first mailbox merge.
 Each result includes `folder_scan`: configured folders and their states
 (`not-scanned`, `partial`, `complete`, `unavailable`), scan completeness,
 header completeness, messages scanned, and the requested UID budget.
+Discarded invalid/over-limit From, To, Cc or Reply-To fields keep header coverage
+incomplete even when all UID windows were exhausted. `headers_normalization_incomplete`
+is distinct from a byte-truncated header. `folder_scan.operation` identifies list,
+search or thread; `search_scope` appears only for search, and `linkage_scope` only
+for RFC-linked thread scans.
 `scan_complete` applies to the bounded per-folder snapshots inspected since the
 start of that cursor chain, not future incoming mail or unconfigured folders.
 The folders do **not** form one atomic cross-folder snapshot. Truncated headers
