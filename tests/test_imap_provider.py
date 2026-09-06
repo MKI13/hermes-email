@@ -789,7 +789,8 @@ def test_source_contains_no_mutating_or_seen_setting_imap_commands() -> None:
 
     assert "BODY.PEEK[]" in source
     assert 'authenticate("PLAIN"' in source
-    assert ".login(" not in source
+    assert "_authentication_mechanism" in source
+    assert "quoted_user" in source
     for forbidden in (
         "client.store(",
         "client.append(",
@@ -830,6 +831,7 @@ def test_starttls_pinned_verifies_certificate_before_credentials() -> None:
     fingerprint = hashlib.sha256(certificate).hexdigest()
     client = FakeImapClient()
     class Sock:
+        def version(self): return "TLSv1.3"
         def getpeercert(self, binary_form=False):
             return certificate if binary_form else {}
     client.sock = Sock()
@@ -856,6 +858,7 @@ def test_starttls_pinned_verifies_certificate_before_credentials() -> None:
 def test_starttls_pinned_mismatch_fails_before_secret_lookup() -> None:
     client = FakeImapClient()
     class Sock:
+        def version(self): return "TLSv1.3"
         def getpeercert(self, binary_form=False): return b"wrong" if binary_form else {}
     client.sock=Sock()
     client.starttls=lambda *,ssl_context: ("OK",[b"tls"])

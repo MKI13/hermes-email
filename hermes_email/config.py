@@ -93,15 +93,15 @@ class ImapSettings:
             raise ConfigError("imap.port must be an integer")
         if not 1 <= self.port <= 65_535:
             raise ConfigError("imap.port must be between 1 and 65535")
-        _choice("imap.security", self.security, {"tls", "starttls-pinned"})
+        _choice("imap.security", self.security, {"tls", "starttls-pinned", "tls-pinned"})
         fingerprint = self.tls_sha256_fingerprint
-        if self.security == "starttls-pinned":
-            if self.host not in {"127.0.0.1", "::1", "localhost"}:
-                raise ConfigError("imap starttls-pinned requires a loopback host")
+        if self.security in {"starttls-pinned", "tls-pinned"}:
+            if self.host not in {"127.0.0.1", "::1"}:
+                raise ConfigError("IMAP certificate pinning requires a literal loopback host")
             if not isinstance(fingerprint, str) or re.fullmatch(r"[0-9a-f]{64}", fingerprint) is None:
                 raise ConfigError("imap.tls_sha256_fingerprint must be 64 lowercase hex characters")
         elif fingerprint is not None:
-            raise ConfigError("imap.tls_sha256_fingerprint requires starttls-pinned security")
+            raise ConfigError("imap.tls_sha256_fingerprint requires pinned TLS security")
         for field_name in ("username_ref", "password_ref"):
             reference = getattr(self, field_name)
             if reference is None:
@@ -220,10 +220,18 @@ class SmtpSettings:
     sender_display_name: str | None = None
     timeout_seconds: int = 15
     max_message_bytes: int = 1_000_000
+    tls_sha256_fingerprint: str | None = None
 
     def __post_init__(self) -> None:
         _choice("smtp.mode", self.mode, {"disabled", "submission"})
-        _choice("smtp.security", self.security, {"implicit_tls", "starttls"})
+        _choice("smtp.security", self.security, {"implicit_tls", "starttls", "starttls-pinned", "implicit_tls_pinned"})
+        if self.security in {"starttls-pinned", "implicit_tls_pinned"}:
+            if self.host not in {"127.0.0.1", "::1"}:
+                raise ConfigError("SMTP certificate pinning requires a literal loopback host")
+            if not isinstance(self.tls_sha256_fingerprint, str) or re.fullmatch(r"[0-9a-f]{64}", self.tls_sha256_fingerprint) is None:
+                raise ConfigError("SMTP fingerprint must be exactly 64 lowercase hex characters")
+        elif self.tls_sha256_fingerprint is not None:
+            raise ConfigError("SMTP fingerprint requires pinned TLS security")
         _bounded_integer("smtp.port", self.port, 1, 65_535)
         _bounded_integer("smtp.timeout_seconds", self.timeout_seconds, 1, 120)
         _bounded_integer(
@@ -462,7 +470,7 @@ class SendWorkflowSettings:
     save_local_copy: bool = True
 
     def __post_init__(self) -> None:
-        _choice("send_workflow.mode", self.mode, {"disabled", "local-test"})
+        _choice("send_workflow.mode", self.mode, {"disabled", "local-test", "account-test"})
         if type(self.save_local_copy) is not bool:
             raise ConfigError("send_workflow.save_local_copy must be boolean")
 
@@ -492,6 +500,12 @@ class EmailPluginConfig:
         if self.send_workflow.mode != "disabled":
             if self.hermes.profile == "auto" or not self.safety.allow_send or self.smtp.mode != "submission":
                 raise ConfigError("human send workflow requires explicit profile, SMTP and allow_send")
+            if self.send_workflow.mode == "account-test" and (
+                self.recipient_policy.mode != "allowlist"
+                or not self.recipient_policy.allowed_addresses
+                or self.recipient_policy.allowed_domains
+            ):
+                raise ConfigError("account-test sending requires an exact-address-only recipient allowlist")
             if self.send_workflow.mode == "local-test":
                 import ipaddress
                 try:

@@ -9,7 +9,7 @@ imap:
   host: 127.0.0.1
   port: 1143
   security: starttls-pinned
-  tls_sha256_fingerprint: 0000000000000000000000000000000000000000000000000000000000000000
+  tls_sha256_fingerprint: "0000000000000000000000000000000000000000000000000000000000000000"
   username_ref: HERMES_EMAIL_IMAP_USERNAME
   password_ref: HERMES_EMAIL_IMAP_PASSWORD
   mailbox: INBOX
@@ -19,3 +19,19 @@ safety:
   allow_send: false
   allow_delete: false
   allow_move: false
+
+# Optional SMTP transport configuration for a separately approved TEST account:
+# smtp:
+#   mode: submission
+#   account_namespace: test-account
+#   host: 127.0.0.1
+#   port: 1025
+#   security: starttls-pinned
+#   tls_sha256_fingerprint: "replace-with-operator-verified-64-lowercase-hex-pin"
+#   username_ref: HERMES_EMAIL_SMTP_TEST_USER
+#   password_ref: HERMES_EMAIL_SMTP_TEST_PASS
+#   sender_address: your-approved-test-account@example.com
+# Drafts must use the same account namespace. This commented example grants no
+# consent and enables nothing. See docs/provider-validation.md before account tests.
+send_workflow:
+  mode: disabled

@@ -1,6 +1,6 @@
 # Audit reliability and upgrades
 
-## Version 0.42.0
+## Version 0.43.0
 
 The optional operational audit helps an operator diagnose mail-tool activity.
 It is **not** a tamper-proof compliance log, a send-intent ledger, or evidence

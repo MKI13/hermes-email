@@ -1,6 +1,6 @@
 # Stable ten-step production-readiness roadmap
 
-Current package version: 0.42.0. These numbers remain stable when tasks are
+Current package version: 0.43.0. These numbers remain stable when tasks are
 requested by number; version numbers are not roadmap step numbers.
 
 1. **Send-ledger storage hardening** — implemented in 0.38.0; private creation,
@@ -10,7 +10,7 @@ requested by number; version numbers are not roadmap step numbers.
    orphan recovery requires exclusive lease acquisition. Stable Date/Message-ID
    and exact request digests prevent regenerated retry data.
 
-**Next requested step: 6.** Steps 1 and 2 have dedicated releases and CI evidence;
+**Next incomplete step: 6 (authenticated Proton test account).** Steps 1 and 2 have dedicated releases and CI evidence;
 see their pull requests and release notes. The pending steps below are not implemented.
 
 3. **Authenticated Hermes user confirmation** — implemented for the local OS-authenticated
@@ -23,8 +23,11 @@ see their pull requests and release notes. The pending steps below are not imple
    as opt-in local CLI workflow with full human review, pinned draft revision,
    durable intent, local SMTP and separate sent-copy warnings. Model/gateway sending
    remains disabled; see reviewed-send.md.
-6. **Complete provider/account integration** — pending; authorized test account,
-   Proton Bridge and independent server; transport-negative tests are not login PASS.
+6. **Complete provider/account integration** — PARTIAL in 0.43.0: independent
+   GreenMail TLS account end-to-end PASS, pinned IMAP/SMTP and capability-based
+   login supported. Actual Proton transport-only probes passed, but authenticated
+   Proton test-account login/read/send remains NOT TESTED until separately authorized
+   test credentials/recipients exist. See provider-validation.md; do not mark complete.
 7. **Multi-folder search and conversation context** — pending; bound account and
    mailbox identities, Inbox/Sent/Archive with explicit incompleteness reporting.
 8. **Isolated attachment analysis** — pending; explicit request, bounded extraction,

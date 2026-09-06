@@ -1,6 +1,6 @@
 # Human-reviewed send workflow
 
-Current package version: 0.42.0.
+Current package version: 0.43.0.
 
 The complete workflow is exposed as an explicit **local Hermes terminal command**,
 not a model tool or gateway slash command:
@@ -61,3 +61,11 @@ absence of model/slash send surfaces, exact consent, mutation and configuration
 changes during review, expiry, concurrent updates, local SMTP DATA capture,
 restart/idempotency, accepted/failed/unknown results, failed post-SMTP persistence
 and failed sent-copy storage. No external mailbox or model API is used.
+
+## Separately authorized account testing
+
+Version 0.43.0 additionally supports `account-test` with an exact-address-only
+allowlist; domain-wide and unrestricted recipient policies are rejected. Defaults
+remain disabled and no real account is activated by installation. The local terminal
+is still the only supported approval surface. See provider-validation.md for the
+independent account test and the still-open authenticated Proton test-account gate.
