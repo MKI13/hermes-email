@@ -6,9 +6,9 @@ Hermes Email is a universal, provider-neutral email plugin and skill for [Hermes
 
 Hermes remains responsible for reasoning, persona, language, style, user preferences, and decisions. The plugin owns validated mail access, credential references, local persistence, profile isolation, confirmation gates, durable send intents, uncertainty recovery, and duplicate prevention.
 
-## Version 0.43.0
+## Version 0.44.0
 
-Version 0.43.0 connects the opt-in local CLI approval, pinned draft revision, durable send intent and single SMTP attempt. Model-facing sending remains unavailable. Accepted delivery and local sent-copy warnings are reported separately.
+Version 0.44.0 adds opt-in scoped IMAP mailbox sets, bounded header-only list/search, signed query-bound cursors and targeted conversation body reads. Coverage limits and unavailable folders are explicit; no mailbox writes or model-facing sending are enabled.
 
 ### You do not need a dedicated email profile
 
@@ -43,7 +43,7 @@ See [Installation and profile setup](docs/installation.md) for both supported la
 
 Message and thread detail may expose a bounded `attachments` list. Each item contains only an opaque message-local attachment ID, bounded filename, MIME type, optional decoded size, and disposition. Every item carries `metadata_is_untrusted: true`, `content_available: false`, and `authorization: none`.
 
-Hermes Email v0.43.0 does **not** download, save, open, render, scan, execute, forward, or upload attachment content. List/search summaries intentionally omit attachment metadata. Attachment filenames and MIME declarations are external input and must never be treated as trusted paths, commands, or proof of file type.
+Hermes Email v0.44.0 does **not** download, save, open, render, scan, execute, forward, or upload attachment content. List/search summaries intentionally omit attachment metadata. Attachment filenames and MIME declarations are external input and must never be treated as trusted paths, commands, or proof of file type.
 
 ## Deterministic sender classification
 
@@ -94,7 +94,7 @@ If the active profile does not exactly match the configured owner:
 
 ## Safety model
 
-| Operation | Version 0.43.0 |
+| Operation | Version 0.44.0 |
 |---|---|
 | Productive profile ownership | Exact explicit profile required |
 | Dedicated mail profile | Recommended, not required |
@@ -166,6 +166,21 @@ safety:
 ```
 
 Replace `email` with the exact active Hermes profile that should own productive mail access. SMTP remains disconnected from the Hermes model-facing runtime in this release. `allow_send: true` only arms technical eligibility for internal future send orchestration; it does not create a send tool and is not user confirmation.
+
+## Optional multi-folder IMAP
+
+Set `imap.mailboxes` to your exact permitted folders (up to eight) and set
+`imap.account_namespace`. Existing list/search/thread tools then operate across
+those folders using account-and-folder-bound message IDs. List/search fetch
+headers only; this mode does not perform full-text body search. Thread building
+loads only linked message bodies and explicitly reports incomplete coverage,
+missing folders, truncated headers and missing messages. All reads remain
+read-only; mail content never grants authority.
+
+See [Multi-folder behavior, limits and migration](docs/multi-folder.md) and
+`examples/config.multi-folder.example.yaml`. Default single-folder behavior is
+unchanged. With only one Hermes profile, use `hermes.profile: default`; a dedicated
+mail profile is optional. The authenticated Proton test-account gate remains open.
 
 ## Read tools
 

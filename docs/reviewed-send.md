@@ -1,6 +1,6 @@
 # Human-reviewed send workflow
 
-Current package version: 0.43.0.
+Current package version: 0.44.0.
 
 The complete workflow is exposed as an explicit **local Hermes terminal command**,
 not a model tool or gateway slash command:

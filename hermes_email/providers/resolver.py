@@ -6,6 +6,7 @@ from ..config import EmailPluginConfig
 from ..secrets import EnvironmentSecretResolver, SecretResolver
 from .base import EmailProvider
 from .imap import ImapReadOnlyProvider
+from .multi_mailbox import MultiMailboxImapProvider
 from .mock import MockEmailProvider
 
 
@@ -43,6 +44,8 @@ def resolve_email_provider(
         resolver = (
             EnvironmentSecretResolver() if secret_resolver is None else secret_resolver
         )
+        if config.imap.mailboxes:
+            return MultiMailboxImapProvider(config.imap, resolver)
         return ImapReadOnlyProvider(config.imap, resolver)
 
     raise UnsupportedEmailProviderError(

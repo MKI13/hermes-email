@@ -9,7 +9,7 @@ from typing import Any, Final
 from .attachment_safety import assess_attachment
 from .classification import classify_sender
 from .config import SenderClassificationSettings
-from .models import EmailAddress, EmailAttachment, EmailMessage, EmailMessagePage
+from .models import EmailAddress, EmailAttachment, EmailMessage, EmailMessagePage, MailboxScan
 from .replying import derive_reply_route
 from .plugin import (
     EmailFetchCursorError,
@@ -136,6 +136,7 @@ SEARCH_SCHEMA: Final = {
     "name": SEARCH_TOOL,
     "description": (
         "Search one bounded email page locally by plain-text substring. "
+        "With configured multi-folder IMAP, search is HEADERS ONLY, never message bodies. "
         "A next_cursor advances provider pages and does not guarantee more matches. "
         + _READ_NOTICE
     ),
@@ -398,6 +399,7 @@ def _thread_handler(plugin: EmailPlugin):
                     "unresolved_reference_count": thread.unresolved_reference_count,
                     "count": len(messages),
                     "messages": messages,
+                    **_scan_result(thread.scan),
                 },
             )
         except Exception as error:
@@ -495,6 +497,7 @@ def _page_result(
         "messages": messages,
         "count": len(messages),
         "next_cursor": _bounded_opaque_value(page.next_cursor),
+        **_scan_result(page.scan),
     }
 
 
@@ -504,6 +507,7 @@ def _message_summary(
     subject = message.subject[:_MAX_SUBJECT_CHARACTERS]
     return {
         "message_id": _bounded_opaque_value(message.message_id),
+        **_message_location(message),
         "subject": subject,
         "subject_truncated": len(message.subject) > len(subject),
         "sender": _address_result(message.sender),
@@ -531,6 +535,7 @@ def _message_detail(
     reply_route = derive_reply_route(message)
     return {
         "message_id": _bounded_opaque_value(message.message_id),
+        **_message_location(message),
         "subject": subject,
         "subject_truncated": len(message.subject) > len(subject),
         "sender": _address_result(message.sender),
@@ -701,3 +706,30 @@ def _json_result(payload: dict[str, Any]) -> str:
         separators=(",", ":"),
         sort_keys=True,
     )
+
+
+def _message_location(message: EmailMessage) -> dict[str, Any]:
+    if "account_scope" not in message.metadata:
+        return {}
+    return {"mailbox": message.metadata.get("mailbox"),
+            "account_scope": message.metadata["account_scope"],
+            "body_loaded": message.metadata.get("headers_only") != "true",
+            "headers_truncated": message.metadata.get("headers_truncated") == "true"}
+
+
+def _scan_result(scan: MailboxScan | None) -> dict[str, Any]:
+    if scan is None:
+        return {}
+    return {"folder_scan": {
+        "scope_id": scan.scope_id,
+        "folders": [{"mailbox": name, "state": state} for name, state in scan.folders],
+        "scan_complete": scan.scan_complete,
+        "headers_complete": scan.headers_complete,
+        "scanned_messages": scan.scanned_messages,
+        "uid_slot_budget": scan.uid_slot_budget,
+        "missing_messages": scan.missing_messages,
+        "search_scope": "subject-from-to-cc-reply-to",
+        "body_search_performed": False,
+        "cross_folder_atomic_snapshot": False,
+        "authorization": "none",
+    }}
