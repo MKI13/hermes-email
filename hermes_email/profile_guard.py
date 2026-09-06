@@ -92,6 +92,7 @@ def _register_authorized(ctx: Any, decision: ProfilePolicyDecision) -> Any:
     command_handle: Any | None = None
     draft_handles: tuple[Any, ...] = ()
     read_handles: tuple[Any, ...] = ()
+    human_handles: tuple[Any, ...] = ()
     try:
         unload_handle = ctx.on_unload(release_runtime_context)
         command_handle = ctx.register_command(
@@ -101,6 +102,8 @@ def _register_authorized(ctx: Any, decision: ProfilePolicyDecision) -> Any:
         )
         draft_handles = register_draft_tools(ctx, runtime)
         read_handles = register_read_tools(ctx, runtime)
+        from .human_cli import register_human_commands
+        human_handles = register_human_commands(ctx, runtime)
         skill_path = Path(__file__).resolve().parent.parent / "skill" / "SKILL.md"
         ctx.register_skill(
             "email",
@@ -108,7 +111,7 @@ def _register_authorized(ctx: Any, decision: ProfilePolicyDecision) -> Any:
             description="Handle email only inside the authorized Hermes mail profile.",
         )
     except Exception:
-        for handle in reversed(read_handles + draft_handles):
+        for handle in reversed(draft_handles + read_handles + human_handles):
             handle.dispose()
         if command_handle is not None:
             command_handle.dispose()
