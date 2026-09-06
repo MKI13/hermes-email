@@ -196,7 +196,7 @@ def test_cursor_signature_query_and_runtime_binding_before_io():
     p,r,c,_=make();page=invoke(p.search_headers('Project',limit=1));original=page.next_cursor
     assert original and len(original)<=512
     before=(len(r.calls),len(c))
-    for value in (original[:-1]+('f' if original[-1]!='f' else 'e'),'../etc/passwd','x'*513):
+    for value in (original[:-1]+('f' if original[-1]!='f' else 'e'),'../invalid-cursor','x'*513):
         with pytest.raises(ImapCursorError):invoke(p.search_headers('Project',limit=1,cursor=value))
     with pytest.raises(ImapCursorError):invoke(p.search_headers('different',cursor=original))
     with pytest.raises(ImapCursorError):invoke(p.fetch_messages(cursor=original))
