@@ -50,7 +50,7 @@ class ApprovalSnapshot:
     display: str
 
 
-def review_snapshot(config: EmailPluginConfig, draft: EmailDraft) -> ApprovalSnapshot:
+def review_snapshot(config: EmailPluginConfig, draft: EmailDraft, *, purpose: str = "review") -> ApprovalSnapshot:
     """Own the full reviewed content AND deployment settings; no secret lookup."""
     if (draft.draft_id is None or type(draft.revision) is not int
             or draft.revision < 1 or not config.drafts.account_namespace):
@@ -59,13 +59,16 @@ def review_snapshot(config: EmailPluginConfig, draft: EmailDraft) -> ApprovalSna
         raise ApprovalError("approval account identities do not match")
     if config.smtp.sender_address is None:
         raise ApprovalError("approval sender is not configured")
+    if purpose not in {"review", "send"}:
+        raise ApprovalError("review purpose is invalid")
     content = asdict(draft)
-    canonical = json.dumps({"draft": content, "config": asdict(config)},
+    canonical = json.dumps({"draft": content, "config": asdict(config), "purpose": purpose},
                            sort_keys=True, ensure_ascii=True, default=str,
                            separators=(",", ":"))
     # JSON escapes all terminal control sequences and visual direction controls.
     # Never truncate the body or Bcc list on the approval surface.
     display = json.dumps({
+        "action": "SEND THIS EMAIL ONCE" if purpose == "send" else "REVIEW ONLY; NO SEND",
         "draft_id": draft.draft_id, "revision": draft.revision,
         "account": config.drafts.account_namespace,
         "from": {"address": config.smtp.sender_address,
@@ -128,6 +131,17 @@ class ApprovalAuthority:
             self._pending[nonce] = (snapshot.digest, snapshot.draft_id,
                                     snapshot.revision, start + self.ttl)
         return ApprovalGrant(nonce, signature)
+
+    def validity(self, grant: ApprovalGrant) -> tuple[float, float]:
+        """Trusted workflow uses this to recheck expiry at the transport boundary."""
+        self._check_process()
+        if type(grant) is not ApprovalGrant:
+            raise ApprovalError("approval is invalid")
+        with self._lock:
+            row = self._pending.get(grant.nonce)
+            if row is None or not hmac.compare_digest(grant.signature, self._signature(grant.nonce, row[0])):
+                raise ApprovalError("approval is absent or invalid")
+            return row[3] - self.ttl, row[3]
 
     def consume(self, grant: ApprovalGrant, snapshot: ApprovalSnapshot,
                 scope: ApprovalScope) -> UserSendConfirmation:

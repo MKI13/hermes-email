@@ -96,10 +96,11 @@ def test_armed_runtime_is_offline_and_exposes_no_submission_surface(
     assert not context.state.data_dir.exists()
 
 
-def test_hermes_entry_import_closure_cannot_reach_smtp_dispatch() -> None:
+def test_model_tool_import_closure_cannot_reach_smtp_dispatch() -> None:
     repository = Path(__file__).parents[1]
     package = repository / "hermes_email"
-    queue = [("plugin_entry", repository / "__init__.py")]
+    queue = [("hermes_email.tools", package / "tools.py"),
+             ("hermes_email.draft_tools", package / "draft_tools.py")]
     visited = set()
     called_names = set()
 

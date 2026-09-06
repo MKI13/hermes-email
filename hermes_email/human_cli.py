@@ -37,6 +37,14 @@ class LocalTerminal:
             self.close()
             raise ApprovalError("an authenticated foreground terminal is required") from None
 
+    def current_scope(self) -> ApprovalScope:
+        if self.fd is None or os.tcgetpgrp(self.fd) != os.getpgrp():
+            raise ApprovalError("terminal ownership changed")
+        status = os.fstat(self.fd)
+        if status.st_uid != os.geteuid() or self.scope.session != f"tty:{status.st_rdev}:sid:{os.getsid(0)}":
+            raise ApprovalError("terminal user session changed")
+        return self.scope
+
     def present(self, display: str, challenge: str, timeout: int) -> str:
         import termios
         if self.fd is None or os.tcgetpgrp(self.fd) != os.getpgrp():
@@ -84,7 +92,7 @@ def register_human_commands(ctx: Any, runtime: Any) -> tuple[Any, ...]:
         return ()
 
     def setup(parser):
-        parser.add_argument("draft_id", help="Exact local draft ID to review (does not send)")
+        parser.add_argument("draft_id", help="Exact local draft ID")
 
     def review(args):
         try:
@@ -114,4 +122,33 @@ def register_human_commands(ctx: Any, runtime: Any) -> tuple[Any, ...]:
                                       setup, handler_fn=review)
     if handle is None:
         raise ApprovalError("approval command registration failed")
-    return (handle,)
+    handles = [handle]
+    if runtime.config.send_workflow.mode != "disabled":
+        def send(args):
+            try:
+                from .send_workflow import ReviewedSendWorkflow
+                current = ctx.profile_name
+                if current != runtime.config.hermes.profile:
+                    raise ApprovalError("profile is not authorized")
+                with LocalTerminal(current, ctx.state.data_dir) as terminal:
+                    from .plugin import _load_runtime_config
+                    service = ReviewedSendWorkflow(runtime.config, runtime.draft_store,
+                        ctx.state.data_dir, terminal.current_scope,
+                        config_provider=lambda: _load_runtime_config(ctx))
+                    receipt = service.run(args.draft_id, terminal.present)
+                print(json.dumps(receipt))
+                return 0 if receipt["ok"] else 1
+            except Exception:
+                print(json.dumps({"ok": False, "error": "send-denied-or-unavailable",
+                                  "automatic_retry_forbidden": True}))
+                return 1
+        try:
+            sending = ctx.register_cli_command("email-send", "Review and send one exact local draft",
+                                               setup, handler_fn=send)
+            if sending is None:
+                raise ApprovalError("send command registration failed")
+            handles.append(sending)
+        except Exception:
+            handle.dispose()
+            raise
+    return tuple(handles)

@@ -117,6 +117,7 @@ def test_register_reads_only_official_plugin_setting_sections() -> None:
         "audit",
         "behavior",
         "safety",
+        "send_workflow",
     ]
 
 

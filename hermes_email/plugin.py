@@ -55,6 +55,7 @@ _RUNTIME_CONFIG_SECTIONS: Final = (
     "audit",
     "behavior",
     "safety",
+    "send_workflow",
 )
 _RUNTIME_CONFIG_MISSING: Final = object()
 
