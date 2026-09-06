@@ -12,6 +12,8 @@ All notable changes to this project are documented here. The format follows [Kee
   fresh local terminal approval. Default reading/sending settings are unchanged.
 - Verify real synthetic TLS accounts on pinned, isolated GreenMail in CI;
   receipt, replay, reply headers, negative credentials/pins and local sent copy.
+- Wait for the independent TLS listeners before account tests; never retry an
+  account authentication or SMTP transaction to mask a readiness failure.
 - Update the obsolete pin-validation error-text test without relaxing its check.
 - Authenticated Proton account tests remain NOT TESTED; transport-only probes do
   not constitute account or production approval.

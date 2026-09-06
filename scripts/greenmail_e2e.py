@@ -90,6 +90,37 @@ def local_port(ip: str, port: int):
             thread.join(5)
 
 
+def wait_for_tls(port: int, pin: str, *, smtp: bool) -> None:
+    """Wait for a NEW lab server, not an account operation or SMTP retry.
+
+    The plain SMTP listener can start before the independent TLS listeners.
+    No credential or message is sent during this bounded readiness probe.
+    """
+    deadline = time.monotonic() + 25
+    last_error = "not-ready"
+    while time.monotonic() < deadline:
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+        context.minimum_version = ssl.TLSVersion.TLSv1_2
+        context.check_hostname = False
+        context.verify_mode = ssl.CERT_NONE
+        try:
+            with socket.create_connection(('127.0.0.1', port), timeout=3) as raw:
+                with context.wrap_socket(raw, server_hostname='localhost') as secure:
+                    actual = hashlib.sha256(secure.getpeercert(binary_form=True)).hexdigest()
+                    if actual != pin:
+                        raise RuntimeError('lab TLS readiness certificate mismatch')
+                    greeting = secure.recv(4096)
+                    if not greeting.startswith(b'220' if smtp else b'* OK'):
+                        raise RuntimeError('lab TLS readiness greeting invalid')
+                    secure.sendall(b'QUIT\r\n' if smtp else b'zz LOGOUT\r\n')
+                    secure.recv(4096)
+                    return
+        except (OSError, ssl.SSLError) as error:
+            last_error = type(error).__name__
+            time.sleep(0.2)
+    raise RuntimeError('lab TLS listener not ready: ' + last_error)
+
+
 @contextlib.contextmanager
 def greenmail():
     # Image acquisition is an explicit separate Docker operation, not implicit.
@@ -135,6 +166,8 @@ def greenmail():
                     '-clcerts', '-nokeys', '-out', str(public))
             der = subprocess.check_output(['openssl','x509','-in',str(public),'-outform','DER'],timeout=10)
             fingerprint = hashlib.sha256(der).hexdigest()
+            wait_for_tls(smtp, fingerprint, smtp=True)
+            wait_for_tls(imaps, fingerprint, smtp=False)
             yield {'smtp': smtp, 'imap': imap, 'imaps': imaps, 'pin': fingerprint,
                    'password': password, 'container': cid, 'public_cert': public}
     finally:
