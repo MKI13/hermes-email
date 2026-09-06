@@ -1,6 +1,6 @@
 # Stable ten-step production-readiness roadmap
 
-Current package version: 0.40.0. These numbers remain stable when tasks are
+Current package version: 0.41.0. These numbers remain stable when tasks are
 requested by number; version numbers are not roadmap step numbers.
 
 1. **Send-ledger storage hardening** — implemented in 0.38.0; private creation,
@@ -10,14 +10,15 @@ requested by number; version numbers are not roadmap step numbers.
    orphan recovery requires exclusive lease acquisition. Stable Date/Message-ID
    and exact request digests prevent regenerated retry data.
 
-**Next requested step: 4.** Steps 1 and 2 have dedicated releases and CI evidence;
+**Next requested step: 5.** Steps 1 and 2 have dedicated releases and CI evidence;
 see their pull requests and release notes. The pending steps below are not implemented.
 
 3. **Authenticated Hermes user confirmation** — implemented for the local OS-authenticated
    foreground-terminal surface in 0.40.0; exact snapshot/account/profile/principal/session
    binding, expiry and single use. Gateway adapters remain disabled; see trusted-approval.md.
-4. **End-to-end reply headers and recipient model** — pending; preserve To/Cc,
-   invalid-vs-absent Reply-To, In-Reply-To and References into outgoing bytes.
+4. **End-to-end reply headers and recipient model** — implemented in 0.41.0;
+   separate To/Cc, invalid-vs-absent Reply-To and persisted In-Reply-To/References
+   through outgoing bytes. Legacy drafts migrate transactionally; see reply-headers.md.
 5. **Connect the complete user-approved send workflow** — pending; initially a
    local test SMTP server, no implicit user consent, no retries after uncertainty.
 6. **Complete provider/account integration** — pending; authorized test account,

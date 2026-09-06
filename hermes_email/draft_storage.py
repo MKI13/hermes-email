@@ -26,10 +26,11 @@ from .addressing import (
     normalize_display_name,
 )
 from .config import DraftSettings
+from .reply_headers import validate_references
 from .models import EmailAddress, EmailDraft, EmailDraftPage, EmailDraftSummary
 
 _APPLICATION_ID: Final = 0x48454452
-_SCHEMA_VERSION: Final = 1
+_SCHEMA_VERSION: Final = 2
 _SQLITE_TIMEOUT_SECONDS: Final = 2
 _MAX_DRAFT_ID: Final = 64
 _MAX_OPERATION_ID: Final = 128
@@ -87,13 +88,24 @@ _CREATE_OPERATIONS_SQL: Final = (
 _CREATE_UPDATED_INDEX_SQL: Final = (
     "CREATE INDEX drafts_updated ON drafts(state,updated_at DESC,draft_id DESC)"
 )
+_CREATE_REFERENCES_SQL: Final = (
+    "CREATE TABLE draft_reply_references ("
+    "draft_id TEXT NOT NULL REFERENCES drafts(draft_id) ON DELETE CASCADE,"
+    "position INTEGER NOT NULL CHECK(position >= 0 AND position < 50),"
+    "message_id TEXT NOT NULL,PRIMARY KEY(draft_id,position)) WITHOUT ROWID"
+)
 _EXPECTED_DEFINITIONS: Final = {
     "drafts": _CREATE_DRAFTS_SQL,
     "draft_recipients": _CREATE_RECIPIENTS_SQL,
     "draft_operations": _CREATE_OPERATIONS_SQL,
     "drafts_updated": _CREATE_UPDATED_INDEX_SQL,
+    "draft_reply_references": _CREATE_REFERENCES_SQL,
 }
 _EXPECTED_COLUMNS: Final = {
+    "draft_reply_references": (
+        ("draft_id", "TEXT", 1, 1), ("position", "INTEGER", 1, 2),
+        ("message_id", "TEXT", 1, 0),
+    ),
     "drafts": (
         ("draft_id", "TEXT", 1, 1),
         ("account_namespace", "TEXT", 1, 0),
@@ -306,6 +318,7 @@ class SqliteDraftStore:
                 connection.execute(
                     "DELETE FROM draft_recipients WHERE draft_id=?", (identifier,)
                 )
+                connection.execute("DELETE FROM draft_reply_references WHERE draft_id=?", (identifier,))
                 self._insert_recipients(connection, identifier, content)
                 self._insert_operation(
                     connection,
@@ -589,6 +602,8 @@ class SqliteDraftStore:
         connection.executemany(
             "INSERT INTO draft_recipients VALUES (?,?,?,?,?)", rows
         )
+        connection.executemany("INSERT INTO draft_reply_references VALUES (?,?,?)",
+                               [(draft_id, i, value) for i, value in enumerate(draft.references)])
 
     def _draft_from_row(self, connection: sqlite3.Connection, row: tuple) -> EmailDraft:
         if (
@@ -621,6 +636,11 @@ class SqliteDraftStore:
             if values is None or position != len(values):
                 raise DraftStorageSchemaError("draft recipient ordering is invalid")
             values.append(EmailAddress(str(address), display_name))
+        reference_rows = connection.execute(
+            "SELECT position,message_id FROM draft_reply_references WHERE draft_id=? ORDER BY position",
+            (row[0],)).fetchall()
+        if len(reference_rows) > 50 or any(position != i for i, (position, _) in enumerate(reference_rows)):
+            raise DraftStorageSchemaError("draft references are invalid")
         try:
             content = validate_draft_content(
                 EmailDraft(
@@ -630,6 +650,7 @@ class SqliteDraftStore:
                     subject=row[2],
                     body_text=row[3],
                     in_reply_to=row[4],
+                    references=tuple(value for _, value in reference_rows),
                 )
             )
         except DraftValidationError:
@@ -831,7 +852,12 @@ class SqliteDraftStore:
                 connection.execute(_CREATE_RECIPIENTS_SQL)
                 connection.execute(_CREATE_OPERATIONS_SQL)
                 connection.execute(_CREATE_UPDATED_INDEX_SQL)
+                connection.execute(_CREATE_REFERENCES_SQL)
                 connection.execute(f"PRAGMA application_id={_APPLICATION_ID}")
+                connection.execute(f"PRAGMA user_version={_SCHEMA_VERSION}")
+            elif version == 1 and application_id == _APPLICATION_ID:
+                self._verify_database(connection, legacy=True)
+                connection.execute(_CREATE_REFERENCES_SQL)
                 connection.execute(f"PRAGMA user_version={_SCHEMA_VERSION}")
             elif version != _SCHEMA_VERSION or application_id != _APPLICATION_ID:
                 raise DraftStorageSchemaError("draft database identity is incompatible")
@@ -846,10 +872,10 @@ class SqliteDraftStore:
             connection.rollback()
             self._raise_database_error(error)
 
-    def _verify_database(self, connection: sqlite3.Connection) -> None:
+    def _verify_database(self, connection: sqlite3.Connection, *, legacy: bool = False) -> None:
         if _pragma_integer(connection, "application_id") != _APPLICATION_ID:
             raise DraftStorageSchemaError("draft database identity is incompatible")
-        if _pragma_integer(connection, "user_version") != _SCHEMA_VERSION:
+        if _pragma_integer(connection, "user_version") != (1 if legacy else _SCHEMA_VERSION):
             raise DraftStorageSchemaError("draft database version is incompatible")
         objects = _database_objects(connection)
         expected_objects = {
@@ -858,9 +884,13 @@ class SqliteDraftStore:
             ("table", "draft_operations"),
             ("index", "drafts_updated"),
         }
+        if not legacy:
+            expected_objects.add(("table", "draft_reply_references"))
         if objects != expected_objects:
             raise DraftStorageSchemaError("draft database schema is invalid")
         for table, expected in _EXPECTED_COLUMNS.items():
+            if legacy and table == "draft_reply_references":
+                continue
             columns = connection.execute(f"PRAGMA table_info({table})").fetchall()
             contract = tuple((row[1], row[2], row[3], row[5]) for row in columns)
             if contract != expected:
@@ -868,10 +898,12 @@ class SqliteDraftStore:
         definitions = dict(
             connection.execute(
                 "SELECT name,sql FROM sqlite_master WHERE name IN "
-                "('drafts','draft_recipients','draft_operations','drafts_updated')"
+                "('drafts','draft_recipients','draft_operations','drafts_updated','draft_reply_references')"
             ).fetchall()
         )
-        if definitions != _EXPECTED_DEFINITIONS:
+        expected_definitions = {k:v for k,v in _EXPECTED_DEFINITIONS.items()
+                                if not legacy or k != "draft_reply_references"}
+        if definitions != expected_definitions:
             raise DraftStorageSchemaError("draft database schema is invalid")
         foreign_keys = connection.execute(
             "PRAGMA foreign_key_list(draft_recipients)"
@@ -981,6 +1013,10 @@ def validate_draft_content(draft: EmailDraft) -> EmailDraft:
             allow_body_controls=False,
             require_nonempty=True,
         )
+    try:
+        references = validate_references(draft.references)
+    except ValueError:
+        raise DraftValidationError("draft references are invalid") from None
     return EmailDraft(
         recipients=recipients,
         cc=cc,
@@ -988,6 +1024,7 @@ def validate_draft_content(draft: EmailDraft) -> EmailDraft:
         subject=subject,
         body_text=body,
         in_reply_to=in_reply_to,
+        references=references,
     )
 
 
@@ -1104,6 +1141,7 @@ def _request_digest(*values: object) -> str:
                 "subject": value.subject,
                 "body_text": value.body_text,
                 "in_reply_to": value.in_reply_to,
+                **({"references": list(value.references)} if value.references else {}),
             }
         if isinstance(value, EmailAddress):
             return {"address": value.address, "display_name": value.display_name}

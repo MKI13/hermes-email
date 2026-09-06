@@ -22,6 +22,7 @@ from html.parser import HTMLParser
 from typing import Any, Final, Never
 
 from ..config import ImapSettings
+from ..addressing import AddressValidationError, normalize_ascii_address
 from ..models import EmailAddress, EmailAttachment, EmailMessage, EmailMessagePage
 from ..secrets import SecretResolutionError, SecretResolver
 from ..threading import parse_message_ids
@@ -478,11 +479,12 @@ class ImapReadOnlyProvider(EmailProvider):
         except Exception:
             _raise_redacted(ProviderMessageError("IMAP message could not be parsed safely"))
         subject = _clean_header(str(parsed.get("Subject", "")))
-        sender = _first_address(parsed.get_all("From", []))
-        recipients = _addresses(
-            parsed.get_all("To", []) + parsed.get_all("Cc", [])
-        )
-        reply_to = _addresses(parsed.get_all("Reply-To", []))
+        from_addresses, from_invalid = _read_address_header(parsed, "From", maximum=1)
+        sender = from_addresses[0] if len(from_addresses) == 1 and not from_invalid else EmailAddress("")
+        recipients, to_invalid = _read_address_header(parsed, "To", maximum=50)
+        cc, cc_invalid = _read_address_header(parsed, "Cc", maximum=50)
+        reply_present = "Reply-To" in parsed
+        reply_to, reply_invalid = _read_address_header(parsed, "Reply-To", maximum=10)
         body_text, body_kind = _extract_body(parsed)
         attachments = _extract_attachments(parsed)
         received_at = _parse_received_at(parsed.get("Date"))
@@ -516,6 +518,10 @@ class ImapReadOnlyProvider(EmailProvider):
             received_at=received_at,
             metadata=metadata,
             attachments=attachments,
+            cc=cc,
+            reply_to_present=reply_present,
+            reply_to_invalid=reply_invalid,
+            recipient_headers_invalid=to_invalid or cc_invalid or len(recipients) + len(cc) > 50,
         )
 
     def _cursor_upper_bound(
@@ -856,9 +862,45 @@ def _addresses(header_values: list[Any]) -> tuple[EmailAddress, ...]:
     return tuple(normalized)
 
 
+def _read_address_header(parsed: Message, name: str, *, maximum: int) -> tuple[tuple[EmailAddress, ...], bool]:
+    # HeaderRegistry parsing is lazy and may raise on malformed addresses.
+    # Keep the message readable while marking routing unusable.
+    raw = [value for key, value in parsed.raw_items() if key.casefold() == name.casefold()]
+    if not raw:
+        return (), False
+    if len(raw) != 1 or len(raw[0]) > 16384:
+        return (), True
+    try:
+        header = policy.default.header_factory(name, raw[0])
+        return _strict_addresses([header], maximum=maximum)
+    except (ValueError, TypeError, IndexError, AttributeError):
+        return (), True
+
+
+def _strict_addresses(header_values: list[Any], *, maximum: int) -> tuple[tuple[EmailAddress, ...], bool]:
+    if not header_values:
+        return (), False
+    if len(header_values) != 1 or any(getattr(value, "defects", ()) for value in header_values):
+        return (), True
+    text = str(header_values[0])
+    if not text.strip() or len(text) > 16384:
+        return (), True
+    result = []
+    try:
+        pairs = getaddresses([text])
+        if not pairs or len(pairs) > maximum:
+            return (), True
+        for display, address in pairs:
+            normalized = normalize_ascii_address(address)
+            result.append(EmailAddress(normalized, _clean_header(display) or None))
+    except (TypeError, ValueError, AddressValidationError):
+        return (), True
+    return tuple(result), False
+
+
 def _first_address(header_values: list[Any]) -> EmailAddress:
-    addresses = _addresses(header_values)
-    return addresses[0] if addresses else EmailAddress(address="")
+    addresses, invalid = _strict_addresses(header_values, maximum=1)
+    return addresses[0] if len(addresses) == 1 and not invalid else EmailAddress(address="")
 
 
 def _parse_received_at(value: Any) -> datetime | None:

@@ -2,6 +2,10 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.41.0] — End-to-end reply headers (step 4)
+
+preserves original To/Cc, distinguishes absent and invalid Reply-To, and carries persisted RFC In-Reply-To and References into prepared SMTP bytes. Unknown or malformed reply targets fail closed.
+
 ## [0.40.0] — Trusted local user confirmation (step 3)
 
 adds an expiring, single-use local human review bound to the full draft, account, profile and OS terminal session. No model-facing sending is enabled; gateway approval remains fail-closed until an authenticated adapter is supplied.

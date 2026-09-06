@@ -168,7 +168,7 @@ def test_lazy_creation_schema_permissions_and_round_trip(tmp_path: Path) -> None
     connection = sqlite3.connect(database)
     try:
         assert connection.execute("PRAGMA application_id").fetchone() == (0x48454452,)
-        assert connection.execute("PRAGMA user_version").fetchone() == (1,)
+        assert connection.execute("PRAGMA user_version").fetchone() == (2,)
         objects = {
             tuple(row)
             for row in connection.execute(
@@ -179,6 +179,7 @@ def test_lazy_creation_schema_permissions_and_round_trip(tmp_path: Path) -> None
             ("table", "drafts"),
             ("table", "draft_recipients"),
             ("table", "draft_operations"),
+            ("table", "draft_reply_references"),
             ("index", "drafts_updated"),
         }
     finally:

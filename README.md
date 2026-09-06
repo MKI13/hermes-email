@@ -6,9 +6,9 @@ Hermes Email is a universal, provider-neutral email plugin and skill for [Hermes
 
 Hermes remains responsible for reasoning, persona, language, style, user preferences, and decisions. The plugin owns validated mail access, credential references, local persistence, profile isolation, confirmation gates, durable send intents, uncertainty recovery, and duplicate prevention.
 
-## Version 0.40.0
+## Version 0.41.0
 
-Version 0.40.0 adds an expiring, single-use local human review bound to the full draft, account, profile and OS terminal session. No model-facing sending is enabled; gateway approval remains fail-closed until an authenticated adapter is supplied.
+Version 0.41.0 preserves original To/Cc, distinguishes absent and invalid Reply-To, and carries persisted RFC In-Reply-To and References into prepared SMTP bytes. Unknown or malformed reply targets fail closed.
 
 ### You do not need a dedicated email profile
 
@@ -43,7 +43,7 @@ See [Installation and profile setup](docs/installation.md) for both supported la
 
 Message and thread detail may expose a bounded `attachments` list. Each item contains only an opaque message-local attachment ID, bounded filename, MIME type, optional decoded size, and disposition. Every item carries `metadata_is_untrusted: true`, `content_available: false`, and `authorization: none`.
 
-Hermes Email v0.40.0 does **not** download, save, open, render, scan, execute, forward, or upload attachment content. List/search summaries intentionally omit attachment metadata. Attachment filenames and MIME declarations are external input and must never be treated as trusted paths, commands, or proof of file type.
+Hermes Email v0.41.0 does **not** download, save, open, render, scan, execute, forward, or upload attachment content. List/search summaries intentionally omit attachment metadata. Attachment filenames and MIME declarations are external input and must never be treated as trusted paths, commands, or proof of file type.
 
 ## Deterministic sender classification
 
@@ -94,7 +94,7 @@ If the active profile does not exactly match the configured owner:
 
 ## Safety model
 
-| Operation | Version 0.40.0 |
+| Operation | Version 0.41.0 |
 |---|---|
 | Productive profile ownership | Exact explicit profile required |
 | Dedicated mail profile | Recommended, not required |
@@ -185,7 +185,7 @@ List/search results omit bodies. Reads are bounded, use read-only provider behav
 
 ### Safe Reply-All drafts
 
-`email_create_reply_all_draft` is available only when local drafts, message lookup, and `reply_policy.own_addresses` are configured. The validated Reply-To/From route becomes the primary To recipient. Original message recipients that are neither the configured own identities nor duplicates become Cc. Because the normalized provider model does not preserve original To-vs-Cc placement, all additional non-self recipients are conservatively placed in Cc. Bcc is always empty. The source message body is never copied.
+`email_create_reply_all_draft` is available only when local drafts, message lookup, and `reply_policy.own_addresses` are configured. The validated Reply-To/From route becomes the primary To recipient. Original message recipients that are neither the configured own identities nor duplicates become Cc. Incoming To and Cc are preserved separately; Reply-All deliberately places additional non-self To/Cc recipients in Cc. Invalid or incomplete recipient headers block automatic Reply-All. Bcc is always empty. The source message body is never copied.
 
 ### Send review without sending
 
@@ -281,3 +281,7 @@ See [Audit reliability and upgrade guidance](docs/audit-reliability.md). This op
 ## Local human approval
 
 See [Trusted local approval and its limits](docs/trusted-approval.md). The `email-approve` CLI command is not a model tool and never sends. Gateway approvals remain unavailable.
+
+## Complete reply headers
+
+See [Reply header continuity and draft migration](docs/reply-headers.md).
