@@ -1,6 +1,6 @@
 # Security Model
 
-## Version 0.40.0 boundary
+## Version 0.41.0 boundary
 
 Version 0.24.0 hardens the **untrusted external-content boundary** on top of production profile isolation, read-only access, revisioned drafts, exact user confirmation, durable send idempotency, and strict `delivery-unknown` recovery.
 

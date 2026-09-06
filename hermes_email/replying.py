@@ -34,7 +34,9 @@ def _valid_candidates(values: tuple[EmailAddress, ...]) -> tuple[EmailAddress, .
 
 def derive_reply_route(message: EmailMessage) -> ReplyRoute:
     """Derive reviewable reply routing without granting action authority."""
-    if message.reply_to:
+    if message.reply_to_invalid:
+        return ReplyRoute("reply-to", (), None, True, False, False)
+    if message.reply_to_present or message.reply_to:
         truncated = len(message.reply_to) > _MAX_REPLY_CANDIDATES
         candidates = _valid_candidates(message.reply_to)
         fully_valid = len(candidates) == min(len(message.reply_to), _MAX_REPLY_CANDIDATES)

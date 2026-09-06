@@ -59,7 +59,7 @@ def draft() -> EmailDraft:
         bcc=(EmailAddress("private@example.invalid", "Private"),),
         subject="Héllo from Hermes",
         body_text="Plain text only.\nUnicode: café.",
-        in_reply_to="provider-local-message-id",
+        in_reply_to="<provider-source@example.invalid>",
     )
 
 
@@ -151,7 +151,7 @@ def test_prepares_deterministic_plain_text_bytes_and_complete_envelope(tmp_path:
     assert parsed["Bcc"] is None
     assert parsed["Subject"] == "Héllo from Hermes"
     assert parsed["Message-ID"] == MESSAGE_ID
-    assert parsed["In-Reply-To"] is None
+    assert str(parsed["In-Reply-To"]) == "<provider-source@example.invalid>"
     assert parsed.get_content_type() == "text/plain"
     assert parsed.get_content().replace("\r\n", "\n").rstrip("\n") == "Plain text only.\nUnicode: café."
     assert b"private@example.invalid" not in first.message_bytes

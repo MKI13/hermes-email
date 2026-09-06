@@ -15,6 +15,7 @@ from typing import Final
 from .addressing import AddressValidationError, normalize_ascii_address
 from .config import EmailPluginConfig
 from .draft_storage import SqliteDraftStore
+from .reply_headers import valid_message_id, validate_references
 from .models import EmailAddress
 from .confirmation_types import UserSendConfirmation
 
@@ -134,6 +135,16 @@ def prepare_send_candidate(
     message["Subject"] = draft.subject
     message["Date"] = date
     message["Message-ID"] = identifier
+    if draft.in_reply_to is not None:
+        if not valid_message_id(draft.in_reply_to):
+            raise SendGateMessageError("draft reply parent is not a valid RFC message identifier")
+        message["In-Reply-To"] = draft.in_reply_to
+    try:
+        references = validate_references(draft.references)
+    except ValueError:
+        raise SendGateMessageError("draft reply references are invalid") from None
+    if references:
+        message["References"] = " ".join(references)
     message.set_content(draft.body_text, subtype="plain", charset="utf-8", cte="quoted-printable")
     message_bytes = message.as_bytes(policy=_SMTP_POLICY)
     if len(message_bytes) > smtp.max_message_bytes:

@@ -301,8 +301,8 @@ def test_get_message_validates_uidvalidity_and_fetches_one_uid() -> None:
     assert [recipient.address for recipient in message.recipients] == [
         "one@example.invalid",
         "two@example.invalid",
-        "copy@example.invalid",
     ]
+    assert [recipient.address for recipient in message.cc] == ["copy@example.invalid"]
     assert message.body_text == "Hello from IMAP."
     assert message.received_at is not None
     assert message.received_at.isoformat() == "2026-09-02T08:00:00+00:00"

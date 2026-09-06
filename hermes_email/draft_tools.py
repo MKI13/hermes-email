@@ -23,7 +23,7 @@ from .draft_storage import (
 from .models import EmailAddress, EmailDraft, EmailDraftPage, EmailDraftSummary
 from .addressing import canonical_address, AddressValidationError
 from .replying import derive_reply_route
-from .threading import message_rfc_id
+from .reply_headers import source_reply_headers, validate_references
 from .plugin import DraftingDisabledError, EmailPlugin
 
 TOOLSET: Final = "hermes_email"
@@ -73,6 +73,8 @@ _DRAFT_CONTENT_PROPERTIES: Final = {
     "subject": {"type": "string", "maxLength": 500},
     "body_text": {"type": "string", "maxLength": 20_000},
     "in_reply_to": {"type": "string", "minLength": 1, "maxLength": 512},
+    "references": {"type": "array", "maxItems": 50,
+                   "items": {"type": "string", "minLength": 3, "maxLength": 512}},
 }
 _OPERATION_PROPERTY: Final = {
     "type": "string",
@@ -291,7 +293,7 @@ def _create_handler(plugin: EmailPlugin):
         try:
             _arguments(
                 args,
-                {"to", "cc", "bcc", "subject", "body_text", "in_reply_to", "operation_id"},
+                {"to", "cc", "bcc", "subject", "body_text", "in_reply_to", "references", "operation_id"},
                 {"to", "cc", "bcc", "subject", "body_text", "operation_id"},
             )
             receipt = await plugin.create_draft(
@@ -319,7 +321,8 @@ def _create_reply_handler(plugin: EmailPlugin):
                 recipients=(route.selected,), cc=(), bcc=(),
                 subject=_reply_subject(source.subject),
                 body_text=_required_text(args, "body_text"),
-                in_reply_to=message_rfc_id(source),
+                in_reply_to=source_reply_headers(source)[0],
+                references=source_reply_headers(source)[1],
             )
             receipt = await plugin.create_draft(draft, _required_string(args, "operation_id"))
             return _success(plugin, "draft-reply-create", {
@@ -344,6 +347,8 @@ def _create_reply_all_handler(plugin: EmailPlugin):
             route = derive_reply_route(source)
             if route.selected is None or route.ambiguous or not route.valid:
                 raise ReplyDraftRouteError("reply route is unavailable")
+            if source.recipient_headers_invalid or len(source.recipients) + len(source.cc) > 50:
+                raise ReplyDraftRouteError("source recipients are incomplete or invalid")
             own = set(plugin.config.reply_policy.own_addresses)
             try:
                 primary = canonical_address(route.selected.address)
@@ -351,22 +356,25 @@ def _create_reply_all_handler(plugin: EmailPlugin):
                 raise ReplyDraftRouteError("reply route is invalid") from None
             cc: list[EmailAddress] = []
             seen = {primary}
-            for address in source.recipients:
+            if primary in own:
+                raise ReplyDraftRouteError("reply target is an own identity; explicit draft required")
+            for address in source.recipients + source.cc:
                 try:
                     canonical = canonical_address(address.address)
                 except AddressValidationError:
-                    continue
+                    raise ReplyDraftRouteError("source recipient is invalid") from None
                 if canonical in own or canonical in seen:
                     continue
                 seen.add(canonical)
                 cc.append(address)
-                if len(cc) >= 49:
-                    break
+                if len(cc) > 49:
+                    raise ReplyDraftRouteError("reply-all recipient limit exceeded")
             draft = EmailDraft(
                 recipients=(route.selected,), cc=tuple(cc), bcc=(),
                 subject=_reply_subject(source.subject),
                 body_text=_required_text(args, "body_text"),
-                in_reply_to=message_rfc_id(source),
+                in_reply_to=source_reply_headers(source)[0],
+                references=source_reply_headers(source)[1],
             )
             receipt = await plugin.create_draft(draft, _required_string(args, "operation_id"))
             return _success(plugin, "draft-reply-all-create", {
@@ -498,7 +506,7 @@ def _update_handler(plugin: EmailPlugin):
                 "body_text",
                 "operation_id",
             }
-            _arguments(args, required | {"in_reply_to"}, required)
+            _arguments(args, required | {"in_reply_to", "references"}, required)
             receipt = await plugin.update_draft(
                 _required_string(args, "draft_id"),
                 _integer(
@@ -559,7 +567,15 @@ def _draft_content(args: dict[str, Any]) -> EmailDraft:
         subject=_required_text(args, "subject"),
         body_text=_required_text(args, "body_text"),
         in_reply_to=_optional_string(args, "in_reply_to"),
+        references=_reference_values(args.get("references", [])),
     )
+
+
+def _reference_values(value: object) -> tuple[str, ...]:
+    try:
+        return validate_references(value)
+    except ValueError:
+        raise DraftValidationError("draft references are invalid") from None
 
 
 def _recipients(value: object, name: str) -> tuple[EmailAddress, ...]:
@@ -673,6 +689,7 @@ def _draft_result(draft: EmailDraft, offset: int, limit: int) -> dict[str, Any]:
         "body_total_characters": len(body),
         "next_body_offset": next_offset,
         "in_reply_to": draft.in_reply_to,
+        "references": list(draft.references),
         "created_at": _timestamp(draft.created_at),
         "updated_at": _timestamp(draft.updated_at),
         "sent": False,

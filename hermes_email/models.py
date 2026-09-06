@@ -51,6 +51,10 @@ class EmailMessage:
     metadata: dict[str, str] = field(default_factory=dict)
     reply_to: tuple[EmailAddress, ...] = ()
     attachments: tuple[EmailAttachment, ...] = ()
+    cc: tuple[EmailAddress, ...] = ()
+    reply_to_present: bool = False
+    reply_to_invalid: bool = False
+    recipient_headers_invalid: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -99,6 +103,7 @@ class EmailDraft:
     revision: int | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
+    references: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

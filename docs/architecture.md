@@ -1,6 +1,6 @@
 # Architecture
 
-## Version 0.40.0
+## Version 0.41.0
 
 Hermes Email separates agent behavior from technical mail infrastructure. Hermes owns reasoning, persona, language, style, user preferences, and decisions. The plugin owns validated provider access, profile isolation, local persistence, technical send gates, confirmation binding, durable send intents, uncertainty recovery, and duplicate prevention.
 
