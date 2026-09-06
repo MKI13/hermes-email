@@ -45,7 +45,7 @@ jobs:
         run: python -m pytest
 
       - name: Verify installed import
-        run: python -c "import hermes_email; assert hermes_email.__version__ == '0.42.0'; print(hermes_email.__version__)"
+        run: python -c "import hermes_email; assert hermes_email.__version__ == '0.43.0'; print(hermes_email.__version__)"
 
       - name: Build distributions
         run: python -m build
@@ -57,7 +57,7 @@ jobs:
         run: |
           python -c "from pathlib import Path; from zipfile import ZipFile; wheel, = Path('dist').glob('*.whl'); ZipFile(wheel).extractall(Path('${RUNNER_TEMP}') / 'wheel-smoke')"
           cd "${RUNNER_TEMP}"
-          PYTHONPATH="${RUNNER_TEMP}/wheel-smoke" python -c "import hermes_email, hermes_email.addressing, hermes_email.profile_guard, hermes_email.sending, hermes_email.smtp, hermes_email.send_orchestration, hermes_email.threading, hermes_email.replying, hermes_email.classification, hermes_email.providers.errors; assert hermes_email.__version__ == '0.42.0'"
+          PYTHONPATH="${RUNNER_TEMP}/wheel-smoke" python -c "import hermes_email, hermes_email.addressing, hermes_email.profile_guard, hermes_email.sending, hermes_email.smtp, hermes_email.send_orchestration, hermes_email.threading, hermes_email.replying, hermes_email.classification, hermes_email.providers.errors; assert hermes_email.__version__ == '0.43.0'"
 
   plugin-doctor:
     name: Hermes Plugin Doctor
@@ -91,3 +91,21 @@ jobs:
 
       - name: Verify tools, storage, profile isolation, content trust, onboarding, and version consistency
         run: python -m pytest tests/test_tools.py tests/test_audit.py tests/test_persistence_integration.py tests/test_draft_integration.py tests/test_draft_tools.py tests/test_smtp_runtime.py tests/test_sending.py tests/test_send_orchestration.py tests/test_send_storage_security.py tests/test_reply_header_flow.py tests/test_reviewed_send_workflow.py tests/test_trusted_approval.py tests/test_send_process_ownership.py tests/test_send_stable_identity.py tests/test_profile_guard.py tests/test_prompt_injection_contract.py tests/test_installation_contract.py tests/test_version_consistency.py tests/test_threading.py tests/test_thread_tool.py tests/test_install_security_scan.py tests/test_audit.py tests/test_audit_security.py tests/test_audit_integration.py tests/test_classification.py tests/test_imap_provider.py
+
+  independent-provider:
+    name: Independent IMAP/SMTP
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - name: Install plugin dependencies
+        run: python -m pip install .
+      - name: Pull pinned independent test server
+        run: docker pull greenmail/standalone@sha256:3df66b7edd01c8a301343ca5e3601d8674760d4708655573560c24745e624fb2
+      - name: Verify real TLS accounts without external mail or models
+        run: python scripts/greenmail_e2e.py

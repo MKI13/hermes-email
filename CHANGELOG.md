@@ -2,6 +2,20 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.43.0] — Independent provider/account validation (step 6, partial)
+
+- Add explicit loopback-only IMAP/SMTP certificate pin modes; verify the exact
+  peer certificate and TLS version before credentials are resolved.
+- Select IMAP PLAIN or LOGIN from post-TLS capabilities without retrying failed
+  authentication; reject malformed capabilities and quote LOGIN arguments.
+- Add an opt-in account-test workflow requiring exact recipient allowlists and
+  fresh local terminal approval. Default reading/sending settings are unchanged.
+- Verify real synthetic TLS accounts on pinned, isolated GreenMail in CI;
+  receipt, replay, reply headers, negative credentials/pins and local sent copy.
+- Update the obsolete pin-validation error-text test without relaxing its check.
+- Authenticated Proton account tests remain NOT TESTED; transport-only probes do
+  not constitute account or production approval.
+
 ## [0.42.0] — Human-reviewed local sending (step 5)
 
 connects the opt-in local CLI approval, pinned draft revision, durable send intent and single SMTP attempt. Model-facing sending remains unavailable. Accepted delivery and local sent-copy warnings are reported separately.

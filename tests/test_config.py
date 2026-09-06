@@ -459,5 +459,5 @@ def test_starttls_pinned_requires_loopback_and_fingerprint() -> None:
         ImapSettings(host="mail.example.invalid", security="starttls-pinned", tls_sha256_fingerprint=fingerprint)
     with pytest.raises(ConfigError, match="64 lowercase hex"):
         ImapSettings(host="127.0.0.1", security="starttls-pinned", tls_sha256_fingerprint="AA")
-    with pytest.raises(ConfigError, match="requires starttls-pinned"):
+    with pytest.raises(ConfigError, match="requires pinned TLS security"):
         ImapSettings(host="mail.example.invalid", security="tls", tls_sha256_fingerprint=fingerprint)

@@ -282,10 +282,19 @@ class ImapReadOnlyProvider(EmailProvider):
                 tls_context.check_hostname = True
                 tls_context.verify_mode = ssl.CERT_REQUIRED
                 tls_context.load_default_certs(ssl.Purpose.SERVER_AUTH)
+                if self._settings.security == "tls-pinned":
+                    tls_context.check_hostname = False
+                    tls_context.verify_mode = ssl.CERT_NONE
                 client = self._client_factory(
                     self._settings.host, self._settings.port,
                     ssl_context=tls_context, timeout=self._settings.timeout_seconds,
                 )
+                if self._settings.security == "tls-pinned":
+                    try:
+                        self._verify_pin(client)
+                    except BaseException:
+                        self._shutdown(client)
+                        raise
         except ProviderTlsError:
             raise
         except ssl.SSLCertVerificationError:
@@ -304,6 +313,19 @@ class ImapReadOnlyProvider(EmailProvider):
             self._active_clients.add(client)
         return client
 
+    def _verify_pin(self, client: Any) -> None:
+        try:
+            if client.sock.version() not in {"TLSv1.2", "TLSv1.3"}:
+                raise ProviderTlsError("IMAP TLS version is unsupported")
+            certificate = client.sock.getpeercert(binary_form=True)
+        except Exception:
+            raise ProviderTlsError("IMAP peer certificate is unavailable") from None
+        fingerprint = self._settings.tls_sha256_fingerprint
+        if not isinstance(certificate, bytes) or not certificate or not isinstance(fingerprint, str):
+            raise ProviderTlsError("IMAP peer certificate is unavailable")
+        if not hmac.compare_digest(hashlib.sha256(certificate).hexdigest(), fingerprint):
+            raise ProviderTlsError("IMAP TLS certificate fingerprint mismatch")
+
     def _connect_starttls_pinned(self) -> Any:
         fingerprint = self._settings.tls_sha256_fingerprint
         if fingerprint is None:
@@ -316,14 +338,10 @@ class ImapReadOnlyProvider(EmailProvider):
             self._settings.host, self._settings.port, timeout=self._settings.timeout_seconds
         )
         try:
-            client.starttls(ssl_context=tls_context)
-            sock = getattr(client, "sock", None)
-            certificate = sock.getpeercert(binary_form=True) if sock is not None else None
-            if not isinstance(certificate, bytes) or not certificate:
-                raise ProviderTlsError("IMAP TLS peer certificate is unavailable")
-            actual = hashlib.sha256(certificate).hexdigest()
-            if not hmac.compare_digest(actual, fingerprint):
-                raise ProviderTlsError("IMAP TLS certificate fingerprint mismatch")
+            response, _ = client.starttls(ssl_context=tls_context)
+            if response != "OK":
+                raise ProviderTlsError("IMAP STARTTLS was not accepted")
+            self._verify_pin(client)
         except ProviderTlsError:
             self._shutdown(client)
             raise
@@ -338,8 +356,35 @@ class ImapReadOnlyProvider(EmailProvider):
             _raise_redacted(ProviderConnectionError("IMAP STARTTLS failed"))
         return client
 
+    def _authentication_mechanism(self, client: Any) -> str:
+        """Select once from post-TLS capabilities, never retry failed credentials."""
+        capabilities = getattr(client, "capabilities", None)
+        if capabilities is None:
+            # Compatibility with trusted dependency-injected clients; imaplib
+            # itself always provides capabilities after connection/STARTTLS.
+            return "PLAIN"
+        if not isinstance(capabilities, (tuple, list)) or not 1 <= len(capabilities) <= 128:
+            raise ProviderProtocolError("IMAP authentication capabilities are invalid")
+        normalized = set()
+        for value in capabilities:
+            if isinstance(value, bytes):
+                try:
+                    value = value.decode("ascii")
+                except UnicodeDecodeError:
+                    raise ProviderProtocolError("IMAP authentication capabilities are invalid") from None
+            if (not isinstance(value, str) or not 1 <= len(value) <= 128
+                    or not value.isascii() or any(not 33 <= ord(ch) <= 126 for ch in value)):
+                raise ProviderProtocolError("IMAP authentication capabilities are invalid")
+            normalized.add(value.upper())
+        if "AUTH=PLAIN" in normalized:
+            return "PLAIN"
+        if "LOGINDISABLED" in normalized:
+            raise ProviderAuthenticationError("IMAP has no supported authentication mechanism")
+        return "LOGIN"
+
     def _authenticate(self, client: imaplib.IMAP4_SSL) -> None:
         self._ensure_open()
+        mechanism = self._authentication_mechanism(client)
         username = None
         password = None
         try:
@@ -376,7 +421,18 @@ class ImapReadOnlyProvider(EmailProvider):
             return b"\0" + username_bytes + b"\0" + password_bytes
 
         try:
-            response_type, _ = client.authenticate("PLAIN", sasl_plain)
+            if mechanism == "LOGIN":
+                # LOGIN is permitted only here, after verified TLS, and is never
+                # a retry after a failed SASL authentication. Quote the username
+                # explicitly; imaplib quotes only the password argument.
+                if any(byte < 32 or byte > 126 for byte in username_bytes + password_bytes):
+                    raise ProviderAuthenticationError("IMAP LOGIN credentials use an unsupported encoding")
+                login_user = username_bytes.decode("ascii")
+                quoted_user = '"' + login_user.replace('\\', '\\\\').replace('"', '\\"') + '"'
+                response_type, _ = client.login(quoted_user, password_bytes.decode("ascii"))
+                login_user = quoted_user = ""
+            else:
+                response_type, _ = client.authenticate("PLAIN", sasl_plain)
         except (TimeoutError, socket.timeout):
             _raise_redacted(ProviderTimeoutError("IMAP authentication timed out"))
         except imaplib.IMAP4.abort:

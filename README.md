@@ -6,9 +6,9 @@ Hermes Email is a universal, provider-neutral email plugin and skill for [Hermes
 
 Hermes remains responsible for reasoning, persona, language, style, user preferences, and decisions. The plugin owns validated mail access, credential references, local persistence, profile isolation, confirmation gates, durable send intents, uncertainty recovery, and duplicate prevention.
 
-## Version 0.42.0
+## Version 0.43.0
 
-Version 0.42.0 connects the opt-in local CLI approval, pinned draft revision, durable send intent and single SMTP attempt. Model-facing sending remains unavailable. Accepted delivery and local sent-copy warnings are reported separately.
+Version 0.43.0 connects the opt-in local CLI approval, pinned draft revision, durable send intent and single SMTP attempt. Model-facing sending remains unavailable. Accepted delivery and local sent-copy warnings are reported separately.
 
 ### You do not need a dedicated email profile
 
@@ -43,7 +43,7 @@ See [Installation and profile setup](docs/installation.md) for both supported la
 
 Message and thread detail may expose a bounded `attachments` list. Each item contains only an opaque message-local attachment ID, bounded filename, MIME type, optional decoded size, and disposition. Every item carries `metadata_is_untrusted: true`, `content_available: false`, and `authorization: none`.
 
-Hermes Email v0.42.0 does **not** download, save, open, render, scan, execute, forward, or upload attachment content. List/search summaries intentionally omit attachment metadata. Attachment filenames and MIME declarations are external input and must never be treated as trusted paths, commands, or proof of file type.
+Hermes Email v0.43.0 does **not** download, save, open, render, scan, execute, forward, or upload attachment content. List/search summaries intentionally omit attachment metadata. Attachment filenames and MIME declarations are external input and must never be treated as trusted paths, commands, or proof of file type.
 
 ## Deterministic sender classification
 
@@ -94,7 +94,7 @@ If the active profile does not exactly match the configured owner:
 
 ## Safety model
 
-| Operation | Version 0.42.0 |
+| Operation | Version 0.43.0 |
 |---|---|
 | Productive profile ownership | Exact explicit profile required |
 | Dedicated mail profile | Recommended, not required |
@@ -289,3 +289,13 @@ See [Reply header continuity and draft migration](docs/reply-headers.md).
 ## Human-reviewed local test sending
 
 The opt-in `email-send` terminal command is separate from model tools. It requires a fresh exact human review. See [Workflow configuration and limits](docs/reviewed-send.md); the default remains disabled.
+
+## Provider/account validation
+
+The independent GreenMail test exercises real TLS IMAP/SMTP accounts and a reviewed
+send end to end. Actual Proton account verification remains pending: transport
+checks without credentials do not establish a working mailbox. `account-test` mode
+requires an exact-address-only allowlist and a new local human confirmation for
+each attempt. No account or sending mode is enabled by an upgrade.
+
+See [Provider validation, evidence and remaining gates](docs/provider-validation.md).

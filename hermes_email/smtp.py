@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import smtplib
+import hashlib
+import hmac
 import socket
 import ssl
 import threading
@@ -279,10 +281,15 @@ class SmtplibTransport:
 
     def _open_authenticated(self) -> Any:
         context = self._tls_context()
+        if self._settings.security in {"starttls-pinned", "implicit_tls_pinned"}:
+            # Local self-signed identity is verified by the EXACT configured DER
+            # certificate hash below; this is not an unverified TLS fallback.
+            context.check_hostname = False
+            context.verify_mode = ssl.CERT_NONE
         client = None
         ownership_returned = False
         try:
-            if self._settings.security == "implicit_tls":
+            if self._settings.security in {"implicit_tls", "implicit_tls_pinned"}:
                 client = self._implicit_factory(
                     self._settings.host,
                     self._settings.port,
@@ -292,6 +299,8 @@ class SmtplibTransport:
                 )
                 self._register_client(client)
                 self._verify_tls(client)
+                if self._settings.security == "implicit_tls_pinned":
+                    self._verify_pin(client)
                 self._ehlo(client)
             else:
                 client = self._starttls_factory(
@@ -309,6 +318,8 @@ class SmtplibTransport:
                 if code != 220:
                     raise SmtpTlsError("SMTP STARTTLS was rejected")
                 self._verify_tls(client)
+                if self._settings.security in {"starttls-pinned", "implicit_tls_pinned"}:
+                    self._verify_pin(client)
                 self._ehlo(client)
             self._ensure_open()
             features = getattr(client, "esmtp_features", None)
@@ -360,6 +371,21 @@ class SmtplibTransport:
         finally:
             if client is not None and not ownership_returned:
                 self._finish_client(client, known_success=False)
+
+    def _verify_pin(self, client: Any) -> None:
+        """Verify the configured local peer identity before resolving credentials."""
+        fingerprint = self._settings.tls_sha256_fingerprint
+        sock = getattr(client, "sock", None)
+        if not isinstance(fingerprint, str) or sock is None:
+            raise SmtpTlsError("SMTP peer identity is unavailable")
+        try:
+            certificate = sock.getpeercert(binary_form=True)
+        except Exception:
+            raise SmtpTlsError("SMTP peer certificate is unavailable") from None
+        if not isinstance(certificate, bytes) or not certificate:
+            raise SmtpTlsError("SMTP peer certificate is unavailable")
+        if not hmac.compare_digest(hashlib.sha256(certificate).hexdigest(), fingerprint):
+            raise SmtpTlsError("SMTP certificate fingerprint mismatch")
 
     @staticmethod
     def _tls_context() -> ssl.SSLContext:
